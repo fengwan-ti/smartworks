@@ -1,0 +1,37 @@
+/* 全局样式。所有页面共用的变量与重置放这里，页面内不写死颜色。 */
+:root {
+  --sw-primary: #1f3864;
+  --sw-page-bg: #f5f7fa;
+  --sw-radius: 6px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: '微软雅黑', 'Microsoft YaHei', Arial, sans-serif;
+  background: var(--sw-page-bg);
+}
+
+.sw-page {
+  padding: 16px;
+}
+
+.sw-card {
+  background: #fff;
+  border-radius: var(--sw-radius);
+  padding: 16px;
+}
+
+.sw-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}

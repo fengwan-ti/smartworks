@@ -1,0 +1,17 @@
+# ============ 核心依赖（Day 1 全量安装）============
+Django>=5.0,<5.3
+djangorestframework>=3.15,<4
+django-cors-headers>=4.3
+drf-spectacular>=0.27
+django-filter>=24.2
+django-simple-history>=3.7
+django-import-export>=4.1
+psycopg[binary]>=3.2
+python-dotenv>=1.0
+Pillow>=10.4
+requests>=2.32
+pytest>=8.2
+pytest-django>=4.8
+ruff>=0.5
+
+# 注意：首次安装成功后执行 pip freeze > requirements.lock，之后团队统一用 lock 文件

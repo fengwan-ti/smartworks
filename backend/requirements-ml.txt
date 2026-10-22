@@ -1,0 +1,12 @@
+# ============ 算法依赖（各人按需安装）============
+numpy>=1.26
+pandas>=2.2
+scipy>=1.13
+scikit-learn>=1.4
+statsmodels>=0.14
+matplotlib>=3.9
+opencv-python>=4.9
+networkx>=3.3
+pulp>=2.8
+# 若需要更强的调度求解，可再装 ortools
+# ortools>=9.10
