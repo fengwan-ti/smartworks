@@ -4,7 +4,9 @@
 
 ## 一、第一次：把仓库推到远程（组长做一次）
 
-GitHub 在国内访问慢，建议用 **Gitee**。
+GitHub 和 Gitee 都可以。**优先用你已有账号的那个平台**：
+GitHub 需要个人访问令牌（见第九节），Gitee 可直接用密码。
+GitHub 在国内可能偶发连接超时，重试或换 Gitee 即可。
 
 1. 打开 https://gitee.com ，注册并登录
 2. 右上角 **+** → **新建仓库**
@@ -106,3 +108,79 @@ Git 不是"备份工具"，是**协作工具**。它解决的是：四个人同�
 - A 把整个文件夹发给 B，B 改完发回来，A 自己那段改动丢了
 - 两人都改了同一个文件，靠"复制粘贴谁的最后版"决定，另一方白干
 - 出了问题想退回昨天能跑的版本，但没有"昨天"这个东西
+
+
+## 九、用 GitHub 的完整步骤（含个人访问令牌）
+
+### 9.1 为什么不能直接用密码
+
+GitHub 自 2021 年起取消了密码认证，git push 时必须用 **Personal Access Token（PAT）** 代替密码。
+这是新手最容易卡住的一步：填了账号密码会一直报 Authentication failed。
+
+### 9.2 建仓库
+
+1. 登录 github.com，右上角 **+** → **New repository**
+2. Repository name 填 smartworks
+3. **不要**勾 Add a README file / Add .gitignore / Choose a license
+   （勾了远程会先有一个提交，和本地冲突）
+4. 可见性选 **Public**；若选 Private，需把老师加为协作者
+5. 点 **Create repository**
+
+页面下方会出现 ...or push an existing repository from the command line，复制那三行。
+
+### 9.3 创建令牌
+
+1. 右上头像 → **Settings**
+2. 左侧最下方 → **Developer settings**
+3. **Personal access tokens** → **Tokens (classic)**
+4. **Generate new token (classic)**
+5. Note 填 smartworks；Expiration 选 90 days
+6. 勾选 **repo**（即可覆盖仓库读写）
+7. **Generate token**，复制 ghp_ 开头的字符串
+
+> 令牌只显示一次，复制后先存到记事本。泄露了就在同一页面 Revoke 重新生成。
+
+### 9.4 推送
+
+在 SmartWorks 目录执行：
+
+`ash
+git remote add origin https://github.com/你的用户名/smartworks.git
+git branch -M main
+git push -u origin main
+`
+
+弹出认证窗口时：
+
+| 字段 | 填什么 |
+|---|---|
+| Username | GitHub 用户名 |
+| Password | **刚才生成的 PAT**，不是账号密码 |
+
+成功后 Windows 凭据管理器会记住，以后 push 不再询问。
+
+若之前配过别的远程，用：
+
+`ash
+git remote set-url origin https://github.com/你的用户名/smartworks.git
+`
+
+### 9.5 GitHub 常见故障
+
+| 报错 | 原因 | 解决 |
+|---|---|---|
+| Failed to connect to github.com port 443 | 国内访问 GitHub 不稳 | 重试；开代理；或改用 Gitee |
+| Authentication failed | 密码框填了账号密码 | 改用 PAT |
+| 
+emote origin already exists | 已配置过远程 | git remote set-url origin <新地址> |
+| Updates were rejected | 远程有别人的提交 | git pull --rebase 后再 push |
+| 网页上看不到中文文件名 | Git 转义中文 | git config --global core.quotepath false |
+
+### 9.6 交接时要注意
+
+学期末交作业给的是**仓库地址**。若仓库是 Private，必须：
+
+1. 在仓库 **Settings → Collaborators** 里把老师账号加成协作者，或
+2. 提前把仓库改为 Public
+
+**别到最后一天才发现老师打不开。**
