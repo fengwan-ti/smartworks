@@ -1,0 +1,27 @@
+# 换行符统一策略。四个人四台 Windows，这个文件能避免大量"整文件都变了"的假差异。
+#
+# * text=auto        由 Git 自动识别文本文件，仓库内统一存 LF
+# *.bat eol=crlf     批处理**必须**是 CRLF，否则 cmd 执行异常（关键！）
+# *.ps1 eol=crlf     PowerShell 脚本同样
+# data/*.csv -text   数据快照按二进制处理，避免每次重生成都产生全文件差异
+
+* text=auto
+
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+*.ps1   text eol=crlf
+*.sh    text eol=lf
+
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.zip   binary
+*.rar   binary
+*.pdf   binary
+*.docx  binary
+*.xlsx  binary
+*.pptx  binary
+
+data/*.csv  -text

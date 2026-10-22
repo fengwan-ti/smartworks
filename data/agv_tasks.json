@@ -1,0 +1,96 @@
+{
+  "description": "AGV 搬运任务，用于任务 1（单机调度）与任务 2（多机调度）",
+  "agv_count": 3,
+  "tasks": [
+    {
+      "code": "TT20260302-0001",
+      "type": "转序",
+      "from_node": "N03",
+      "to_node": "N25",
+      "qty": 15,
+      "priority": 3,
+      "status": "pending"
+    },
+    {
+      "code": "TT20260302-0002",
+      "type": "入库",
+      "from_node": "N08",
+      "to_node": "N05",
+      "qty": 30,
+      "priority": 2,
+      "status": "pending"
+    },
+    {
+      "code": "TT20260302-0003",
+      "type": "转序",
+      "from_node": "N01",
+      "to_node": "N20",
+      "qty": 5,
+      "priority": 1,
+      "status": "pending"
+    },
+    {
+      "code": "TT20260302-0004",
+      "type": "转序",
+      "from_node": "N01",
+      "to_node": "N14",
+      "qty": 5,
+      "priority": 1,
+      "status": "pending"
+    },
+    {
+      "code": "TT20260302-0005",
+      "type": "转序",
+      "from_node": "N08",
+      "to_node": "N25",
+      "qty": 10,
+      "priority": 2,
+      "status": "pending"
+    },
+    {
+      "code": "TT20260302-0006",
+      "type": "领料",
+      "from_node": "N01",
+      "to_node": "N17",
+      "qty": 5,
+      "priority": 2,
+      "status": "pending"
+    },
+    {
+      "code": "TT20260302-0007",
+      "type": "领料",
+      "from_node": "N01",
+      "to_node": "N17",
+      "qty": 20,
+      "priority": 2,
+      "status": "pending"
+    },
+    {
+      "code": "TT20260302-0008",
+      "type": "领料",
+      "from_node": "N01",
+      "to_node": "N25",
+      "qty": 15,
+      "priority": 1,
+      "status": "pending"
+    },
+    {
+      "code": "TT20260302-0009",
+      "type": "领料",
+      "from_node": "N14",
+      "to_node": "N20",
+      "qty": 15,
+      "priority": 1,
+      "status": "pending"
+    },
+    {
+      "code": "TT20260302-0010",
+      "type": "领料",
+      "from_node": "N03",
+      "to_node": "N05",
+      "qty": 20,
+      "priority": 3,
+      "status": "pending"
+    }
+  ]
+}
