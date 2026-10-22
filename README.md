@@ -24,7 +24,7 @@ SmartWorks/
 ├── frontend/         Vue 3 前端
 │   └── src/          api / views / components / charts / layouts / router / store / utils
 ├── docs/             项目文档（接口契约、ER 图、AI 使用记录、非目标清单）
-└── scripts/          0/1/2/3 四个双击式 .bat（纯批处理，不用 PowerShell）
+└── scripts/          0/1/2/3/4 五个双击式 .bat（纯批处理，不用 PowerShell）
 ```
 
 ## 三、快速开始（Windows · 不用打命令）
@@ -56,6 +56,16 @@ Python 已装（3.13.7），不用再装。
 ### 登录
 
 账号 `admin`　密码 `admin123`
+
+### 改了代码想保存到远程仓库
+
+双击 4-提交并推送.bat：
+
+1. 它会列出你改了哪些文件
+2. 让你输入一句说明（直接回车用默认的）
+3. 自动完成 暂存 → 提交 → 拉取 → 推送
+
+首次使用会问你要仓库地址，从浏览器仓库页面复制粘贴进去即可。
 
 ### 关闭系统
 
