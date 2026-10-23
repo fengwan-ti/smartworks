@@ -16,6 +16,11 @@
         :total="total"
         @change="onPageChange"
       >
+        <template #status="{ row }">
+          <el-tag :type="row.is_active ? 'success' : 'info'" size="small" effect="light">
+            {{ row.is_active ? '启用' : '停用' }}
+          </el-tag>
+        </template>
         <template #actions="{ row }">
           <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
           <el-button link type="danger" @click="onDelete(row)">删除</el-button>
@@ -79,7 +84,6 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import SearchForm from '@/components/SearchForm.vue'
 import BaseTable from '@/components/BaseTable.vue'
-import StatusTag from '@/components/StatusTag.vue'
 import {
   createProduct,
   deleteProduct,
@@ -100,13 +104,16 @@ const query = ref({})
 const familyOptionsList = ref([])
 const materialOptionsList = ref([])
 
-const searchFields = [
+// 注意：必须是 ref。产品族选项是异步加载的，
+// 用普通数组改 options 不会触发视图更新，下拉会一直空白。
+const searchFields = ref([
   { prop: 'search', label: '关键字', type: 'input', placeholder: '编码/名称/图号' },
   { prop: 'family', label: '产品族', type: 'select', options: [] },
-  { prop: 'is_active', label: '状态', type: 'select', options: [
-    { value: true, label: '启用' }, { value: false, label: '停用' }
-  ] }
-]
+  {
+    prop: 'is_active', label: '状态', type: 'select',
+    options: [{ value: true, label: '启用' }, { value: false, label: '停用' }]
+  }
+])
 
 const columns = [
   { prop: 'code', label: '产品编码', width: 130 },
@@ -233,7 +240,7 @@ onMounted(async () => {
   const [families, materials] = await Promise.all([familyOptions(), materialOptions()])
   familyOptionsList.value = families
   materialOptionsList.value = materials
-  searchFields[1].options = families.map((x) => ({ value: x.id, label: x.name }))
+  searchFields.value[1].options = families.map((x) => ({ value: x.id, label: x.name }))
   load()
 })
 </script>
