@@ -78,7 +78,7 @@
 | 5 | `/core/users/{id}/` | GET PUT PATCH DELETE | 用户详情与维护 | 开发中 |
 | 6 | `/core/roles/` | GET POST | 角色列表 / 新建 | 未开始 |
 | 7 | `/core/roles/{id}/` | GET PUT PATCH DELETE | 角色详情与维护 | 未开始 |
-| 8 | `/core/roles/{id}/menus/` | POST | 给角色批量分配菜单（传 menu_id 数组） | 未开始 |
+| 8 | `/core/roles/{id}/menus/` | GET POST | 查看/整体覆盖角色菜单（body: menu_ids 数组） | 已上线 |
 | 9 | `/core/menus/` | GET POST | 菜单列表 / 新建 | 未开始 |
 | 10 | `/core/menus/{id}/` | GET PUT PATCH DELETE | 菜单维护 | 未开始 |
 | 11 | `/core/dicts/` | GET | 数据字典查询，必传 `dict_type` 或用 `?page_size=200` 全取 | 未开始 |
@@ -91,22 +91,36 @@
 
 | # | 路径 | 方法 | 说明 | 状态 |
 |---|---|---|---|---|
-| 16 | `/masterdata/products/` | GET POST | 产品列表 / 新建（支持 family、is_active 筛选） | 未开始 |
-| 17 | `/masterdata/products/{id}/` | GET PUT PATCH DELETE | 产品维护 | 未开始 |
-| 18 | `/masterdata/families/` | GET POST | 产品族（**归 A 维护，B 只读引用**） | 未开始 |
-| 19 | `/masterdata/families/{id}/` | GET PUT PATCH DELETE | 产品族维护 | 未开始 |
-| 20 | `/masterdata/materials/` | GET POST | 物料 | 未开始 |
+| 16 | `/masterdata/products/` | GET POST | 产品列表 / 新建（支持 family、is_active 筛选） | 已上线 |
+| 17 | `/masterdata/products/{id}/` | GET PUT PATCH DELETE | 产品维护 | 已上线 |
+| 18 | `/masterdata/families/` | GET POST | 产品族（**归 A 维护，B 只读引用**） | 已上线 |
+| 19 | `/masterdata/families/{id}/` | GET PUT PATCH DELETE | 产品族维护 | 已上线 |
+| 20 | `/masterdata/materials/` | GET POST | 物料 | 已上线 |
 | 21 | `/masterdata/materials/{id}/` | GET PUT PATCH DELETE | 物料维护 | 未开始 |
-| 22 | `/masterdata/customers/` | GET POST | 客户 | 未开始 |
+| 22 | `/masterdata/customers/` | GET POST | 客户 | 已上线 |
 | 23 | `/masterdata/customers/{id}/` | GET PUT PATCH DELETE | 客户维护 | 未开始 |
-| 24 | `/masterdata/suppliers/` | GET POST | 供应商 | 未开始 |
+| 24 | `/masterdata/suppliers/` | GET POST | 供应商 | 已上线 |
 | 25 | `/masterdata/suppliers/{id}/` | GET PUT PATCH DELETE | 供应商维护 | 未开始 |
-| 26 | `/masterdata/workshops/` | GET POST | 车间 | 未开始 |
+| 26 | `/masterdata/workshops/` | GET POST | 车间 | 已上线 |
 | 27 | `/masterdata/workshops/{id}/` | GET PUT PATCH DELETE | 车间维护 | 未开始 |
-| 28 | `/masterdata/workstations/` | GET POST | 工位（含 AGV 装卸点） | 未开始 |
+| 28 | `/masterdata/workstations/` | GET POST | 工位（含 AGV 装卸点） | 已上线 |
 | 29 | `/masterdata/workstations/{id}/` | GET PUT PATCH DELETE | 工位维护 | 未开始 |
-| 30 | `/masterdata/import/` | POST | Excel 批量导入（传 model 名 + 文件） | 未开始 |
-| 31 | `/masterdata/export/` | GET | Excel 导出（传 model 名） | 未开始 |
+| 30 | Django Admin 导入 | — | Excel 批量导入走 Admin 的「导入」按钮（基于 django-import-export） | 已上线 |
+| 31 | Django Admin 导出 | — | Excel 导出走 Admin 的「导出」按钮 | 已上线 |
+
+### 2.2.1 主数据下拉接口（W2 新增）
+
+主数据每个资源都提供 `options/` 动作，供其他模块做下拉选择：
+
+| 路径 | 返回 |
+|---|---|
+| `/masterdata/products/options/` | `[{id, code, name}]`，最多 500 条 |
+| `/masterdata/families/options/` | 同上 |
+| `/masterdata/materials/options/` | 同上 |
+| `/masterdata/workshops/options/` | 同上 |
+| `/masterdata/workstations/options/` | 同上 |
+
+说明：`options/` 不分页，只返回 id/code/name，避免前端为下拉而拉全量字段。
 
 ### 2.3 process（负责人 B）
 

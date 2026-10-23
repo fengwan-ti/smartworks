@@ -14,6 +14,12 @@ const routes = [
     redirect: '/dashboard',
     children: [
       {
+        path: 'masterdata/products',
+        name: 'masterdata-products',
+        component: () => import('@/views/masterdata/ProductList.vue'),
+        meta: { title: '产品管理' }
+      },
+      {
         path: 'dashboard',
         name: 'Dashboard',
         component: () => import('@/views/dashboard/index.vue'),
@@ -24,7 +30,6 @@ const routes = [
         'system/roles|角色管理',
         'system/menus|菜单管理',
         'system/dicts|数据字典',
-        'masterdata/products|产品管理',
         'masterdata/materials|物料管理',
         'masterdata/workshops|车间工位'].map((item) => {
         const [path, title] = item.split('|')

@@ -9,7 +9,12 @@
         :width="col.width"
         :min-width="col.minWidth || 120"
         show-overflow-tooltip
-      />
+      >
+        <template v-if="col.slot" #default="scope">
+          <!-- 具名插槽：页面用 <template #actions="{ row }"> 提供内容 -->
+          <slot :name="col.slot" :row="scope.row" :index="scope.$index" />
+        </template>
+      </el-table-column>
     </el-table>
 
     <el-pagination
