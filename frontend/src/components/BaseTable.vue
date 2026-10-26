@@ -8,11 +8,17 @@
         :label="col.label"
         :width="col.width"
         :min-width="col.minWidth || 120"
-        show-overflow-tooltip
+        :show-overflow-tooltip="!col.slot"
       >
-        <template v-if="col.slot" #default="scope">
-          <!-- 具名插槽：页面用 <template #actions="{ row }"> 提供内容 -->
-          <slot :name="col.slot" :row="scope.row" :index="scope.$index" />
+        <!--
+          这里刻意把插槽判断写在 el-table-column 的 default 插槽内部，而不是写成
+          <template v-if="col.slot" #default>。
+          后者属于"结构性指令 + v-slot 写在同一个 template 上"，行为依赖 Vue 版本，
+          容易出现"插槽没生效、单元格全空"的现象。
+        -->
+        <template #default="scope">
+          <slot v-if="col.slot" :name="col.slot" :row="scope.row" :index="scope.$index" />
+          <span v-else>{{ display(scope.row, col.prop) }}</span>
         </template>
       </el-table-column>
     </el-table>
@@ -36,8 +42,13 @@ import { ref } from 'vue'
 
 /**
  * 通用分页表格。
- * 约定：父组件负责取数，本组件只上报分页变化。
- * 事件 change 抛出 { page, pageSize }
+ *
+ * props：
+ *   columns  列定义 [{ prop, label, width?, minWidth?, slot? }]
+ *            slot 填了就在页面里用同名具名插槽自定义单元格
+ *   rows / total  数据与总数（父组件负责取数）
+ *
+ * 事件：change -> { page, pageSize }
  */
 const props = defineProps({
   columns: { type: Array, default: () => [] },
@@ -50,6 +61,12 @@ const emit = defineEmits(['change'])
 
 const page = ref(1)
 const pageSize = ref(10)
+
+/** 普通列取值，null 显示空字符串而不是 "null" */
+function display(row, prop) {
+  const v = row ? row[prop] : ''
+  return v === null || v === undefined ? '' : v
+}
 
 function onPageChange(value) {
   page.value = value

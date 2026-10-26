@@ -143,10 +143,11 @@ async function load() {
   loading.value = true
   try {
     const data = await listProducts({ page: page.value, page_size: pageSize.value, ...query.value })
-    rows.value = data.results
-    total.value = data.count
+    rows.value = (data && data.results) || []
+    total.value = (data && data.count) || 0
   } catch (e) {
-    // 错误提示已由 request.js 统一处理
+    // 统一提示由 request.js 负责，这里额外打日志便于排查
+    console.error('[ProductList] 加载产品列表失败', e)
   } finally {
     loading.value = false
   }
@@ -237,10 +238,22 @@ async function onDelete(row) {
 }
 
 onMounted(async () => {
-  const [families, materials] = await Promise.all([familyOptions(), materialOptions()])
-  familyOptionsList.value = families
-  materialOptionsList.value = materials
-  searchFields.value[1].options = families.map((x) => ({ value: x.id, label: x.name }))
-  load()
+  // 先加载列表，保证表格一定有数据。
+  // 之前把选项加载放在前面而且没有 try/catch，一旦选项接口失败，
+  // 后面的 load() 就不会执行，表现就是"表格空白 + 下拉空白"。
+  await load()
+
+  try {
+    const [families, materials] = await Promise.all([familyOptions(), materialOptions()])
+    familyOptionsList.value = Array.isArray(families) ? families : []
+    materialOptionsList.value = Array.isArray(materials) ? materials : []
+    searchFields.value[1].options = familyOptionsList.value.map((x) => ({
+      value: x.id,
+      label: x.name
+    }))
+  } catch (e) {
+    console.error('[ProductList] 加载产品族/物料选项失败', e)
+    ElMessage.warning('产品族/物料选项加载失败，先检查后端接口是否正常')
+  }
 })
 </script>
