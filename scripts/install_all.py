@@ -25,21 +25,7 @@ COMSPEC = os.environ.get('COMSPEC', r'C:\Windows\System32\cmd.exe')
 BAR = '=' * 60
 PKG_TIMEOUT = 240          # 单个包最长等待 4 分钟
 
-PACKAGES = [
-    ('Django', 'Web 框架'),
-    ('djangorestframework', 'REST 接口'),
-    ('django-cors-headers', '跨域'),
-    ('drf-spectacular', '接口文档'),
-    ('django-filter', '筛选'),
-    ('django-simple-history', '变更历史'),
-    ('django-import-export', 'Excel 导入导出'),
-    ('python-dotenv', '读取 .env'),
-    ('Pillow', '图像处理'),
-    ('requests', 'HTTP 请求'),
-    ('pytest', '测试'),
-    ('pytest-django', 'Django 测试'),
-    ('ruff', '代码规范'),
-]
+
 
 
 def head(text):
@@ -184,30 +170,33 @@ def main():
         return 1
     print('  pip 可用')
 
-    # ---------- 4 逐个装包 ----------
-    total = len(PACKAGES)
-    head('第 4 步：安装 Python 库，共 %d 个' % total)
+    # ---------- 4 按 requirements.txt 安装（版本已锁定） ----------
+    head('第 4 步：按 backend/requirements.txt 安装后端依赖')
+    req_file = os.path.join(ROOT, 'backend', 'requirements.txt')
+    if not os.path.exists(req_file):
+        print()
+        print('  [失败] 找不到 backend/requirements.txt')
+        return 1
+
+    print('  说明：版本已在 requirements.txt 里锁定，四人机器上的依赖完全一致')
+    print('  安装过程中每 5 秒打印一个点，表示仍在工作')
     print()
-
-    failed = None
-    for i, (pkg, desc) in enumerate(PACKAGES, start=1):
-        print('  [%2d/%2d] %-22s %s' % (i, total, pkg, desc))
-        t0 = time.time()
-        rc, out = pip_install(pkg)
-        cost = time.time() - t0
-        if rc != 0:
-            print('         [失败] 耗时 %.1f 秒' % cost)
-            failed = pkg
-            break
-        print('         完成，%.1f 秒' % cost)
-
-    if failed:
+    rc, out = run([VENV_PY, '-u'] + pip_base() + ['-i', MIRROR, '-r', req_file],
+                  heartbeat=True, tail=40, timeout=1200)
+    if rc != 0:
+        print()
+        print('  镜像源安装失败，改用官方源重试 ...')
+        rc, out = run([VENV_PY, '-u'] + pip_base() + ['-r', req_file],
+                      heartbeat=True, tail=40, timeout=1200)
+    if rc != 0:
         print()
         print(BAR)
-        print('  [失败] 卡在包：%s' % failed)
+        print('  [失败] 后端依赖安装失败')
         print('  上面以 | 开头的行是 pip 的原始输出，请整段截图发到群里')
         print(BAR)
         return 1
+    print()
+    print('  后端依赖安装完成')
 
     # ---------- 5 导入自检 ----------
     head('第 5 步：验证关键库能否导入')
