@@ -19,6 +19,31 @@ const routes = [
         component: () => import('@/views/dashboard/index.vue'),
         meta: { title: '工作台' }
       },
+      // ---- 工艺配置（B / M03）：工序模板先落地，路线/BOM/换型矩阵随后 ----
+      {
+        path: 'process/templates',
+        name: 'ProcessTemplates',
+        component: () => import('@/views/process/TemplateList.vue'),
+        meta: { title: '工序模板' }
+      },
+      {
+        path: 'process/routes',
+        name: 'ProcessRoutes',
+        component: () => import('@/views/common/Placeholder.vue'),
+        meta: { title: '工艺路线' }
+      },
+      {
+        path: 'process/boms',
+        name: 'ProcessBoms',
+        component: () => import('@/views/common/Placeholder.vue'),
+        meta: { title: 'BOM 维护' }
+      },
+      {
+        path: 'process/changeovers',
+        name: 'ProcessChangeovers',
+        component: () => import('@/views/common/Placeholder.vue'),
+        meta: { title: '换型矩阵' }
+      },
       // 以下为 init_core 种子菜单对应的占位路由。菜单树已通，页面按周次实现。
       ...['system/users|用户管理',
         'system/roles|角色管理',
