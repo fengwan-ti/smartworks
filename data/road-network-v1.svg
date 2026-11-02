@@ -1,0 +1,122 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 560" font-family="sans-serif">
+<rect width="1000" height="560" fill="#fbfbfa"/>
+<rect x="40.0" y="76.9" width="141.5" height="443.1" fill="#e8f2ec" stroke="#d8d8d4"/>
+<text x="48.0" y="94.9" font-size="12" fill="#7a7a74">原料仓</text>
+<rect x="199.2" y="76.9" width="53.1" height="443.1" fill="#eef1f4" stroke="#d8d8d4"/>
+<text x="207.2" y="94.9" font-size="12" fill="#7a7a74">主通道</text>
+<rect x="252.3" y="76.9" width="141.5" height="443.1" fill="#fdf1e4" stroke="#d8d8d4"/>
+<text x="260.3" y="94.9" font-size="12" fill="#7a7a74">加工区</text>
+<rect x="606.2" y="298.5" width="141.5" height="221.5" fill="#eae6f3" stroke="#d8d8d4"/>
+<text x="614.2" y="316.5" font-size="12" fill="#7a7a74">检验区</text>
+<rect x="783.1" y="298.5" width="141.5" height="221.5" fill="#e6edf6" stroke="#d8d8d4"/>
+<text x="791.1" y="316.5" font-size="12" fill="#7a7a74">成品仓</text>
+<rect x="323.1" y="76.9" width="176.9" height="55.4" fill="#f6e7e2" stroke="#d8d8d4"/>
+<text x="331.1" y="94.9" font-size="12" fill="#7a7a74">充电区</text>
+<line x1="57.7" y1="501.5" x2="57.7" y2="409.2" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="57.7" y1="409.2" x2="57.7" y2="335.4" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="57.7" y1="501.5" x2="199.2" y2="409.2" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="57.7" y1="409.2" x2="199.2" y2="409.2" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="57.7" y1="335.4" x2="199.2" y2="335.4" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="199.2" y1="335.4" x2="199.2" y2="409.2" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="57.7" y1="501.5" x2="199.2" y2="501.5" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="199.2" y1="501.5" x2="199.2" y2="409.2" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="199.2" y1="409.2" x2="199.2" y2="243.1" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="199.2" y1="243.1" x2="199.2" y2="150.8" stroke="#c26a4a" stroke-width="2.4" stroke-dasharray="7 4"/>
+<line x1="199.2" y1="409.2" x2="270.0" y2="501.5" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="199.2" y1="409.2" x2="270.0" y2="409.2" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="199.2" y1="409.2" x2="270.0" y2="335.4" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="199.2" y1="243.1" x2="270.0" y2="335.4" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="199.2" y1="243.1" x2="270.0" y2="243.1" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="199.2" y1="150.8" x2="270.0" y2="243.1" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="199.2" y1="150.8" x2="393.8" y2="150.8" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="199.2" y1="150.8" x2="323.1" y2="150.8" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="270.0" y1="501.5" x2="270.0" y2="409.2" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="270.0" y1="409.2" x2="270.0" y2="335.4" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="270.0" y1="335.4" x2="270.0" y2="243.1" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="270.0" y1="501.5" x2="323.1" y2="501.5" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="270.0" y1="409.2" x2="323.1" y2="409.2" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="270.0" y1="335.4" x2="323.1" y2="335.4" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="270.0" y1="243.1" x2="323.1" y2="243.1" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="270.0" y1="243.1" x2="323.1" y2="150.8" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="323.1" y1="501.5" x2="570.8" y2="501.5" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="323.1" y1="409.2" x2="570.8" y2="409.2" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="323.1" y1="335.4" x2="570.8" y2="335.4" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="323.1" y1="150.8" x2="570.8" y2="150.8" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="323.1" y1="243.1" x2="323.1" y2="150.8" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="570.8" y1="501.5" x2="393.8" y2="150.8" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="570.8" y1="409.2" x2="393.8" y2="150.8" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="570.8" y1="335.4" x2="393.8" y2="150.8" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="393.8" y1="150.8" x2="570.8" y2="150.8" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="570.8" y1="501.5" x2="570.8" y2="409.2" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="570.8" y1="409.2" x2="570.8" y2="335.4" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="393.8" y1="150.8" x2="393.8" y2="76.9" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="393.8" y1="150.8" x2="464.6" y2="76.9" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="570.8" y1="409.2" x2="747.7" y2="409.2" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="570.8" y1="335.4" x2="747.7" y2="409.2" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="747.7" y1="335.4" x2="747.7" y2="409.2" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="747.7" y1="409.2" x2="747.7" y2="335.4" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="747.7" y1="335.4" x2="853.8" y2="335.4" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="747.7" y1="409.2" x2="853.8" y2="409.2" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="853.8" y1="335.4" x2="853.8" y2="409.2" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="853.8" y1="409.2" x2="924.6" y2="409.2" stroke="#9aa5a0" stroke-width="2.4"/>
+<line x1="853.8" y1="335.4" x2="924.6" y2="409.2" stroke="#9aa5a0" stroke-width="2.4"/>
+<circle cx="57.7" cy="501.5" r="3.6" fill="#5d8a7a"/>
+<text x="64.7" y="505.0" font-size="8.5" fill="#4a4a46">N001</text>
+<circle cx="57.7" cy="409.2" r="3.6" fill="#5d8a7a"/>
+<text x="64.7" y="412.7" font-size="8.5" fill="#4a4a46">N002</text>
+<circle cx="57.7" cy="335.4" r="3.6" fill="#5d8a7a"/>
+<text x="64.7" y="338.9" font-size="8.5" fill="#4a4a46">N003</text>
+<circle cx="199.2" cy="501.5" r="5.5" fill="#c98a3f"/>
+<text x="206.2" y="505.0" font-size="8.5" fill="#4a4a46">N004</text>
+<circle cx="199.2" cy="409.2" r="3.6" fill="#5d8a7a"/>
+<text x="206.2" y="412.7" font-size="8.5" fill="#4a4a46">N005</text>
+<circle cx="199.2" cy="335.4" r="5.5" fill="#c98a3f"/>
+<text x="206.2" y="338.9" font-size="8.5" fill="#4a4a46">N006</text>
+<circle cx="199.2" cy="243.1" r="3.6" fill="#5d8a7a"/>
+<text x="206.2" y="246.6" font-size="8.5" fill="#4a4a46">N007</text>
+<circle cx="199.2" cy="150.8" r="3.6" fill="#5d8a7a"/>
+<text x="206.2" y="154.3" font-size="8.5" fill="#4a4a46">N008</text>
+<circle cx="270.0" cy="501.5" r="3.6" fill="#5d8a7a"/>
+<text x="277.0" y="505.0" font-size="8.5" fill="#4a4a46">N009</text>
+<circle cx="270.0" cy="409.2" r="3.6" fill="#5d8a7a"/>
+<text x="277.0" y="412.7" font-size="8.5" fill="#4a4a46">N010</text>
+<circle cx="270.0" cy="335.4" r="3.6" fill="#5d8a7a"/>
+<text x="277.0" y="338.9" font-size="8.5" fill="#4a4a46">N011</text>
+<circle cx="270.0" cy="243.1" r="3.6" fill="#5d8a7a"/>
+<text x="277.0" y="246.6" font-size="8.5" fill="#4a4a46">N012</text>
+<circle cx="323.1" cy="501.5" r="5.5" fill="#c98a3f"/>
+<text x="330.1" y="505.0" font-size="8.5" fill="#4a4a46">N013</text>
+<circle cx="323.1" cy="409.2" r="5.5" fill="#c98a3f"/>
+<text x="330.1" y="412.7" font-size="8.5" fill="#4a4a46">N014</text>
+<circle cx="323.1" cy="335.4" r="5.5" fill="#c98a3f"/>
+<text x="330.1" y="338.9" font-size="8.5" fill="#4a4a46">N015</text>
+<circle cx="323.1" cy="243.1" r="5.5" fill="#c98a3f"/>
+<text x="330.1" y="246.6" font-size="8.5" fill="#4a4a46">N016</text>
+<circle cx="323.1" cy="150.8" r="5.5" fill="#c98a3f"/>
+<text x="330.1" y="154.3" font-size="8.5" fill="#4a4a46">N017</text>
+<circle cx="570.8" cy="501.5" r="5.5" fill="#c98a3f"/>
+<text x="577.8" y="505.0" font-size="8.5" fill="#4a4a46">N018</text>
+<circle cx="570.8" cy="409.2" r="5.5" fill="#c98a3f"/>
+<text x="577.8" y="412.7" font-size="8.5" fill="#4a4a46">N019</text>
+<circle cx="570.8" cy="335.4" r="5.5" fill="#c98a3f"/>
+<text x="577.8" y="338.9" font-size="8.5" fill="#4a4a46">N020</text>
+<circle cx="570.8" cy="150.8" r="3.6" fill="#5d8a7a"/>
+<text x="577.8" y="154.3" font-size="8.5" fill="#4a4a46">N021</text>
+<circle cx="393.8" cy="150.8" r="3.6" fill="#5d8a7a"/>
+<text x="400.8" y="154.3" font-size="8.5" fill="#4a4a46">N022</text>
+<circle cx="393.8" cy="76.9" r="5" fill="#b5624a"/>
+<text x="400.8" y="80.4" font-size="8.5" fill="#4a4a46">N023</text>
+<circle cx="464.6" cy="76.9" r="5" fill="#b5624a"/>
+<text x="471.6" y="80.4" font-size="8.5" fill="#4a4a46">N024</text>
+<circle cx="747.7" cy="409.2" r="3.6" fill="#5d8a7a"/>
+<text x="754.7" y="412.7" font-size="8.5" fill="#4a4a46">N025</text>
+<circle cx="747.7" cy="335.4" r="5.5" fill="#c98a3f"/>
+<text x="754.7" y="338.9" font-size="8.5" fill="#4a4a46">N026</text>
+<circle cx="853.8" cy="409.2" r="3.6" fill="#5d8a7a"/>
+<text x="860.8" y="412.7" font-size="8.5" fill="#4a4a46">N027</text>
+<circle cx="853.8" cy="335.4" r="3.6" fill="#5d8a7a"/>
+<text x="860.8" y="338.9" font-size="8.5" fill="#4a4a46">N028</text>
+<circle cx="924.6" cy="409.2" r="5.5" fill="#c98a3f"/>
+<text x="931.6" y="412.7" font-size="8.5" fill="#4a4a46">N029</text>
+<text x="40" y="24" font-size="14" fill="#3a3a36">SmartWorks 车间路网 v1 · 29 节点 / 48 边 · 单位 mm · 橙色虚线段为单行道</text>
+</svg>
