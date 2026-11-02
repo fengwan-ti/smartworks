@@ -168,8 +168,8 @@
 
 | 表 | 关键字段 |
 |---|---|
-| pr_route | id、code、product_id、version、status |
-| pr_route_step | route_id、seq、template_id、std_hours、equipment_type、is_special |
+| pr_route | id、code、product_id、**family_id**、version、status |
+| pr_route_step | route_id、seq、template_id、std_hours、**required_equipment_type**、is_special |
 
 **pr_bom / pr_bom_item**：bom（product_id、version、status）；item（material_id、qty_per、loss_rate）
 
@@ -260,6 +260,65 @@
 | lg_road_edge | from_node_id、to_node_id、distance、is_bidirectional |
 
 **lg_transport_task**：code、type（领料/转序/入库/其他）、from_location、from_node_id、to_location、to_node_id、qty、priority、status、ref_doc
+
+### 3.7 设备台账字段（D 提供，已确认）
+
+**eq_equipment 设备台账**
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| id | bigint 自增 | ✔ | 主键 |
+| code | varchar(32) 唯一 | ✔ | EQ-<类型缩写>-<2位序号>，如 EQ-CNC-01 |
+| name | varchar(64) | ✔ | 设备名称 |
+| model | varchar(64) | | 型号 |
+| manufacturer | varchar(64) | | 厂商 |
+| workshop_id | 外键→md_workshop | ✔ | 所属车间 |
+| workstation_id | 外键→md_workstation | | 所属工位（即 AGV 装卸点，用于派生转序搬运任务） |
+| status | varchar(16) | ✔ | 
+ormal / wearing / bnormal |
+| install_date | date | | 安装日期 |
+| is_active | bool | ✔ | 默认 true |
+| remark | text | | 备注 |
+
+> 台账的 status 是**当前值**（由最近一条状态记录同步），eq_equipment_status_log 是**历史**。
+> 前端只读台账 status，不许直接写。
+
+**eq_equipment_capability 设备能力（D 写，B 读）**
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| id | bigint 自增 | ✔ | 主键 |
+| equipment_id | 外键→eq_equipment | ✔ | 设备 |
+| step_type | varchar(32) | ✔ | 可执行的工序类型（字典由 B 提供，见下） |
+| precision_level | varchar(16) | | high / medium / 
+ormal |
+| capacity_per_hour | decimal(12,3) | | 每小时可加工件数 |
+| setup_minutes | int | | 换型准备时间（分钟） |
+| params | JSONField | | 动态参数，**只做展示** |
+| is_active | bool | ✔ | 是否启用 |
+
+唯一约束：(equipment_id, step_type)。
+
+> ⚠️ **params 只给详情页用，排产匹配不许读它。** 否则排产就依赖动态参数结构，
+> 以后加设备要改代码，正好撞上创新点 N4「元数据驱动、零改代码」。
+> **匹配只走 step_type / capacity_per_hour / precision_level 三列。**
+
+### 3.8 库存表拆分说明（A 拍板，已落地）
+
+Django 一个应用只有一个 models.py，而原料仓归 C、成品仓归 D。两人同时改同一文件会让
+makemigrations 互相覆盖，迁移历史错乱。**已拆为：**
+
+`
+apps/inventory/
+├── models.py              只做汇总 import，不写模型
+├── models_warehouse.py    C 负责（A 已按 3.3 节建 4 张共享表骨架）
+├── models_finished.py     D 负责（成品入库单、发货出库单）
+└── migrations/
+`
+
+A 先建 4 张共享表的原因：D 的成品单据要外键引用 Batch / Warehouse / Location，
+等 C 建完 D 才能动会卡住。C 可自由改字段，改完跑 makemigrations inventory 即可。
+
 
 ---
 

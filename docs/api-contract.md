@@ -227,6 +227,9 @@
 
 ### 2.9 equipment（负责人 D）
 
+> **注意**：equipment 是**应用名**，equipments 才是**资源名**，完整路径是 /api/v1/equipment/equipments/。
+> 同理 logistics/agvs、logistics/road-nodes。少写一层复数是最常见的 404 原因。
+
 | # | 路径 | 方法 | 说明 | 状态 |
 |---|---|---|---|---|
 | 105 | `/equipment/equipments/` | GET POST | 设备台账 | 未开始 |
