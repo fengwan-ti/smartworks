@@ -55,6 +55,15 @@
 - **验证方式**：11 个 step_type ↔ 11 个工序模板 1:1；30 道工序的 step_type 分布合计 = 30（cutting 6 / rough 5 / finish 5 / drilling 3 / milling 1 / slot 1 / gear 1 / grinding 1 / cleaning 1 / inspection 6）；Excel 重新生成后复查旧值出现次数为 0；文档互引与表格列数检查通过
 - **结论**：采用（等 D 回"复核通过"后冻结 v1.0）
 
+### 记录 005
+- **日期 / 使用人**：2026-11-02 / 成员 B
+- **角色与模块**：B / process —— W2 第一张表 `pr_process_template`（工序模板）模型 + CRUD 接口
+- **提示词**：见附录 P-005（"现在开始继续推进的话从哪里开始"）
+- **AI 产出**：`backend/apps/process/` 下生成 `models.py`（`StepType` 11 值、`EquipmentType` 7 值、`ProcessTemplate`）、`services.py`（编码生成器 PT-###、枚举/工时/编码重复校验，抛 `BizError` 12001~12004）、`serializers.py`、`filters.py`、`views.py`、`urls.py`、`admin.py`、迁移 `0001_initial.py`、管理命令 `seed_process.py`（11 条标准模板）、8 条接口测试；`config/urls.py` 增加 `/api/v1/process/` 路由
+- **人工修改**：①业务校验没有用 DRF 内置校验，全部放 `services.py` 抛 `BizError`，保证错误码落在 B 号段（12001~12004），而不是统一变成 10001；②`step_type` 用 `CharField` 而非 `ChoiceField`，否则非法枚举会被 DRF 先拦成 10001；③编码允许留空自动生成、也允许手工指定（便于照 Excel 导入）；④测试时新建的 PT-012 已删除，保持 11 条种子数据干净；⑤路线/BOM 需要 A 的 `masterdata` 外键，本轮只做无外键的模板表，不提前造依赖
+- **验证方式**：`pytest apps/process/tests` 8 项全过；`ruff check apps/process` 全过；起服务实测——登录 admin/admin123 拿 token、列表 `count=11` 且分页字段正确、新增自动编码 `PT-012` 返回 201、非法枚举返回 `12004`、编码重复返回 `12001`；Swagger `schema.yaml` 已收录 `/api/v1/process/templates/`，`manage.py seed_process` 幂等
+- **结论**：采用（W2 第一张表纵向打穿；下一步路线/BOM + 前端「工序模板」页）
+
 ---
 
 ## 附录：长提示词原文
@@ -76,3 +85,8 @@
 >（要求：先把每个文件夹里有什么、属不属于 B 说清楚；再把与 B 相关的意见逐条挑出来，能当天闭环的直接产出交付物——特别是 D 说"不定就返工"的 P0 项；同步把已经写过的文档里与新结论冲突的地方改掉（枚举改名、Excel 数据、交接单），不要只写新文档不改旧文档；需要别人配合的，列出"要谁回什么、什么时候"。）
 
 
+
+### P-005（B / W2 工序模板表开工，2026-11-02）
+
+> 现在开始继续推进的话从哪里开始。
+>（要求：先判断当前仓库/环境里能独立动工的最小一块——优先选不依赖别人主数据的表；按项目约定"表 → 接口 → 页面"走，业务校验放 services.py 并用自己的错误码号段；每步都要能跑起来验证（迁移/测试/真实 HTTP 请求/Swagger），最后把"下一步"和"依赖别人什么"讲清楚。）
