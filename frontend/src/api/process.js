@@ -29,3 +29,7 @@ export function patchTemplate(id, data) {
 export function deleteTemplate(id) {
   return request.delete(`${TEMPLATES}${id}/`)
 }
+
+export function fetchProcessEnums() {
+  return request.get('/process/enums/')
+}

@@ -1,10 +1,12 @@
 """process 应用的接口。视图只做校验与调用，业务逻辑在 services.py。"""
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from . import services
 from .filters import ProcessTemplateFilter
-from .models import ProcessTemplate
+from .models import EquipmentType, ProcessTemplate, StepType
 from .serializers import ProcessTemplateSerializer
 
 
@@ -32,3 +34,23 @@ class ProcessTemplateViewSet(viewsets.ModelViewSet):
         serializer.instance = services.update_template(
             serializer.instance, serializer.validated_data,
         )
+
+
+class ProcessEnumView(APIView):
+    """工艺相关枚举（前端下拉用，避免前端硬编码中文数组 → 违反"走字典 I-02"的约定）。
+
+    GET /api/v1/process/enums/
+      → { step_types: [{value,label}], equipment_types: [{value,label}] }
+
+    说明：step_type 由 B 定义（07 文档 v1.0）；equipment_type 的最终口径
+    归 D 的设备能力表，A 把 step_type 灌进 core_data_dict 后本接口可下线。
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response({
+            'step_types': [{'value': v, 'label': label} for v, label in StepType.choices],
+            'equipment_types': [
+                {'value': v, 'label': label} for v, label in EquipmentType.choices
+            ],
+        })

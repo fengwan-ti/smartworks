@@ -22,7 +22,7 @@
           @keyup.enter="reload"
         />
         <el-select v-model="query.step_type" placeholder="工序类型" clearable style="width: 170px">
-          <el-option v-for="s in STEP_TYPES" :key="s.value" :label="s.label" :value="s.value" />
+          <el-option v-for="s in stepOptions" :key="s.value" :label="s.label" :value="s.value" />
         </el-select>
         <el-select v-model="query.is_active" placeholder="是否启用" clearable style="width: 130px">
           <el-option label="启用" :value="true" />
@@ -112,7 +112,7 @@
         <el-form-item label="所需设备类型" prop="required_equipment_type">
           <el-select v-model="form.required_equipment_type" placeholder="请选择" style="width: 100%">
             <el-option
-              v-for="e in EQUIPMENT_TYPES"
+              v-for="e in equipmentOptions"
               :key="e.value"
               :label="`${e.label}（${e.value}）`"
               :value="e.value"
@@ -146,13 +146,14 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   createTemplate,
   deleteTemplate,
+  fetchProcessEnums,
   fetchTemplates,
   patchTemplate,
   updateTemplate,
 } from '@/api/process'
 
 // TODO(W2)：A 把 step_type 写进 core_data_dict 后，改走字典接口（I-02），这里只做兜底
-const STEP_TYPES = [
+const DEFAULT_STEP_TYPES = [
   { value: 'cutting', label: '下料' },
   { value: 'rough_turning', label: '粗车' },
   { value: 'finish_turning', label: '精车' },
@@ -165,7 +166,7 @@ const STEP_TYPES = [
   { value: 'cleaning', label: '清洗' },
   { value: 'inspection', label: '检验' },
 ]
-const EQUIPMENT_TYPES = [
+const DEFAULT_EQUIPMENT_TYPES = [
   { value: 'lathe', label: '数控车床' },
   { value: 'machining_center', label: '加工中心' },
   { value: 'drill', label: '钻床' },
@@ -174,6 +175,9 @@ const EQUIPMENT_TYPES = [
   { value: 'deburr_station', label: '去毛刺台' },
   { value: 'inspection_station', label: '检验工位' },
 ]
+
+const stepOptions = ref([...DEFAULT_STEP_TYPES])
+const equipmentOptions = ref([...DEFAULT_EQUIPMENT_TYPES])
 
 const loading = ref(false)
 const saving = ref(false)
@@ -220,11 +224,11 @@ function jsonValidator(rule, value, callback) {
 }
 
 function stepTypeLabel(value) {
-  return STEP_TYPES.find((s) => s.value === value)?.label || value || '—'
+  return stepOptions.value.find((s) => s.value === value)?.label || value || '—'
 }
 
 function equipmentLabel(value) {
-  return EQUIPMENT_TYPES.find((e) => e.value === value)?.label || value || '—'
+  return equipmentOptions.value.find((e) => e.value === value)?.label || value || '—'
 }
 
 function jsonBrief(value) {
@@ -342,7 +346,16 @@ async function remove(row) {
   load()
 }
 
-onMounted(load)
+onMounted(async () => {
+  try {
+    const enums = await fetchProcessEnums()
+    if (enums?.step_types?.length) stepOptions.value = enums.step_types
+    if (enums?.equipment_types?.length) equipmentOptions.value = enums.equipment_types
+  } catch (e) {
+    // 字典接口不可用时退回本地常量，保证页面仍可用
+  }
+  load()
+})
 </script>
 
 <style scoped>

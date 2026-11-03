@@ -82,6 +82,16 @@ class ProcessTemplateApiTests(APITestCase):
         self.assertEqual(resp.data['count'], 1)
         self.assertEqual(resp.data['results'][0]['code'], 'PT-002')
 
+    def test_enums_endpoint(self):
+        resp = self.client.get('/api/v1/process/enums/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.data['step_types']), 11)
+        self.assertEqual(len(resp.data['equipment_types']), 7)
+        values = [item['value'] for item in resp.data['step_types']]
+        self.assertIn('gear_milling', values)
+        self.assertNotIn('gear_hobbing', values)
+        self.assertEqual(resp.data['step_types'][0]['label'], '下料')
+
     def test_requires_auth(self):
         self.client.credentials()
         resp = self.client.get(BASE)
