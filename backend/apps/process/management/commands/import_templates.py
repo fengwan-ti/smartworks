@@ -81,7 +81,9 @@ class Command(BaseCommand):
             rows.append((idx, row))
 
         if header_row is None:
+            wb.close()
             raise CommandError('没找到表头行（第一列应为「模板编码」）')
+        wb.close()  # Windows 下必须关句柄，否则临时文件删不掉 / 文件被占用
 
         created = updated = 0
         errors = []
