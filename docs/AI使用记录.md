@@ -64,6 +64,15 @@
 - **验证方式**：`pytest apps/process/tests` 8 项全过；`ruff check apps/process` 全过；起服务实测——登录 admin/admin123 拿 token、列表 `count=11` 且分页字段正确、新增自动编码 `PT-012` 返回 201、非法枚举返回 `12004`、编码重复返回 `12001`；Swagger `schema.yaml` 已收录 `/api/v1/process/templates/`，`manage.py seed_process` 幂等
 - **结论**：采用（W2 第一张表纵向打穿；下一步路线/BOM + 前端「工序模板」页）
 
+### 记录 006
+- **日期 / 使用人**：2026-11-03 / 成员 B
+- **角色与模块**：B / process —— 工艺枚举接口 + 工序模板 Excel 导入
+- **提示词**：见附录 P-006（"你继续做"）
+- **AI 产出**：新增 `GET /api/v1/process/enums/`（11 个 step_type + 7 个 equipment_type，供前端下拉，避免页面硬编码中文数组）；新增管理命令 `import_templates`（读 `02-六种零件工艺路线清单.xlsx` 的「工序模板库」表，按编码幂等 upsert，逐行走 services 校验 12xxx，支持 `--dry-run`）；`TemplateList.vue` 改为启动时拉枚举接口、失败回落本地常量；补 1 条枚举接口测试（共 9 条）
+- **人工修改**：①发现项目 `.venv` 没有 `openpyxl`（`install_all.py` 包清单漏了），先本地装 3.1.5 并记 A12 交接项让 A 加进 requirements；②导入首版把"已存在编码"当重复报错（12001），改为先查 existing、传 `instance` 再校验；③`--dry-run` 首版有错仍打印"全部通过"，改为有错即失败并逐行列出；④只读「工序模板库」工作表，避免误读路线表
+- **验证方式**：pytest 9 条全过、ruff 全过、`npm run build` 通过；实测 enums 返回 11/7；`import_templates --dry-run` 11 行全部通过、实导 0 新建/11 更新/0 失败；导入后库中 11 条且 step_type 全为新版 11 值
+- **结论**：采用（数据准备不再靠手抄 Excel，换机器一条命令可复现）
+
 ---
 
 ## 附录：长提示词原文
