@@ -60,3 +60,79 @@ class RoadNodeType(models.TextChoices):
     LANE = 'lane', '通道'
     DOCK = 'dock', '装卸点'
     CHARGER = 'charger', '充电位'
+
+
+class AgvStatus(models.TextChoices):
+    """AGV 状态。只有 IDLE 能被派活；RUNNING 是正在执行任务。
+
+    CHARGING / MAINTENANCE 不参与派车，但**不排除**——
+    W6 的"电量提醒"要能看到"有几台在充电"，而不是把它们删掉。
+    """
+    IDLE = 'idle', '空闲'
+    RUNNING = 'running', '运行中'
+    CHARGING = 'charging', '充电中'
+    MAINTENANCE = 'maintenance', '维护中'
+
+
+class TransportTaskType(models.TextChoices):
+    """搬运任务类型。四种都对应真实业务动作，不用"其它"凑数。
+
+    · feed     领料（原料仓 → 工位）
+    · transfer 转序（上道工序工位 → 下道工序工位）
+    · inbound  成品入库（末道工序 / 检验区 → 成品仓）
+    · return   空箱/余料退回（工位 → 原料仓）
+    """
+    FEED = 'feed', '领料'
+    TRANSFER = 'transfer', '转序'
+    INBOUND = 'inbound', '成品入库'
+    RETURN = 'return', '退料'
+
+
+class TransportTaskStatus(models.TextChoices):
+    """搬运任务状态机。合法流转只有四条：
+
+        pending ──assign──> assigned ──start──> running ──finish──> done
+           │                   │
+           └────cancel─────────┴────cancel────> cancelled
+
+    done / cancelled 是终态，不许再改（改了会让里程统计对不上）。
+    非法流转一律报 14504，见 services.change_task_status()。
+    """
+    PENDING = 'pending', '待派车'
+    ASSIGNED = 'assigned', '已派车'
+    RUNNING = 'running', '执行中'
+    DONE = 'done', '已完成'
+    CANCELLED = 'cancelled', '已取消'
+
+
+class TransportSourceType(models.TextChoices):
+    """搬运任务的来源单据类型。派生的任务必须能追回原始单据，
+    否则「这条任务为什么存在」在答辩时答不出来。"""
+    OUTBOUND = 'outbound', '领料单'
+    OPERATION = 'operation', '工单工序'
+    INSPECTION = 'inspection', '检验单'
+    MANUAL = 'manual', '手工创建'
+
+
+class SensorChannel(models.TextChoices):
+    """设备传感器通道。四个通道是任务 6 的输入特征，别随手加减。
+
+    单位写进标签里，是因为这四个量的量纲完全不同（mm/s、℃、A、rpm），
+    前端画图必须知道自己该标什么单位，不能靠猜。
+    """
+    VIBRATION = 'vibration', '振动（mm/s）'
+    TEMPERATURE = 'temperature', '温度（℃）'
+    CURRENT = 'current', '电流（A）'
+    SPEED = 'speed', '转速（rpm）'
+
+
+class SensorSource(models.TextChoices):
+    """读数来源。答辩时会被问「这些数据哪来的」，这一列就是答案。
+
+    · simulated 模拟器生成（scripts/simulate_data.py 或 manage.py simulate_sensors）
+    · imported  从 data/equipment_sensor.csv 导入
+    · manual    人工补录（一般不用，留着兜底）
+    """
+    SIMULATED = 'simulated', '模拟生成'
+    IMPORTED = 'imported', '文件导入'
+    MANUAL = 'manual', '人工录入'

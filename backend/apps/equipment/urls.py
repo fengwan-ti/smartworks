@@ -6,6 +6,7 @@ from apps.equipment import views
 
 router = DefaultRouter()
 router.register('equipments', views.EquipmentViewSet, basename='equipment')
+router.register('sensor-readings', views.SensorReadingViewSet, basename='sensor-reading')
 
 urlpatterns = [
     # 工序类型字典（11 个值）

@@ -1,4 +1,4 @@
-"""物流应用的业务逻辑。核心是路网与距离矩阵。
+"""物流应用的业务逻辑。核心是路网、距离矩阵、AGV 与搬运任务。
 
 ⚠️ **距离矩阵不是 D 写的，是 A 的任务 3 实现**，这里只做「数据库 → 纯函数」的适配：
    · A：apps/algorithms/scheduling/path/graph.py  build_distance_matrix(nodes, edges)
@@ -12,12 +12,21 @@
 缓存策略：节点 29 个、边 48 条，A 的 Dijkstra 全对全实测 <10ms，
 因此不做数据库缓存表，只在进程内留一份；路网一改（count 或 updated_at 变）立刻失效。
 这样「改路网 → 距离立刻变」是自动的，不需要谁记得点「重算」。
+
+── W3 加的内容 ────────────────────────────────────────────────
+搬运营业逻辑三段，顺序就是一次真实业务的顺序：
+    1. 派生：单据 → 搬运任务（derive_from_outbound / derive_from_operation）
+    2. 派车：任务 → AGV（assign_agv）
+    3. 流转：assigned → running → done（change_status / start_task / finish_task）
+三段都写在这里而不是视图里，是因为 W5 的调度算法要直接调它们（不经过 HTTP），
+放视图里就得复制一份，复制的那份早晚和视图那份不一致。
 """
 import time
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 from django.db import transaction
-from django.db.models import Max
+from django.db.models import Count, Max, Sum
+from django.utils import timezone
 
 from apps.algorithms.scheduling.path import planner as path_planner
 from apps.algorithms.scheduling.path.graph import (
@@ -29,10 +38,28 @@ from apps.algorithms.scheduling.path.graph import (
     build_distance_matrix as build_matrix_from_series,
 )
 from apps.core.exceptions import BizError
-from apps.logistics.models import RoadEdge, RoadNode
+from apps.equipment.constants import (
+    AgvStatus,
+    RoadNodeType,
+    TransportSourceType,
+    TransportTaskStatus,
+    TransportTaskType,
+)
+from apps.logistics.models import Agv, RoadEdge, RoadNode, TransportTask
 
 # 进程内缓存：{'key': payload}
 _MATRIX_CACHE = {}
+
+# AGV 满电续航（毫米）。5 km 是车间级 AGV 的常见量级（锂电池，载重 500 kg）。
+# 用它把「里程」换算成「耗几个百分点电量」：
+#     耗电% = 里程 / AGV_FULL_RANGE_MM * 100
+# 为什么不做成每台车一个字段：换电池、换型号时这个数会变，但它是**同一批车共用的参数**，
+# 写在台账里会让 3 台车各存一份，改的时候漏改一台就露馅。W5 真要做差异，再加字段。
+AGV_FULL_RANGE_MM = 5_000_000
+
+# 派车时保留的安全电量（%）。低于这个值即使算出来够，也不派 ——
+# 车走到一半没电停在通道上，比一开始就没派更麻烦。
+AGV_BATTERY_RESERVE = 10
 
 
 def _cache_key():
@@ -292,3 +319,507 @@ def reset_network():
     RoadEdge.objects.all().delete()
     RoadNode.objects.all().delete()
     _MATRIX_CACHE.clear()
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# W3：AGV 台账、搬运任务的派生、派车与状态流转
+# ══════════════════════════════════════════════════════════════════════════
+
+def next_task_code(prefix='TT'):
+    """任务编号 TT-20261105-0003（按天流水）。
+
+    为什么按天流水而不是全局自增：
+        演示时要能一眼看出「这是今天的第几条」，也只跟当天的任务比大小；
+        全局自增到 4 位数以后，编号里看不出任何信息。
+    """
+    today = timezone.localdate()
+    head = f'{prefix}-{today:%Y%m%d}-'
+    last = (
+        TransportTask.objects
+        .filter(code__startswith=head)
+        .order_by('-code')
+        .values_list('code', flat=True)
+        .first()
+    )
+    seq = int(last.rsplit('-', 1)[1]) + 1 if last else 1
+    return f'{head}{seq:04d}'
+
+
+def resolve_dock(value, field_name='位置'):
+    """把一个「位置」解析成路网节点 + 显示名。
+
+    为什么要三种写法都认：同一个地方，四个人嘴里有三种叫法 ——
+        N013          路网节点编号（A 的路径规划只用这个）
+        WS-N013       工位编号（masterdata.Workstation）
+        EQ-CNC-01     设备编号（设备台账）
+    B 派活时只会给「设备/工单上的那道工序在哪台机」，不会去查节点号；
+    所以入口这里必须能兜住，否则 W4 联调时对方一给设备号就 404。
+    """
+    value = (value or '').strip()
+    if not value:
+        raise BizError(10001, f'{field_name}不能为空')
+
+    node = RoadNode.objects.filter(code=value, is_active=True).first()
+    if node is not None:
+        return node, node.name or node.code
+
+    from apps.masterdata.models import Workstation
+
+    workstation = Workstation.objects.filter(code=value).first()
+    if workstation is not None and workstation.agv_load_point:
+        node = RoadNode.objects.filter(code=workstation.agv_load_point).first()
+        if node is not None:
+            return node, workstation.name
+
+    from apps.equipment.models import Equipment
+
+    equipment = Equipment.objects.filter(code=value).select_related('workstation').first()
+    if equipment is not None:
+        point = equipment.workstation.agv_load_point if equipment.workstation else ''
+        if point:
+            node = RoadNode.objects.filter(code=point).first()
+            if node is not None:
+                return node, equipment.name
+        raise BizError(
+            14505,
+            f'设备 {value} 没有 AGV 装卸点（workstation 为空，或工位没填 agv_load_point）。'
+            f'先跑 python manage.py seed_equipments --create-workstations 建占位工位',
+        )
+
+    raise BizError(14502, f'{field_name} {value} 不是有效的节点 / 工位 / 设备编号')
+
+
+def default_dock(keyword):
+    """按名字找默认装卸点（例如「原料」「成品」），找不到就退到第一个装卸点。
+
+    不把 N004 写死在代码里：路网一改编号就全错，而且没人会记得回来改这行。
+    """
+    qs = RoadNode.objects.filter(is_active=True, node_type=RoadNodeType.DOCK)
+    node = qs.filter(name__contains=keyword).order_by('code').first()
+    if node is None:
+        node = qs.order_by('code').first()
+    if node is None:
+        raise BizError(14502, f'路网里没有任何装卸点（dock），无法确定「{keyword}」的位置')
+    return node
+
+
+def _energy_percent(distance_mm):
+    """里程 → 耗电百分比。见文件头 AGV_FULL_RANGE_MM 的说明。"""
+    return (Decimal(distance_mm or 0) / Decimal(AGV_FULL_RANGE_MM) * Decimal(100)).quantize(
+        Decimal('0.01'), rounding=ROUND_HALF_UP,
+    )
+
+
+def _check_reachable(from_node, to_node):
+    """起终点必须连通，且不是同一个点。不连通报 14602（跟错误码表一致）。"""
+    if from_node.pk == to_node.pk:
+        raise BizError(14505, f'起点和终点是同一个节点（{from_node.code}），不需要搬运')
+    distance = distance_between(from_node.code, to_node.code)
+    if distance is None:
+        raise BizError(14602, f'{from_node.code} 到 {to_node.code} 不连通，无法生成搬运任务')
+    return distance
+
+
+@transaction.atomic
+def create_task(*, task_type, from_node, to_node, ref_type=TransportSourceType.MANUAL,
+                ref_doc=None, ref_seq=0, from_location='', to_location='',
+                qty=0, priority=3, plan_start=None, plan_end=None,
+                remark='', operator=None):
+    """建一条搬运任务（内部统一入口，派生/手工/后续算法都走这里）。
+
+    幂等：ref_type + ref_doc + ref_seq 相同就返回已有那条，不新建。
+        返回 (task, created)，created=False 说明这次是「重复提交被挡住」。
+        页面上双击两下不会再变成两条任务、两次派车。
+    """
+    if not (1 <= int(priority) <= 5):
+        raise BizError(10001, '优先级只能是 1-5（1 最高）')
+
+    if ref_doc:
+        existing = TransportTask.objects.filter(
+            ref_type=ref_type, ref_doc=ref_doc, ref_seq=ref_seq,
+        ).first()
+        if existing is not None:
+            return existing, False
+
+    distance = _check_reachable(from_node, to_node)
+
+    task = TransportTask.objects.create(
+        code=next_task_code(),
+        task_type=task_type,
+        from_node=from_node, to_node=to_node,
+        from_location=from_location or from_node.name,
+        to_location=to_location or to_node.name,
+        qty=Decimal(str(qty or 0)),
+        priority=int(priority),
+        ref_type=ref_type, ref_doc=ref_doc or None, ref_seq=ref_seq,
+        plan_start=plan_start, plan_end=plan_end,
+        distance_mm=distance,
+        operator=operator,
+        remark=remark or '',
+    )
+    return task, True
+
+
+def derive_from_outbound(payload, operator=None):
+    """领料单 → 领料搬运任务（feed）。
+
+    现在 C 的领料单模型还没进仓库，所以接口收的是「单据的关键信息」而不是单据 id：
+        outbound_code   领料单号（幂等键）
+        to_node / to_workstation / to_equipment   送到哪（三选一）
+        from_node       从哪取，默认原料仓收发料口
+        qty 或 lines[{material_code, qty}]        数量，lines 会自动求和
+    C 的模型进仓库后，这里只需在 _load_outbound 里补一段「按单号查库」，
+    接口形状不变，前端不用改。
+    """
+    outbound_code = (payload.get('outbound_code') or '').strip()
+    if not outbound_code:
+        raise BizError(10001, '缺少 outbound_code（领料单号）')
+
+    to_value = (payload.get('to_node') or payload.get('to_workstation')
+                or payload.get('to_equipment') or '')
+    if not to_value:
+        raise BizError(10001, '缺少目的地：to_node / to_workstation / to_equipment 三选一')
+
+    to_node, to_label = resolve_dock(to_value, '目的地')
+    if payload.get('from_node') or payload.get('from_workstation'):
+        from_node, from_label = resolve_dock(
+            payload.get('from_node') or payload.get('from_workstation'), '取料点',
+        )
+    else:
+        from_node = default_dock('原料')
+        from_label = from_node.name or from_node.code
+
+    lines = payload.get('lines') or []
+    if payload.get('qty') not in (None, ''):
+        qty = payload['qty']
+    else:
+        qty = sum(Decimal(str(line.get('qty') or 0)) for line in lines)
+
+    return create_task(
+        task_type=TransportTaskType.FEED,
+        from_node=from_node, to_node=to_node,
+        from_location=from_label, to_location=to_label,
+        ref_type=TransportSourceType.OUTBOUND,
+        ref_doc=outbound_code, ref_seq=0,
+        qty=qty,
+        priority=payload.get('priority') or 3,
+        plan_start=payload.get('plan_start'),
+        plan_end=payload.get('plan_end'),
+        remark=payload.get('remark') or '',
+        operator=operator,
+    )
+
+
+def derive_from_operation(payload, operator=None):
+    """工单工序转序 → 搬运任务（transfer）。
+
+        work_order_code  工单号（幂等键 + 单据号）
+        seq              工序序号（幂等键的一部分：同一工单有多道转序）
+        to_equipment / to_node       下道工序在哪台设备 / 哪个节点
+        from_equipment / from_node   上道工序在哪；都不给就报错，不猜
+        qty, priority, plan_start    可选
+
+    为什么 from 必须给、不许猜：
+        猜错了任务会把料送到错的机器上，而且表面上"成功"了，
+        要等到 W4 端到端跑通才发现。宁可当场报错。
+    """
+    work_order_code = (payload.get('work_order_code') or '').strip()
+    if not work_order_code:
+        raise BizError(10001, '缺少 work_order_code（工单号）')
+    seq = payload.get('seq')
+    if seq in (None, ''):
+        raise BizError(10001, '缺少 seq（工序序号）')
+
+    to_value = payload.get('to_equipment') or payload.get('to_node') or ''
+    if not to_value:
+        raise BizError(10001, '缺少下道工序位置：to_equipment 或 to_node')
+    from_value = payload.get('from_equipment') or payload.get('from_node') or ''
+    if not from_value:
+        raise BizError(10001, '缺少上道工序位置：from_equipment 或 from_node')
+
+    from_node, from_label = resolve_dock(from_value, '上道工序位置')
+    to_node, to_label = resolve_dock(to_value, '下道工序位置')
+
+    return create_task(
+        task_type=TransportTaskType.TRANSFER,
+        from_node=from_node, to_node=to_node,
+        from_location=from_label, to_location=to_label,
+        ref_type=TransportSourceType.OPERATION,
+        ref_doc=work_order_code, ref_seq=int(seq),
+        qty=payload.get('qty') or 0,
+        priority=payload.get('priority') or 3,
+        plan_start=payload.get('plan_start'),
+        plan_end=payload.get('plan_end'),
+        remark=payload.get('remark') or '',
+        operator=operator,
+    )
+
+
+def _busy_agv_ids():
+    """正在干活的车（已派车或执行中）。这些车不能再接活。"""
+    return set(
+        TransportTask.objects
+        .filter(status__in=[TransportTaskStatus.ASSIGNED, TransportTaskStatus.RUNNING],
+                agv__isnull=False)
+        .values_list('agv_id', flat=True)
+    )
+
+
+@transaction.atomic
+def assign_agv(task, agv=None, operator=None):
+    """给任务派一台车。不给 agv 就自动挑一台（最近 + 电量够）。
+
+    挑车规则（W3 版，W5 会换成正式的调度算法）：
+        1. 只看 idle、启用、当前有节点位置的车
+        2. 必须能满足「空驶 + 载货」的里程，且完成后还剩 ≥10% 电量
+        3. 在这些车里选**空驶距离最短**的；一样近就选电量高的
+
+    为什么先看空驶距离而不是总里程：载货段对所有候选车都一样（同一条任务），
+    决定差异的只有「车现在离货多远」。这就是最近邻。
+    """
+    if task.status != TransportTaskStatus.PENDING:
+        raise BizError(
+            14504,
+            f'任务 {task.code} 当前是「{task.get_status_display()}」，只有待派车状态能派车',
+        )
+
+    loaded = distance_between(task.from_node.code, task.to_node.code)
+    if loaded is None:
+        raise BizError(14602, f'{task.from_node.code} 到 {task.to_node.code} 不连通')
+
+    busy = _busy_agv_ids()
+    candidates = list(
+        Agv.objects
+        .filter(is_active=True, status=AgvStatus.IDLE, current_node__isnull=False)
+        .exclude(id__in=busy)
+    )
+    if not candidates:
+        raise BizError(14506, '没有空闲 AGV 可派（都在执行任务、充电或维护中）')
+
+    if agv is not None:
+        if agv.id in busy:
+            raise BizError(14506, f'{agv.code} 正在执行其它任务')
+        if agv.status != AgvStatus.IDLE or not agv.is_active:
+            raise BizError(14506, f'{agv.code} 当前状态是「{agv.get_status_display()}」，不可派车')
+        candidates = [agv]
+
+    best = None
+    rejected = []
+    for candidate in candidates:
+        empty = distance_between(candidate.current_node.code, task.from_node.code)
+        if empty is None:
+            rejected.append(f'{candidate.code}：到起点不连通')
+            continue
+        need = _energy_percent(empty + loaded) + Decimal(AGV_BATTERY_RESERVE)
+        if candidate.battery < need:
+            rejected.append(
+                f'{candidate.code}：电量 {candidate.battery}% < 需要 {need}%'
+                f'（空驶 {empty} + 载货 {loaded} mm，含 {AGV_BATTERY_RESERVE}% 安全余量）',
+            )
+            continue
+        key = (empty, -candidate.battery)
+        if best is None or key < best[0]:
+            best = (key, candidate, empty, need)
+
+    if best is None:
+        raise BizError(14506, '没有满足条件的 AGV：' + '；'.join(rejected))
+
+    _, chosen, empty, need = best
+    task.agv = chosen
+    task.empty_distance_mm = empty
+    task.distance_mm = loaded
+    task.status = TransportTaskStatus.ASSIGNED
+    task.save(update_fields=['agv', 'empty_distance_mm', 'distance_mm', 'status', 'updated_at'])
+
+    return {
+        'task': task,
+        'agv': chosen,
+        'empty_distance_mm': empty,
+        'loaded_distance_mm': loaded,
+        'total_distance_mm': empty + loaded,
+        'battery_cost': float(_energy_percent(empty + loaded)),
+        'battery_after': float(chosen.battery - _energy_percent(empty + loaded)),
+        'estimated_seconds': round((empty + loaded) / float(chosen.speed), 1),
+    }
+
+
+def _assert_transition(task, to_status):
+    """状态机校验。非法流转报 14504，并把「现在是什么、能变成什么」讲清楚。"""
+    allowed = {
+        TransportTaskStatus.PENDING: {TransportTaskStatus.ASSIGNED,
+                                       TransportTaskStatus.CANCELLED},
+        TransportTaskStatus.ASSIGNED: {TransportTaskStatus.RUNNING,
+                                       TransportTaskStatus.CANCELLED},
+        TransportTaskStatus.RUNNING: {TransportTaskStatus.DONE,
+                                      TransportTaskStatus.CANCELLED},
+        TransportTaskStatus.DONE: set(),
+        TransportTaskStatus.CANCELLED: set(),
+    }
+    if to_status not in allowed[task.status]:
+        raise BizError(
+            14504,
+            f'任务 {task.code} 不能从「{task.get_status_display()}」'
+            f'变到「{TransportTaskStatus(to_status).label}」',
+        )
+
+
+@transaction.atomic
+def start_task(task, operator=None):
+    """开始执行：assigned → running，车同时变「运行中」。"""
+    _assert_transition(task, TransportTaskStatus.RUNNING)
+    task.status = TransportTaskStatus.RUNNING
+    task.started_at = timezone.now()
+    task.save(update_fields=['status', 'started_at', 'updated_at'])
+    if task.agv_id:
+        Agv.objects.filter(id=task.agv_id).update(
+            status=AgvStatus.RUNNING, updated_at=timezone.now(),
+        )
+    return task
+
+
+@transaction.atomic
+def finish_task(task, operator=None):
+    """完成：running → done。
+
+    三件事必须一起做，少一件台账就和事实脱节：
+        1. 车的位置落到任务终点（下一单的空驶距离从这里算）
+        2. 车变回空闲
+        3. 按「空驶 + 载货」扣电
+    """
+    _assert_transition(task, TransportTaskStatus.DONE)
+    now = timezone.now()
+    task.status = TransportTaskStatus.DONE
+    task.finished_at = now
+    if operator is not None:
+        task.operator = operator
+    task.save(update_fields=['status', 'finished_at', 'operator', 'updated_at'])
+
+    if task.agv_id:
+        total = (task.empty_distance_mm or 0) + (task.distance_mm or 0)
+        agv = task.agv
+        agv.current_node = task.to_node
+        agv.status = AgvStatus.IDLE
+        agv.battery = max(Decimal('0'), agv.battery - _energy_percent(total))
+        agv.save(update_fields=['current_node', 'status', 'battery', 'updated_at'])
+    return task
+
+
+@transaction.atomic
+def cancel_task(task, reason='', operator=None):
+    """取消：待派车 / 已派车 / 执行中都能取消，车放回空闲。"""
+    _assert_transition(task, TransportTaskStatus.CANCELLED)
+    task.status = TransportTaskStatus.CANCELLED
+    if reason:
+        task.remark = f'{task.remark}｜取消：{reason}'.strip('｜')[:255]
+    task.save(update_fields=['status', 'remark', 'updated_at'])
+    # 车在「执行中」被取消时要放回空闲，否则这台车会永远卡在 running 上没人派。
+    if task.agv_id:
+        Agv.objects.filter(id=task.agv_id, status=AgvStatus.RUNNING).update(
+            status=AgvStatus.IDLE, updated_at=timezone.now(),
+        )
+    return task
+
+
+def change_task_status(task, to_status, reason='', operator=None):
+    """统一入口：前端一个下拉框改状态，后端按状态机路由到具体动作。"""
+    if to_status == TransportTaskStatus.RUNNING:
+        return start_task(task, operator=operator)
+    if to_status == TransportTaskStatus.DONE:
+        return finish_task(task, operator=operator)
+    if to_status == TransportTaskStatus.CANCELLED:
+        return cancel_task(task, reason=reason, operator=operator)
+    if to_status == TransportTaskStatus.ASSIGNED:
+        raise BizError(14504, '「已派车」要通过派车动作产生，不能直接改状态')
+    raise BizError(10001, f'未知状态：{to_status}')
+
+
+def assign_pending_tasks(limit=20, operator=None):
+    """把待派车任务按优先级依次派车（一次点击把今天的活派完）。
+
+    派不出去的不报错、只收集原因：一条任务卡住不该让整批失败，
+    但前端必须看到「为什么这条派不出去」。
+    """
+    results = []
+    pending = (
+        TransportTask.objects
+        .filter(status=TransportTaskStatus.PENDING)
+        .select_related('from_node', 'to_node')
+        .order_by('priority', 'plan_start', 'code')[:limit]
+    )
+    for task in pending:
+        try:
+            detail = assign_agv(task, operator=operator)
+            results.append({
+                'code': task.code,
+                'ok': True,
+                'agv': detail['agv'].code,
+                'total_distance_mm': detail['total_distance_mm'],
+            })
+        except BizError as exc:
+            results.append({'code': task.code, 'ok': False, 'reason': exc.message})
+    return results
+
+
+def task_board():
+    """任务看板：各状态数量 + 今日里程 + 空驶率。
+
+    空驶率是这套系统最能说明问题的指标：
+        车空着跑的路 ÷ 总路程。W5 调度算法做完之后这个数应该明显下降，
+        答辩时「算法有没有用」就看它，比讲时间复杂度有说服力。
+    """
+    today = timezone.localdate()
+    counts = dict(
+        TransportTask.objects.values_list('status').annotate(n=Count('id'))
+    )
+    # 里程只统计**已派过车**的任务：待派车任务虽然也有载货里程（派生时就算好了），
+    # 但没有空驶里程，把它算进来会让空驶率被稀释成好看的数字。
+    today_qs = TransportTask.objects.filter(
+        created_at__date=today,
+        status__in=[TransportTaskStatus.ASSIGNED, TransportTaskStatus.RUNNING,
+                    TransportTaskStatus.DONE],
+    )
+    agg = today_qs.aggregate(
+        loaded=Sum('distance_mm'), empty=Sum('empty_distance_mm'),
+    )
+    loaded = agg['loaded'] or 0
+    empty = agg['empty'] or 0
+    total = loaded + empty
+    return {
+        'date': str(today),
+        'pending': counts.get(TransportTaskStatus.PENDING, 0),
+        'assigned': counts.get(TransportTaskStatus.ASSIGNED, 0),
+        'running': counts.get(TransportTaskStatus.RUNNING, 0),
+        'done': counts.get(TransportTaskStatus.DONE, 0),
+        'cancelled': counts.get(TransportTaskStatus.CANCELLED, 0),
+        'today_loaded_mm': loaded,
+        'today_empty_mm': empty,
+        'today_total_mm': total,
+        'empty_ratio': round(empty / total, 3) if total else 0.0,
+        'agv_idle': Agv.objects.filter(is_active=True, status=AgvStatus.IDLE).count(),
+        'agv_busy': Agv.objects.filter(
+            is_active=True, status=AgvStatus.RUNNING).count(),
+        'agv_total': Agv.objects.filter(is_active=True).count(),
+    }
+
+
+def agv_workload():
+    """每台车的活儿：完成单数、总里程、空驶里程、当前状态。"""
+    rows = []
+    for agv in Agv.objects.select_related('current_node').filter(is_active=True):
+        done = agv.tasks.filter(status=TransportTaskStatus.DONE)
+        agg = done.aggregate(loaded=Sum('distance_mm'), empty=Sum('empty_distance_mm'))
+        rows.append({
+            'code': agv.code,
+            'name': agv.name,
+            'status': agv.status,
+            'status_label': agv.get_status_display(),
+            'battery': float(agv.battery),
+            'current_node': agv.current_node.code if agv.current_node else None,
+            'done_tasks': done.count(),
+            'loaded_mm': agg['loaded'] or 0,
+            'empty_mm': agg['empty'] or 0,
+            'running_tasks': agv.tasks.filter(
+                status__in=[TransportTaskStatus.ASSIGNED, TransportTaskStatus.RUNNING],
+            ).count(),
+        })
+    return rows

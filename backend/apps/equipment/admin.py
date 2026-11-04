@@ -8,7 +8,7 @@
 """
 from django.contrib import admin
 
-from apps.equipment.models import Equipment, EquipmentCapability
+from apps.equipment.models import Equipment, EquipmentCapability, SensorReading
 
 
 class EquipmentCapabilityInline(admin.TabularInline):
@@ -53,3 +53,25 @@ class EquipmentCapabilityAdmin(admin.ModelAdmin):
     list_filter = ('step_type', 'precision_level', 'is_active')
     search_fields = ('equipment__code', 'equipment__name')
     list_select_related = ('equipment',)
+
+
+# ── W3：传感器读数 ────────────────────────────────────────────────────────
+
+@admin.register(SensorReading)
+class SensorReadingAdmin(admin.ModelAdmin):
+    """读数**只读**：Admin 里也不给编辑入口。
+
+    想造数据用 manage.py simulate_sensors 或 /sensor-readings/simulate/，
+    那两条路会记 source，能分清"模拟的"和"导入的"。
+    """
+    list_display = ('equipment', 'channel', 'value', 'recorded_at', 'state', 'source')
+    list_filter = ('channel', 'state', 'source')
+    search_fields = ('equipment__code', 'equipment__name')
+    list_select_related = ('equipment',)
+    date_hierarchy = 'recorded_at'
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False

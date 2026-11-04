@@ -2,7 +2,7 @@
 import django_filters
 from django.db.models import Q
 
-from apps.equipment.models import Equipment
+from apps.equipment.models import Equipment, SensorReading
 
 
 class EquipmentFilter(django_filters.FilterSet):
@@ -25,3 +25,30 @@ class EquipmentFilter(django_filters.FilterSet):
             capabilities__step_type=value,
             capabilities__is_active=True,
         ).distinct()
+
+
+class SensorReadingFilter(django_filters.FilterSet):
+    """传感器读数的筛选。监测页每条曲线上都要带时间范围，所以这里专设两个时间参数。
+
+    为什么用 recorded_from / recorded_to 而不是 since / until：
+        前端 Element Plus 的日期选择器给的就是「开始-结束」两个值，
+        命名跟着界面走，少一层翻译。
+    """
+    equipment = django_filters.NumberFilter(field_name='equipment_id')
+    equipment_code = django_filters.CharFilter(
+        field_name='equipment__code', label='设备编码',
+    )
+    channel = django_filters.CharFilter(field_name='channel')
+    state = django_filters.CharFilter(field_name='state')
+    source = django_filters.CharFilter(field_name='source')
+    recorded_from = django_filters.IsoDateTimeFilter(
+        field_name='recorded_at', lookup_expr='gte', label='时间起',
+    )
+    recorded_to = django_filters.IsoDateTimeFilter(
+        field_name='recorded_at', lookup_expr='lte', label='时间止',
+    )
+
+    class Meta:
+        model = SensorReading
+        fields = ('equipment', 'equipment_code', 'channel', 'state', 'source',
+                  'recorded_from', 'recorded_to')

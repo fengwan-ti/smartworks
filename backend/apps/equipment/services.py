@@ -3,14 +3,23 @@
 为什么要单独一层：
   · B 的排产要「按工序找能干活的设备」，这属于业务规则，不属于 HTTP 层
   · W7 的状态识别要改设备当前状态，也要复用这里的同步逻辑
+  · W3 的传感器导入/模拟也放这里，管理命令与接口共用同一段，避免两条路两种行为
 """
+import random
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Count, Q
+from django.utils import timezone
 
 from apps.core.exceptions import BizError
-from apps.equipment.constants import EquipmentStatus, StepType
+from apps.equipment.constants import (
+    EquipmentStatus,
+    SensorChannel,
+    SensorSource,
+    StepType,
+)
 from apps.equipment.models import Equipment, EquipmentCapability
 
 
@@ -180,3 +189,268 @@ def capability_matrix():
         ],
         'rows': list(rows.values()),
     }
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# W3：传感器读数（导入、查询、模拟）
+# ══════════════════════════════════════════════════════════════════════════
+
+# CSV 的宽表列名 → 我们的长表通道。改这里一处，导入逻辑不用动。
+SENSOR_COLUMNS = {
+    SensorChannel.VIBRATION.value: 'vibration',
+    SensorChannel.TEMPERATURE.value: 'temperature',
+    SensorChannel.CURRENT.value: 'current',
+    SensorChannel.SPEED.value: 'speed',
+}
+
+# 四个通道的"正常"基准值，只在没有任何历史读数时用来起个头。
+# 数值取自 data/equipment_sensor.csv 的正常段中位数。
+SENSOR_BASELINE = {
+    SensorChannel.VIBRATION.value: 1.25,
+    SensorChannel.TEMPERATURE.value: 42.0,
+    SensorChannel.CURRENT.value: 8.5,
+    SensorChannel.SPEED.value: 1450.0,
+}
+
+# 模拟时每个通道的正常波动幅度（±）
+SENSOR_NOISE = {
+    SensorChannel.VIBRATION.value: 0.05,
+    SensorChannel.TEMPERATURE.value: 0.8,
+    SensorChannel.CURRENT.value: 0.4,
+    SensorChannel.SPEED.value: 3.0,
+}
+
+
+def import_sensor_rows(rows, source=SensorSource.IMPORTED):
+    """把宽表行（一行四通道）展开成长表并批量入库。
+
+    入参 rows：形如 [{'equipment_code','ts','vibration','temperature','current','speed','state'}, ...]
+    返回统计：读了几行、写了几个点、跳过哪些设备、哪些行格式不对。
+
+    为什么用 ignore_conflicts：
+        唯一约束是（设备, 通道, 时间），重复导入同一份 CSV 时数据库直接跳过，
+        不用先查一遍再逐条比 —— 4.8 万个点那样查会很慢。
+        代价是返回值里分不出"新增"和"已存在"，所以用前后计数差来算。
+    """
+    from apps.equipment.models import SensorReading
+
+    code_to_equipment = {
+        e.code: e for e in Equipment.objects.all()
+    }
+
+    before = SensorReading.objects.count()
+    buffer = []
+    stats = {'read_rows': 0, 'bad_rows': 0, 'unknown_equipment': set(), 'points': 0}
+
+    for row in rows:
+        stats['read_rows'] += 1
+        code = (row.get('equipment_code') or '').strip()
+        equipment = code_to_equipment.get(code)
+        if equipment is None:
+            stats['unknown_equipment'].add(code)
+            continue
+        timestamp = _parse_ts(row.get('ts'))
+        if timestamp is None:
+            stats['bad_rows'] += 1
+            continue
+        state = (row.get('state') or '').strip()
+
+        for channel, column in SENSOR_COLUMNS.items():
+            raw = row.get(column)
+            if raw in (None, ''):
+                continue
+            try:
+                value = Decimal(str(raw))
+            except (TypeError, ValueError):
+                stats['bad_rows'] += 1
+                continue
+            buffer.append(SensorReading(
+                equipment=equipment, channel=channel, value=value,
+                recorded_at=timestamp, state=state, source=source,
+            ))
+
+        if len(buffer) >= 5000:
+            SensorReading.objects.bulk_create(buffer, batch_size=1000,
+                                              ignore_conflicts=True)
+            buffer = []
+
+    if buffer:
+        SensorReading.objects.bulk_create(buffer, batch_size=1000, ignore_conflicts=True)
+
+    after = SensorReading.objects.count()
+    stats['points'] = after - before
+    stats['unknown_equipment'] = sorted(x for x in stats['unknown_equipment'] if x)
+    return stats
+
+
+def _parse_ts(raw):
+    """解析 CSV 的时间。兼容 '2026-03-02T00:00:00' 与 '2026-03-02 00:00:00'。"""
+    if not raw:
+        return None
+    text = str(raw).strip().replace('Z', '+00:00')
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if timezone.is_naive(parsed):
+        parsed = timezone.make_aware(parsed, timezone.get_current_timezone())
+    return parsed
+
+
+def import_sensor_csv(path, source=SensorSource.IMPORTED):
+    """读 CSV 文件并入库。表头带 BOM 也能读（Excel 存的 CSV 常带）。"""
+    import csv
+
+    with open(path, 'r', encoding='utf-8-sig', newline='') as handle:
+        rows = list(csv.DictReader(handle))
+    return import_sensor_rows(rows, source=source)
+
+
+def latest_readings(equipment_code=None, channels=None):
+    """每台设备 × 每个通道的**最新一条**读数（监测页的"当前值"用）。
+
+    为什么不写成一条 SQL：SQLite 不支持 DISTINCT ON，而那些写法在 MySQL 上也不通用。
+    这里逐对查一次，走的是（设备, 通道, 时间）唯一索引，8 台 × 4 通道 = 32 次索引查询，
+    实测个位数毫秒。可读性和可移植性都比一段绕来绕去的 SQL 值。
+    """
+    from apps.equipment.models import SensorReading
+
+    equipment_qs = Equipment.objects.filter(is_active=True).order_by('code')
+    if equipment_code:
+        equipment_qs = equipment_qs.filter(code=equipment_code)
+    channel_list = list(channels) if channels else list(SensorChannel.values)
+
+    results = []
+    for equipment in equipment_qs:
+        row = {'equipment_code': equipment.code, 'equipment_name': equipment.name,
+               'status': equipment.status, 'channels': {}}
+        for channel in channel_list:
+            reading = (
+                SensorReading.objects
+                .filter(equipment=equipment, channel=channel)
+                .only('value', 'recorded_at', 'state')
+                .order_by('-recorded_at')
+                .first()
+            )
+            if reading is None:
+                row['channels'][channel] = None
+                continue
+            row['channels'][channel] = {
+                'value': float(reading.value),
+                'recorded_at': reading.recorded_at.strftime('%Y-%m-%dT%H:%M:%S'),
+                'state': reading.state,
+            }
+        results.append(row)
+    return results
+
+
+def sensor_series(equipment_code, channel, start=None, end=None, limit=500):
+    """取一段时序，给监测页画曲线（W4 直接用）。
+
+    默认返回**最近** limit 个点，并且按时间正序输出 ——
+    前端画图要的是从左到右的时间，倒序传过去它会画反。
+    """
+    from apps.equipment.models import SensorReading
+
+    if channel not in SensorChannel.values:
+        raise BizError(14301, f'通道只能是：{SensorChannel.values}')
+
+    qs = SensorReading.objects.filter(
+        equipment__code=equipment_code, channel=channel,
+    )
+    if start:
+        qs = qs.filter(recorded_at__gte=start)
+    if end:
+        qs = qs.filter(recorded_at__lte=end)
+    points = list(qs.order_by('-recorded_at')[:int(limit)])
+    points.reverse()
+    return {
+        'equipment_code': equipment_code,
+        'channel': channel,
+        'channel_label': SensorChannel(channel).label,
+        'count': len(points),
+        'points': [
+            {'t': p.recorded_at.strftime('%Y-%m-%dT%H:%M:%S'), 'v': float(p.value)}
+            for p in points
+        ],
+    }
+
+
+def simulate_readings(minutes=10, step_minutes=5, equipment_codes=None,
+                      state=None, base_time=None):
+    """往库里追加一段模拟读数（"现在这一刻传感器在报数"）。
+
+    从每台设备**最后一条读数的时间**往后接着写，而不是从当前时钟写：
+        否则导入的历史数据（2026-03）和模拟数据（今天）之间会空出几个月，
+        曲线上是一个断崖，看起来像数据丢了。
+
+    不做成守护进程/定时任务：中辩要的是"能生成、能进库、能画图"，
+    持续跑是 W6 的事（工作包 8.2 节明确写了）。
+    """
+    from apps.equipment.models import SensorReading
+
+    equipment_qs = Equipment.objects.filter(is_active=True).order_by('code')
+    if equipment_codes:
+        equipment_qs = equipment_qs.filter(code__in=equipment_codes)
+
+    rows = []
+    for equipment in equipment_qs:
+        last = (
+            SensorReading.objects
+            .filter(equipment=equipment)
+            .order_by('-recorded_at')
+            .values_list('recorded_at', flat=True)
+            .first()
+        )
+        cursor = base_time or last or timezone.now()
+        for channel in SensorChannel.values:
+            previous = (
+                SensorReading.objects
+                .filter(equipment=equipment, channel=channel)
+                .order_by('-recorded_at')
+                .first()
+            )
+            value = float(previous.value) if previous else SENSOR_BASELINE[channel]
+            steps = max(1, int(minutes) // max(1, int(step_minutes)))
+            for index in range(steps):
+                cursor_channel = cursor + timedelta(minutes=step_minutes * (index + 1))
+                value = max(0.0, value + random.uniform(
+                    -SENSOR_NOISE[channel], SENSOR_NOISE[channel],
+                ))
+                rows.append(SensorReading(
+                    equipment=equipment, channel=channel,
+                    value=Decimal(f'{value:.4f}'),
+                    recorded_at=cursor_channel,
+                    state=state or EquipmentStatus.NORMAL,
+                    source=SensorSource.SIMULATED,
+                ))
+
+    SensorReading.objects.bulk_create(rows, batch_size=1000, ignore_conflicts=True)
+    return {
+        'equipment_count': equipment_qs.count(),
+        'channels': len(SensorChannel.values),
+        'points': len(rows),
+        'minutes': minutes,
+        'step_minutes': step_minutes,
+    }
+
+
+def sensor_state_distribution(equipment_code=None):
+    """各状态的点数分布。W7 做故障预测前先看这个，确认数据到底偏不偏。"""
+    from apps.equipment.models import SensorReading
+
+    qs = SensorReading.objects.all()
+    if equipment_code:
+        qs = qs.filter(equipment__code=equipment_code)
+    rows = (
+        qs.exclude(state='')
+        .values('state')
+        .annotate(n=Count('id'))
+        .order_by('state')
+    )
+    total = sum(row['n'] for row in rows) or 1
+    return [
+        {'state': row['state'], 'count': row['n'],
+         'ratio': round(row['n'] / total, 3)}
+        for row in rows
+    ]

@@ -7,6 +7,8 @@ from apps.logistics import views
 router = DefaultRouter()
 router.register('road-nodes', views.RoadNodeViewSet, basename='road-node')
 router.register('road-edges', views.RoadEdgeViewSet, basename='road-edge')
+router.register('agvs', views.AgvViewSet, basename='agv')
+router.register('transport-tasks', views.TransportTaskViewSet, basename='transport-task')
 
 urlpatterns = [
     # 路网批量操作（放在 router 之前，避免 road-network 被当成 road-nodes 的 id）

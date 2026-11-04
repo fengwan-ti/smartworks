@@ -1,25 +1,44 @@
 """物流应用接口。
 
-接口清单（对应 docs/api-contract.md 第 120-124 条）：
+接口清单：
     GET|POST              /api/v1/logistics/road-nodes/            路网节点
     GET|POST              /api/v1/logistics/road-edges/            路网边
     POST                  /api/v1/logistics/road-network/import/   批量导入（JSON）
     GET                   /api/v1/logistics/road-network/distance-matrix/   N×N 距离矩阵
     GET                   /api/v1/logistics/road-network/health/   路网体检
     GET                   /api/v1/logistics/road-network/shortest-path/    自检用最短路
+
+W3 新增（AGV 与搬运任务）：
+    GET|POST              /api/v1/logistics/agvs/                  AGV 台账
+    GET                   /api/v1/logistics/agvs/workload/         每台车的任务量与里程
+    POST                  /api/v1/logistics/agvs/{id}/charge/      充电（补满电量）
+    GET|POST              /api/v1/logistics/transport-tasks/        搬运任务
+    POST                  /api/v1/logistics/transport-tasks/from-outbound/   领料单 → 任务
+    POST                  /api/v1/logistics/transport-tasks/from-operation/  工序转序 → 任务
+    POST                  /api/v1/logistics/transport-tasks/{id}/assign/     派车
+    POST                  /api/v1/logistics/transport-tasks/assign-pending/  批量派车
+    POST                  /api/v1/logistics/transport-tasks/{id}/status/     状态流转
+    GET                   /api/v1/logistics/transport-tasks/board/           任务看板
 """
+from decimal import Decimal
+
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.core.exceptions import BizError
+from apps.equipment.constants import AgvStatus, TransportTaskStatus
 from apps.logistics import services
-from apps.logistics.models import RoadEdge, RoadNode
+from apps.logistics.models import Agv, RoadEdge, RoadNode, TransportTask
 from apps.logistics.serializers import (
+    AgvSerializer,
+    OperationTaskSerializer,
+    OutboundTaskSerializer,
     RoadEdgeSerializer,
     RoadNetworkImportSerializer,
     RoadNodeSerializer,
+    TransportTaskSerializer,
 )
 
 
@@ -102,3 +121,160 @@ class ShortestPathView(APIView):
         if not from_code or not to_code:
             raise BizError(10001, '缺少 from 或 to 参数')
         return Response(services.shortest_path(from_code, to_code))
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# W3：AGV 台账与搬运任务
+# ══════════════════════════════════════════════════════════════════════════
+
+class AgvViewSet(viewsets.ModelViewSet):
+    """AGV 台账 CRUD。
+
+    权限码暂时不挂（等 A 的菜单表登记完我们的页面再加 required_perm），
+    现在挂上去的后果是：非超管账号一律 403，W4 联调时 B/C 都用不了。
+    """
+    queryset = Agv.objects.select_related('current_node').all()
+    serializer_class = AgvSerializer
+    filterset_fields = ('status', 'is_active', 'current_node')
+    search_fields = ('code', 'name')
+    ordering_fields = ('code', 'battery', 'status')
+
+    @action(detail=False, methods=['get'], url_path='workload')
+    def workload(self, request):
+        """GET /api/v1/logistics/agvs/workload/ 每台车的任务量、里程与电量。"""
+        return Response(services.agv_workload())
+
+    @action(detail=True, methods=['post'], url_path='charge')
+    def charge(self, request, pk=None):
+        """给车充电：电量补满、状态回到空闲。
+
+        W6 会换成「插上充电桩 → 一段时间后充满」，现在一步到位 ——
+        中辩要演示的是「低电量车不派活」，不是充电过程本身。
+        正在执行任务的车不许充（不然任务里的车凭空换了状态）。
+        """
+        agv = self.get_object()
+        if agv.tasks.filter(
+            status__in=[TransportTaskStatus.ASSIGNED, TransportTaskStatus.RUNNING],
+        ).exists():
+            raise BizError(14506, f'{agv.code} 正在执行任务，不能充电')
+        agv.battery = Decimal('100')
+        agv.status = AgvStatus.IDLE
+        agv.save(update_fields=['battery', 'status', 'updated_at'])
+        return Response(AgvSerializer(agv).data)
+
+
+class TransportTaskViewSet(viewsets.ModelViewSet):
+    """搬运任务。
+
+    ⚠️ status / agv / distance 都是**业务动作**改的，不能直接 PATCH。
+       要么走 /assign/ 派车，要么走 /status/ 改状态，保证状态机不被绕过。
+    """
+    queryset = (
+        TransportTask.objects
+        .select_related('from_node', 'to_node', 'agv')
+        .all()
+    )
+    serializer_class = TransportTaskSerializer
+    filterset_fields = ('status', 'task_type', 'ref_type', 'agv', 'from_node', 'to_node')
+    search_fields = ('code', 'ref_doc', 'from_location', 'to_location')
+    ordering_fields = ('code', 'priority', 'created_at', 'plan_start')
+
+    @action(detail=False, methods=['post'], url_path='from-outbound')
+    def from_outbound(self, request):
+        """POST /api/v1/logistics/transport-tasks/from-outbound/
+
+        领料单 → 搬运任务。同一张领料单重复调用只会得到同一条任务（created=false）。
+        """
+        serializer = OutboundTaskSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = dict(serializer.validated_data)
+        auto_assign = data.pop('auto_assign', False)
+
+        task, created = services.derive_from_outbound(data, operator=request.user)
+        payload = {'task': TransportTaskSerializer(task).data, 'created': created}
+        if auto_assign and created:
+            payload['assign'] = _assign_and_serialize(task, request.user)
+        return Response(payload, status=201 if created else 200)
+
+    @action(detail=False, methods=['post'], url_path='from-operation')
+    def from_operation(self, request):
+        """POST /api/v1/logistics/transport-tasks/from-operation/
+
+        工单工序转序 → 搬运任务。幂等键是 (工单号, 工序序号)。
+        """
+        serializer = OperationTaskSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = dict(serializer.validated_data)
+        auto_assign = data.pop('auto_assign', False)
+
+        task, created = services.derive_from_operation(data, operator=request.user)
+        payload = {'task': TransportTaskSerializer(task).data, 'created': created}
+        if auto_assign and created:
+            payload['assign'] = _assign_and_serialize(task, request.user)
+        return Response(payload, status=201 if created else 200)
+
+    @action(detail=True, methods=['post'], url_path='assign')
+    def assign(self, request, pk=None):
+        """POST /api/v1/logistics/transport-tasks/{id}/assign/
+
+        body 可带 {"agv": "AGV-02"} 指定车；不带就自动挑最近的一台。
+        """
+        task = self.get_object()
+        agv = None
+        agv_code = request.data.get('agv')
+        if agv_code:
+            agv = Agv.objects.filter(code=str(agv_code)).first()
+            if agv is None:
+                raise BizError(10001, f'AGV 不存在：{agv_code}')
+        return Response(_assign_and_serialize(task, request.user, agv=agv))
+
+    @action(detail=False, methods=['post'], url_path='assign-pending')
+    def assign_pending(self, request):
+        """一次把待派车任务按优先级派完。返回每条的结果（含失败原因）。"""
+        results = services.assign_pending_tasks(
+            limit=int(request.data.get('limit') or 20), operator=request.user,
+        )
+        return Response({
+            'total': len(results),
+            'assigned': sum(1 for row in results if row['ok']),
+            'results': results,
+        })
+
+    @action(detail=True, methods=['post'], url_path='status')
+    def change_status(self, request, pk=None):
+        """POST /api/v1/logistics/transport-tasks/{id}/status/
+
+        body: {"status": "running" | "done" | "cancelled", "reason": "可选"}
+        非法流转报 14504，不做"尽力而为"。
+        """
+        task = self.get_object()
+        to_status = (request.data.get('status') or '').strip()
+        if to_status not in TransportTaskStatus.values:
+            raise BizError(10001, f'status 取值只能是：{TransportTaskStatus.values}')
+        services.change_task_status(
+            task, to_status,
+            reason=request.data.get('reason') or '',
+            operator=request.user,
+        )
+        task.refresh_from_db()
+        return Response(TransportTaskSerializer(task).data)
+
+    @action(detail=False, methods=['get'], url_path='board')
+    def board(self, request):
+        """任务看板：各状态数量、今日里程、空驶率。"""
+        return Response(services.task_board())
+
+
+def _assign_and_serialize(task, user, agv=None):
+    """派车并拼装返回体（两个动作共用，避免返回结构两处不一致）。"""
+    detail = services.assign_agv(task, agv=agv, operator=user)
+    return {
+        'task': TransportTaskSerializer(detail['task']).data,
+        'agv': AgvSerializer(detail['agv']).data,
+        'empty_distance_mm': detail['empty_distance_mm'],
+        'loaded_distance_mm': detail['loaded_distance_mm'],
+        'total_distance_mm': detail['total_distance_mm'],
+        'battery_cost': detail['battery_cost'],
+        'battery_after': detail['battery_after'],
+        'estimated_seconds': detail['estimated_seconds'],
+    }

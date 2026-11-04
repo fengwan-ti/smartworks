@@ -2,7 +2,8 @@
 from rest_framework import serializers
 
 from apps.core.exceptions import BizError
-from apps.equipment.models import Equipment, EquipmentCapability
+from apps.equipment.constants import EquipmentStatus
+from apps.equipment.models import Equipment, EquipmentCapability, SensorReading
 
 
 class EquipmentCapabilitySerializer(serializers.ModelSerializer):
@@ -64,3 +65,42 @@ class EquipmentBriefSerializer(serializers.ModelSerializer):
     class Meta:
         model = Equipment
         fields = ('id', 'code', 'name', 'status', 'status_label', 'workstation')
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# W3：传感器读数
+# ══════════════════════════════════════════════════════════════════════════
+
+class SensorReadingSerializer(serializers.ModelSerializer):
+    """读数一律只读：它们来自传感器/导入，不允许通过 API 改。
+
+    要改只能重新导入或删了重导 —— 让"读数"变成可编辑的，
+    等于让数据可以被悄悄改成任何样子，W7 的预测结果就没意义了。
+    """
+    equipment_code = serializers.CharField(source='equipment.code', read_only=True)
+    channel_label = serializers.CharField(source='get_channel_display', read_only=True)
+    state_label = serializers.CharField(source='get_state_display', read_only=True, default='')
+    source_label = serializers.CharField(source='get_source_display', read_only=True)
+
+    class Meta:
+        model = SensorReading
+        fields = ('id', 'equipment', 'equipment_code', 'channel', 'channel_label',
+                  'value', 'recorded_at', 'state', 'state_label',
+                  'source', 'source_label', 'created_at')
+        read_only_fields = fields
+
+
+class SensorSimulateSerializer(serializers.Serializer):
+    """模拟读数的入参。
+
+    minutes / step_minutes 决定生成多少个点：
+        10 分钟 / 5 分钟一步 = 每通道 2 个点，8 台设备 × 4 通道 × 2 = 64 个点。
+    """
+    minutes = serializers.IntegerField(required=False, default=10, min_value=1, max_value=1440)
+    step_minutes = serializers.IntegerField(required=False, default=5, min_value=1, max_value=60)
+    equipment_codes = serializers.ListField(
+        child=serializers.CharField(), required=False, default=list,
+    )
+    state = serializers.ChoiceField(
+        choices=EquipmentStatus.choices, required=False, allow_blank=True, default='',
+    )

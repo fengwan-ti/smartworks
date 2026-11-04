@@ -8,6 +8,13 @@
     GET           /api/v1/equipment/equipments/capability-matrix/   设备×工序能力矩阵
     GET           /api/v1/equipment/equipments/next-code/           新增时给个建议编码
     GET           /api/v1/equipment/step-types/                     工序类型字典（11 个值）
+
+W3 新增（传感器读数）：
+    GET           /api/v1/equipment/sensor-readings/                读数明细分页（只读）
+    GET           /api/v1/equipment/sensor-readings/latest/         每台设备每通道最新值
+    GET           /api/v1/equipment/sensor-readings/series/         一条曲线（设备+通道）
+    POST          /api/v1/equipment/sensor-readings/simulate/       生成一段模拟读数
+    GET           /api/v1/equipment/sensor-readings/states/         三类状态的样本占比
 """
 from rest_framework import viewsets
 from rest_framework.decorators import action
@@ -17,12 +24,14 @@ from rest_framework.views import APIView
 from apps.core.exceptions import BizError
 from apps.equipment import services
 from apps.equipment.constants import EquipmentStatus, PrecisionLevel, StepType
-from apps.equipment.filters import EquipmentFilter
-from apps.equipment.models import Equipment
+from apps.equipment.filters import EquipmentFilter, SensorReadingFilter
+from apps.equipment.models import Equipment, SensorReading
 from apps.equipment.serializers import (
     EquipmentBriefSerializer,
     EquipmentCapabilitySerializer,
     EquipmentSerializer,
+    SensorReadingSerializer,
+    SensorSimulateSerializer,
 )
 
 
@@ -127,3 +136,73 @@ class StepTypeView(APIView):
                 {'value': value, 'label': label} for value, label in EquipmentStatus.choices
             ],
         })
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# W3：传感器读数
+# ══════════════════════════════════════════════════════════════════════════
+
+class SensorReadingViewSet(viewsets.ReadOnlyModelViewSet):
+    """传感器读数（只读）。
+
+    为什么是只读：读数代表"传感器说了什么"，它是证据不是配置。
+    允许 POST 就等于允许人编数据，W7 的预测准确率就成了自证。
+    要造数据请走 /sensors/simulate/，那条路会打上 source=simulated 标记。
+    """
+    queryset = SensorReading.objects.select_related('equipment').all()
+    serializer_class = SensorReadingSerializer
+    filterset_class = SensorReadingFilter
+    ordering = ('-recorded_at',)
+    ordering_fields = ('recorded_at', 'value')
+
+    @action(detail=False, methods=['get'], url_path='latest')
+    def latest(self, request):
+        """GET /api/v1/equipment/sensor-readings/latest/?equipment_code=EQ-CNC-01
+
+        每台设备 × 每个通道的最新值。监测页顶部那一排数字用它。
+        """
+        return Response(services.latest_readings(
+            equipment_code=request.query_params.get('equipment_code') or None,
+        ))
+
+    @action(detail=False, methods=['get'], url_path='series')
+    def series(self, request):
+        """GET /api/v1/equipment/sensor-readings/series/?equipment_code=&channel=&limit=500
+
+        一条曲线（一个设备一个通道）。四条曲线就调四次 ——
+        合成一个接口返回四通道也行，但那样前端要先拆再拼，反而多一步。
+        """
+        code = request.query_params.get('equipment_code')
+        channel = request.query_params.get('channel')
+        if not code or not channel:
+            raise BizError(10001, '缺少 equipment_code 或 channel 参数')
+        return Response(services.sensor_series(
+            code, channel,
+            start=request.query_params.get('from') or None,
+            end=request.query_params.get('to') or None,
+            limit=request.query_params.get('limit') or 500,
+        ))
+
+    @action(detail=False, methods=['post'], url_path='simulate')
+    def simulate(self, request):
+        """POST /api/v1/equipment/sensor-readings/simulate/
+
+        生成一段模拟读数并入库。中辩演示用：点一下，曲线末端动起来。
+        """
+        serializer = SensorSimulateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        result = services.simulate_readings(
+            minutes=data['minutes'],
+            step_minutes=data['step_minutes'],
+            equipment_codes=data.get('equipment_codes') or None,
+            state=data.get('state') or None,
+        )
+        return Response(result, status=201)
+
+    @action(detail=False, methods=['get'], url_path='states')
+    def states(self, request):
+        """GET /api/v1/equipment/sensor-readings/states/ 各状态的样本占比。"""
+        return Response(services.sensor_state_distribution(
+            equipment_code=request.query_params.get('equipment_code') or None,
+        ))
