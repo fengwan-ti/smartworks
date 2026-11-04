@@ -631,6 +631,13 @@ def assign_agv(task, agv=None, operator=None):
     task.status = TransportTaskStatus.ASSIGNED
     task.save(update_fields=['agv', 'empty_distance_mm', 'distance_mm', 'status', 'updated_at'])
 
+    # 派车即出车：车马上就往起点开（空驶段），所以状态立刻变"运行中"。
+    # 不改的话会出现「任务已派车、车显示空闲」的矛盾，看板上也数不对。
+    Agv.objects.filter(id=chosen.id).update(
+        status=AgvStatus.RUNNING, updated_at=timezone.now(),
+    )
+    chosen.status = AgvStatus.RUNNING
+
     return {
         'task': task,
         'agv': chosen,
