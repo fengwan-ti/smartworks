@@ -1,4 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
+// C（执行与质量）的 17 页路由。正式合并时 A 只需要保留 import 与 ...cRoutes 两行。
+import { cRoutes } from './routes-c'
 
 /** 路由表。菜单可见性由后端菜单接口控制，这里只管页面注册与登录拦截。 */
 const routes = [
@@ -13,6 +15,7 @@ const routes = [
     component: () => import('@/layouts/BasicLayout.vue'),
     redirect: '/dashboard',
     children: [
+      ...cRoutes,
       {
         path: 'masterdata/products',
         name: 'masterdata-products',
