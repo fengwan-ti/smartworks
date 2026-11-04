@@ -10,8 +10,11 @@
 用法：
     python manage.py init_demo
 """
+import json
+import os
 from decimal import Decimal
 
+from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
@@ -128,24 +131,59 @@ class Command(BaseCommand):
             self.stdout.write('  物料   %-10s %-8s %s' % (code, name, '已创建' if created else '已存在'))
 
     def _workshop_and_stations(self):
+        """建工位，装卸点编号必须与 D 的路网 dock 节点、设备台账完全一致。
+
+        ⚠️ 这里曾经出过一次真实冲突：最初随手填了 N003/N005/N008，与 D 的
+        equipments-v1.json 里 N013~N020 对不上，导致"设备挂在哪个装卸点"
+        两边说法不同。工位装卸点是 A（主数据）与 D（路网/设备）的共用字段，
+        必须与 data/equipments-v1.json 和 data/road-network-v1.json 对齐。
+        """
         ws, created = Workshop.objects.get_or_create(
-            code='WS-MAIN', defaults={'name': '主车间'})
+            code='WS-MAIN', defaults={'name': '机加工车间'})
         self.stdout.write('  车间   %-8s %s' % ('WS-MAIN', '已创建' if created else '已存在'))
 
-        # 工位编号与 D 的路网节点对应（agv_load_point 必须是路网里的节点 code）
+        # 与 data/road-network-v1.json 的 12 个 dock 节点一一对应
         stations = [
-            ('ST-CNC-01', '数控车床 1', 'N003'),
-            ('ST-CNC-02', '数控车床 2', 'N005'),
-            ('ST-MC-01', '加工中心 1', 'N008'),
-            ('ST-GR-01', '磨床', 'N017'),
-            ('ST-QC-01', '检验区', 'N020'),
+            ('ST-RCV-01', '原料收发料口 1', 'N004'),
+            ('ST-RCV-02', '原料收发料口 2', 'N006'),
+            ('ST-CNC-01', '1#数控车床', 'N013'),
+            ('ST-CNC-02', '2#数控车床', 'N014'),
+            ('ST-MC-01', '3#加工中心', 'N015'),
+            ('ST-MC-02', '4#加工中心', 'N016'),
+            ('ST-DR-01', '5#钻床', 'N017'),
+            ('ST-GR-01', '6#磨床', 'N018'),
+            ('ST-CL-01', '7#清洗机', 'N019'),
+            ('ST-DB-01', '8#去毛刺台', 'N020'),
+            ('ST-QC-01', '三坐标/影像仪工位', 'N026'),
+            ('ST-SHP-01', '成品仓发货口', 'N029'),
         ]
         for code, name, point in stations:
-            obj, created = Workstation.objects.get_or_create(
+            obj, created = Workstation.objects.update_or_create(
                 code=code,
                 defaults={'name': name, 'workshop': ws, 'agv_load_point': point})
-            self.stdout.write('  工位   %-10s %-12s 装卸点 %-5s %s'
-                              % (code, name, point, '已创建' if created else '已存在'))
+            self.stdout.write('  工位   %-10s %-18s 装卸点 %-5s %s'
+                              % (code, name, point, '已创建' if created else '已对齐'))
+
+        self._check_nodes_against_network()
+
+    def _check_nodes_against_network(self):
+        """核对工位装卸点是否都存在于 D 的路网里。"""
+        path = os.path.join(settings.PROJECT_ROOT, 'data', 'road-network-v1.json')
+        if not os.path.exists(path):
+            self.stdout.write('  [提示] 找不到 data/road-network-v1.json，跳过装卸点核对')
+            return
+
+        with open(path, encoding='utf-8') as f:
+            net = json.load(f)
+        dock_nodes = {n['code'] for n in net['nodes'] if n.get('type') == 'dock'}
+
+        used = {w.agv_load_point for w in Workstation.objects.all() if w.agv_load_point}
+        missing = sorted(used - dock_nodes)
+        if missing:
+            self.stdout.write(self.style.ERROR(
+                '  [警告] 以下装卸点不在路网 dock 节点里：%s' % ', '.join(missing)))
+        else:
+            self.stdout.write('  装卸点核对：全部 %d 个都在路网 dock 节点内' % len(used))
 
     def _products(self):
         rows = [

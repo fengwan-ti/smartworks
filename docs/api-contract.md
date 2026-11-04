@@ -62,6 +62,102 @@
 
 ---
 
+## 一·五、共享字典与路网口径
+
+> **全组必须用同一套取值。** 这节原来是缺口：`step_type` 在模板、设备能力、
+> 人员技能、排产四处都在用，但契约里查不到定义，B 写中文、D 写下划线，
+> 联调时工序匹配会全部对不上。
+> 来源：`docs/role-d-w1/D契约补丁-20261026.md` §1 §2（D 起草，B 采纳，A 并入契约）。
+
+### 1.5.1 `step_type` 工序类型（11 个取值，冻结）
+
+| step_type | 中文 | 主要设备类型 | 标准工时(h) 参考 |
+|---|---|---|---|
+| `cutting` | 下料 | 锯床 / 剪板 | 0.20 |
+| `rough_turning` | 粗车 | 数控车床 | 0.50 |
+| `finish_turning` | 精车 | 数控车床 | 0.60 |
+| `milling` | 铣削 / 铣面 | 加工中心 | 0.45 |
+| `slot_milling` | 铣槽 | 加工中心 | 0.35 |
+| `gear_milling` | 铣齿 | 滚齿机 / 加工中心 | 1.20 |
+| `drilling` | 钻孔 | 钻床 / 加工中心 | 0.30 |
+| `grinding` | 磨外圆 | 磨床 | 0.70 |
+| `deburring` | 去毛刺 | 去毛刺台 | 0.15 |
+| `cleaning` | 清洗 | 清洗机 | 0.10 |
+| `inspection` | 检验 | 三坐标 / 影像仪 | 0.25 |
+
+**三条约定**
+
+1. 全小写、下划线分隔、**不复数不缩写**（写 `turning`，不写 `turn`）。
+2. 一个 `step_type` 可以要求**多种**设备类型。设备能力匹配口径是：
+   **设备的 `step_type` 列表包含工序要求的 `step_type` 即可，不要求 1:1。**
+3. 新增一个 `step_type` 不写代码，只加数据字典 + 一条工序模板。
+
+**已知缺口（W1 收尾时确认，W2 处理）**
+
+| step_type | 现状 |
+|---|---|
+| `cutting` | 8 台设备里没有锯床。W1 决定**不补设备**，下料按委外/车间外工序处理，不占设备能力 |
+| `inspection` | 不占加工设备，按 `masterdata.workstation`（N026）处理，不建能力记录 |
+| `gear_milling` | 只有 4# 加工中心（EQ-MC-02）具备。若排产占满，齿轮轴会卡——W3 排产联调注意 |
+
+### 1.5.2 路网与距离矩阵口径
+
+| 项 | 约定 |
+|---|---|
+| 单位 | 毫米（mm），整数 |
+| 原点 | 车间西南角，x 向东、y 向北 |
+| 节点编号 | `N` + 3 位数字（`N001`），按 y 再 x 扫描顺序，**不带业务含义** |
+| 节点类型 | 放 `type` 字段：`lane` 通道 / `dock` 装卸点 / `charger` 充电位 |
+| 边距离 | **沿路长度**，不是两点直线距离 |
+| 重复边 | `(from_node, to_node)` 唯一。反向通行用 `is_bidirectional`，不建两条边 |
+| 矩阵形状 | N×N，行列按 `code` 升序，对角线 0 |
+| **不可达** | **`null`**（不用 `-1`、不用 `999999`） |
+| 矩阵不对称 | 存在单行道时**不对称是正确的**，不是 bug |
+
+**为什么不可达必须是 `null`**：填大数会让 AGV 调度把"到不了"当成"绕得远但能做"，
+排出来的方案到现场执行不了。这个差别在单测里看不出来，要到真跑起来才暴露。
+
+**数据与实现位置**
+
+| 内容 | 位置 |
+|---|---|
+| 路网数据 | `data/road-network-v1.json`（29 节点 / 48 边 / 1 条单行道） |
+| 距离矩阵（对答案用） | `data/road-network-v1-matrix.json` |
+| 车间平面图 | `data/road-network-v1.svg` |
+| 生成脚本 | `scripts/gen_road_network.py`（D） |
+| 矩阵与最短路实现 | `apps/algorithms/scheduling/path/`（A，任务 3） |
+| 一致性测试 | `manage.py test apps.algorithms.scheduling.path`（841 格逐格比对） |
+
+### 1.5.3 设备与工位的对应关系
+
+设备的 `workstation_id` 指向 `masterdata.workstation`，而工位的 `agv_load_point`
+就是路网里的 dock 节点编号。**三者必须串成一条线**：
+
+```
+eq_equipment.workstation_id → md_workstation.code
+md_workstation.agv_load_point → lg_road_node.code（必须是 type=dock）
+```
+
+种子对照（`data/equipments-v1.json` 与 `manage.py init_demo` 已对齐）：
+
+| 设备 | 工位 | 装卸点 |
+|---|---|---|
+| EQ-CNC-01 1#数控车床 | ST-CNC-01 | N013 |
+| EQ-CNC-02 2#数控车床 | ST-CNC-02 | N014 |
+| EQ-MC-01 3#加工中心 | ST-MC-01 | N015 |
+| EQ-MC-02 4#加工中心 | ST-MC-02 | N016 |
+| EQ-DR-01 5#钻床 | ST-DR-01 | N017 |
+| EQ-GR-01 6#磨床 | ST-GR-01 | N018 |
+| EQ-CL-01 7#清洗机 | ST-CL-01 | N019 |
+| EQ-DB-01 8#去毛刺台 | ST-DB-01 | N020 |
+
+> ⚠️ **这是 A（主数据）与 D（路网/设备）的共用字段，改动必须双方确认。**
+> 2026-11-04 曾出现过一次冲突：A 建工位时随手填了 N003/N005/N008，
+> 与 D 设备台账的 N013~N020 对不上。已按 D 的数据修正，
+> 并在 `init_demo` 里加了自动核对（装卸点不在路网 dock 节点内会报警）。
+
+---
+
 ## 二、接口总清单
 
 > 状态列：`已上线` / `开发中` / `未开始`
