@@ -160,3 +160,192 @@ class StockTransaction(models.Model):
 
     def __str__(self):
         return f'{self.batch_id} {self.biz_type} {self.qty}'
+
+
+# ====================== 以下为 C 的单据表（W1-W2） ======================
+
+class InboundOrder(models.Model):
+    """采购入库单。确认后按明细生成批次并写库存流水。"""
+    STATUS_CHOICES = (
+        ('draft', '草稿'),
+        ('confirmed', '已确认'),
+        ('cancelled', '已取消'),
+    )
+    code = models.CharField(max_length=32, unique=True, verbose_name='入库单号')
+    name = models.CharField(max_length=64, blank=True, default='', verbose_name='名称')
+    warehouse = models.ForeignKey(Warehouse, on_delete=models.PROTECT,
+                                  related_name='inbound_orders', verbose_name='仓库')
+    supplier = models.ForeignKey('masterdata.Supplier', null=True, blank=True,
+                                 on_delete=models.SET_NULL, related_name='inbound_orders',
+                                 verbose_name='供应商')
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES,
+                              default='draft', verbose_name='状态')
+    in_date = models.DateField(null=True, blank=True, verbose_name='入库日期')
+    operator = models.ForeignKey('core.User', null=True, blank=True,
+                                 on_delete=models.SET_NULL, related_name='inbound_orders',
+                                 verbose_name='操作人')
+    is_active = models.BooleanField(default=True, verbose_name='是否有效')
+    remark = models.CharField(max_length=255, blank=True, default='', verbose_name='备注')
+    confirmed_at = models.DateTimeField(null=True, blank=True, verbose_name='确认时间')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+
+    class Meta:
+        db_table = 'in_inbound_order'
+        verbose_name = '采购入库单'
+        verbose_name_plural = verbose_name
+        ordering = ['-id']
+
+    def __str__(self):
+        return self.code
+
+
+class InboundItem(models.Model):
+    """入库明细。一张单多个物料，每行确认后对应一个批次。"""
+    order = models.ForeignKey(InboundOrder, on_delete=models.CASCADE,
+                              related_name='items', verbose_name='入库单')
+    material = models.ForeignKey('masterdata.Material', on_delete=models.PROTECT,
+                                 related_name='inbound_items', verbose_name='物料')
+    batch_no = models.CharField(max_length=64, verbose_name='批次号')
+    qty = models.DecimalField(max_digits=12, decimal_places=3, verbose_name='数量')
+    location = models.ForeignKey(Location, null=True, blank=True,
+                                 on_delete=models.SET_NULL, related_name='inbound_items',
+                                 verbose_name='库位')
+    expire_date = models.DateField(null=True, blank=True, verbose_name='有效期至')
+    remark = models.CharField(max_length=255, blank=True, default='', verbose_name='备注')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+
+    # 例外说明：关联子表，无业务编码/名称，不做软删除。
+    schema_exempt = ('code', 'name', 'is_active')
+
+    class Meta:
+        db_table = 'in_inbound_item'
+        verbose_name = '入库明细'
+        verbose_name_plural = verbose_name
+        ordering = ['id']
+
+    def __str__(self):
+        return f'{self.order_id}-{self.batch_no}'
+
+
+class OutboundOrder(models.Model):
+    """领料出库单。契约 77：POST /inventory/outbounds/from-work-order/ 按工单生成。
+
+    work_order_id 暂用整型存 B 的工单 id（planning 尚未交付），
+    B 就位后改为外键并出迁移 —— 需在群里同步，不是塞备注。
+    """
+    STATUS_CHOICES = InboundOrder.STATUS_CHOICES
+    code = models.CharField(max_length=32, unique=True, verbose_name='领料单号')
+    name = models.CharField(max_length=64, blank=True, default='', verbose_name='名称')
+    warehouse = models.ForeignKey(Warehouse, on_delete=models.PROTECT,
+                                  related_name='outbound_orders', verbose_name='仓库')
+    work_order_id = models.BigIntegerField(null=True, blank=True, verbose_name='工单ID')
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES,
+                              default='draft', verbose_name='状态')
+    operator = models.ForeignKey('core.User', null=True, blank=True,
+                                 on_delete=models.SET_NULL, related_name='outbound_orders',
+                                 verbose_name='操作人')
+    is_active = models.BooleanField(default=True, verbose_name='是否有效')
+    remark = models.CharField(max_length=255, blank=True, default='', verbose_name='备注')
+    confirmed_at = models.DateTimeField(null=True, blank=True, verbose_name='确认时间')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+
+    class Meta:
+        db_table = 'in_outbound_order'
+        verbose_name = '领料出库单'
+        verbose_name_plural = verbose_name
+        ordering = ['-id']
+
+    def __str__(self):
+        return self.code
+
+
+class OutboundItem(models.Model):
+    """领料明细。batch 为空表示确认出库时按 FIFO 自动分配。"""
+    order = models.ForeignKey(OutboundOrder, on_delete=models.CASCADE,
+                              related_name='items', verbose_name='领料单')
+    material = models.ForeignKey('masterdata.Material', on_delete=models.PROTECT,
+                                 related_name='outbound_items', verbose_name='物料')
+    batch = models.ForeignKey(Batch, null=True, blank=True,
+                              on_delete=models.PROTECT, related_name='outbound_items',
+                              verbose_name='批次（空=FIFO）')
+    qty = models.DecimalField(max_digits=12, decimal_places=3, verbose_name='数量')
+    location = models.ForeignKey(Location, null=True, blank=True,
+                                 on_delete=models.SET_NULL, related_name='outbound_items',
+                                 verbose_name='库位')
+    remark = models.CharField(max_length=255, blank=True, default='', verbose_name='备注')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+
+    schema_exempt = ('code', 'name', 'is_active')
+
+    class Meta:
+        db_table = 'in_outbound_item'
+        verbose_name = '领料明细'
+        verbose_name_plural = verbose_name
+        ordering = ['id']
+
+    def __str__(self):
+        return f'{self.order_id}-{self.material_id}'
+
+
+class StockTaking(models.Model):
+    """盘点单。明细由系统数/实盘数算差异，确认后写 adjust 流水。"""
+    STATUS_CHOICES = (
+        ('draft', '盘点中'),
+        ('confirmed', '已确认'),
+        ('cancelled', '已取消'),
+    )
+    code = models.CharField(max_length=32, unique=True, verbose_name='盘点单号')
+    name = models.CharField(max_length=64, blank=True, default='', verbose_name='名称')
+    warehouse = models.ForeignKey(Warehouse, on_delete=models.PROTECT,
+                                  related_name='stock_takings', verbose_name='仓库')
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES,
+                              default='draft', verbose_name='状态')
+    operator = models.ForeignKey('core.User', null=True, blank=True,
+                                 on_delete=models.SET_NULL, related_name='stock_takings',
+                                 verbose_name='盘点人')
+    is_active = models.BooleanField(default=True, verbose_name='是否有效')
+    remark = models.CharField(max_length=255, blank=True, default='', verbose_name='备注')
+    confirmed_at = models.DateTimeField(null=True, blank=True, verbose_name='确认时间')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+
+    class Meta:
+        db_table = 'in_stock_taking'
+        verbose_name = '盘点单'
+        verbose_name_plural = verbose_name
+        ordering = ['-id']
+
+    def __str__(self):
+        return self.code
+
+
+class StockTakingItem(models.Model):
+    """盘点明细。system_qty 创建时按台账快照填，diff = 实盘 - 系统。"""
+    taking = models.ForeignKey(StockTaking, on_delete=models.CASCADE,
+                               related_name='items', verbose_name='盘点单')
+    material = models.ForeignKey('masterdata.Material', on_delete=models.PROTECT,
+                                 related_name='taking_items', verbose_name='物料')
+    batch = models.ForeignKey(Batch, null=True, blank=True,
+                              on_delete=models.SET_NULL, related_name='taking_items',
+                              verbose_name='批次')
+    location = models.ForeignKey(Location, null=True, blank=True,
+                                 on_delete=models.SET_NULL, related_name='taking_items',
+                                 verbose_name='库位')
+    system_qty = models.DecimalField(max_digits=12, decimal_places=3, default=0,
+                                     verbose_name='系统数量')
+    actual_qty = models.DecimalField(max_digits=12, decimal_places=3, default=0,
+                                     verbose_name='实盘数量')
+    diff_qty = models.DecimalField(max_digits=12, decimal_places=3, default=0,
+                                   verbose_name='差异数量')
+    remark = models.CharField(max_length=255, blank=True, default='', verbose_name='备注')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+
+    schema_exempt = ('code', 'name', 'is_active')
+
+    class Meta:
+        db_table = 'in_stock_taking_item'
+        verbose_name = '盘点明细'
+        verbose_name_plural = verbose_name
+        ordering = ['id']
+
+    def __str__(self):
+        return f'{self.taking_id}-{self.material_id}'
