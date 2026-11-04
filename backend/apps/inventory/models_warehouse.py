@@ -8,6 +8,7 @@ A 按 docs/er-v1.md 第 3.3 节先建了四张共享表的骨架，原因是：
 改完跑 makemigrations inventory 即可，D 那边的迁移不会受影响（表没变名）。
 """
 from django.db import models
+from django.utils import timezone
 
 
 class Warehouse(models.Model):
@@ -41,10 +42,12 @@ class Location(models.Model):
     warehouse = models.ForeignKey(Warehouse, on_delete=models.CASCADE,
                                   related_name='locations', verbose_name='所属仓库')
     code = models.CharField(max_length=32, verbose_name='库位编码')
+    name = models.CharField(max_length=64, blank=True, verbose_name='库位名称')
     area = models.CharField(max_length=32, blank=True, verbose_name='区域')
     is_receiving = models.BooleanField(default=False, verbose_name='是否收料口')
     is_shipping = models.BooleanField(default=False, verbose_name='是否发货口')
     is_active = models.BooleanField(default=True, verbose_name='是否启用')
+    created_at = models.DateTimeField(default=timezone.now, verbose_name='创建时间')
 
     class Meta:
         db_table = 'in_location'
@@ -92,6 +95,9 @@ class Batch(models.Model):
     remark = models.CharField(max_length=255, blank=True, verbose_name='备注')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
 
+    # 例外说明：batch_no 就是业务编码（比 code 更准确），批次不需要单独的名称字段。
+    schema_exempt = ('code', 'name')
+
     class Meta:
         db_table = 'in_batch'
         verbose_name = '批次'
@@ -138,6 +144,9 @@ class StockTransaction(models.Model):
                                  verbose_name='操作人')
     remark = models.CharField(max_length=255, blank=True, verbose_name='备注')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='发生时间')
+
+    # 例外说明：库存流水是追加型记录，没有业务编码与名称，也不做软删除。
+    schema_exempt = ('code', 'name', 'is_active')
 
     class Meta:
         db_table = 'in_stock_transaction'
