@@ -14,5 +14,5 @@
   2. 改完跑 makemigrations inventory，迁移文件会自动生成
   3. 提交前确认迁移文件里只有自己的表
 """
-from .models_finished import *      # noqa: F401,F403
-from .models_warehouse import *     # noqa: F401,F403
+from .models_finished import *  # noqa: F401,F403
+from .models_warehouse import *  # noqa: F401,F403
