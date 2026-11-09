@@ -1,17 +1,20 @@
-# ============ 核心依赖（Day 1 全量安装）============
-Django>=5.0,<5.3
-djangorestframework>=3.15,<4
-django-cors-headers>=4.3
-drf-spectacular>=0.27
-django-filter>=24.2
-django-simple-history>=3.7
-django-import-export>=4.1
-psycopg[binary]>=3.2
-python-dotenv>=1.0
-Pillow>=10.4
-requests>=2.32
-pytest>=8.2
-pytest-django>=4.8
-ruff>=0.5
+# SmartWorks 后端依赖（版本为本机实测通过的组合）
+# Django 6.1.2 + DRF 3.18.3 + Python 3.13.7 已跑通：migrate、init_core、4 个测试
+# 团队统一安装请用仓库根目录的 requirements.lock（含全部传递依赖）
 
-# 注意：首次安装成功后执行 pip freeze > requirements.lock，之后团队统一用 lock 文件
+Django==6.1.2
+djangorestframework==3.18.3
+django-cors-headers==4.9.0
+drf-spectacular==0.30.0
+django-filter==26.2
+django-simple-history==3.13.0
+django-import-export==4.4.3
+python-dotenv==1.2.4
+Pillow==13.0.0
+requests==2.34.2
+pytest==9.1.1
+pytest-django==4.14.0
+ruff==0.17.1
+
+# PostgreSQL 驱动：第一代用 SQLite，需要切库时再取消注释并安装
+# psycopg[binary]==3.2.0

@@ -1,0 +1,324 @@
+{
+  "_说明": "D 的 W1-D2 交付：设备台账 8 台 + 能力参数。直接对应产品说明书 2.2 节车间布局。equipments 里的 workstation_node 是路网装卸点编号，建表后要绑到 masterdata.workstation，W1 先只作对照用。",
+  "_version": "1.0",
+  "_date": "2026-10-23",
+  "workshop": "机加工车间",
+  "equipments": [
+    {
+      "code": "EQ-CNC-01",
+      "name": "1#数控车床",
+      "model": "CK6150",
+      "manufacturer": "沈阳机床",
+      "workstation_node": "N013",
+      "install_date": "2023-05-10",
+      "status": "normal",
+      "is_active": true,
+      "remark": "盘类主设备，粗车/精车",
+      "capabilities": [
+        {
+          "step_type": "rough_turning",
+          "precision_level": "normal",
+          "capacity_per_hour": 6.0,
+          "setup_minutes": 25,
+          "params": {
+            "max_spindle_speed": 2000,
+            "max_turning_diameter": 500,
+            "max_workpiece_length": 1000,
+            "tolerance_mm": 0.05,
+            "axis_count": 2,
+            "coolant": true
+          }
+        },
+        {
+          "step_type": "finish_turning",
+          "precision_level": "medium",
+          "capacity_per_hour": 4.0,
+          "setup_minutes": 30,
+          "params": {
+            "max_spindle_speed": 2500,
+            "max_turning_diameter": 500,
+            "max_workpiece_length": 1000,
+            "tolerance_mm": 0.02,
+            "axis_count": 2,
+            "coolant": true
+          }
+        }
+      ]
+    },
+    {
+      "code": "EQ-CNC-02",
+      "name": "2#数控车床",
+      "model": "CK6150",
+      "manufacturer": "沈阳机床",
+      "workstation_node": "N014",
+      "install_date": "2023-05-10",
+      "status": "normal",
+      "is_active": true,
+      "remark": "轴类主设备，粗车/精车",
+      "capabilities": [
+        {
+          "step_type": "rough_turning",
+          "precision_level": "normal",
+          "capacity_per_hour": 6.0,
+          "setup_minutes": 25,
+          "params": {
+            "max_spindle_speed": 2000,
+            "max_turning_diameter": 500,
+            "max_workpiece_length": 1000,
+            "tolerance_mm": 0.05,
+            "axis_count": 2,
+            "coolant": true
+          }
+        },
+        {
+          "step_type": "finish_turning",
+          "precision_level": "medium",
+          "capacity_per_hour": 4.0,
+          "setup_minutes": 30,
+          "params": {
+            "max_spindle_speed": 2500,
+            "max_turning_diameter": 500,
+            "max_workpiece_length": 1000,
+            "tolerance_mm": 0.02,
+            "axis_count": 2,
+            "coolant": true
+          }
+        }
+      ]
+    },
+    {
+      "code": "EQ-MC-01",
+      "name": "3#加工中心",
+      "model": "VMC850",
+      "manufacturer": "海天精工",
+      "workstation_node": "N015",
+      "install_date": "2024-03-15",
+      "status": "normal",
+      "is_active": true,
+      "remark": "主力加工中心，铣/钻/铣槽",
+      "capabilities": [
+        {
+          "step_type": "milling",
+          "precision_level": "high",
+          "capacity_per_hour": 4.5,
+          "setup_minutes": 35,
+          "params": {
+            "max_spindle_speed": 8000,
+            "travel_x": 800,
+            "travel_y": 500,
+            "travel_z": 550,
+            "tolerance_mm": 0.01,
+            "axis_count": 3,
+            "coolant": true,
+            "tool_capacity": 24
+          }
+        },
+        {
+          "step_type": "drilling",
+          "precision_level": "medium",
+          "capacity_per_hour": 8.0,
+          "setup_minutes": 20,
+          "params": {
+            "max_spindle_speed": 6000,
+            "max_drill_diameter": 20,
+            "tolerance_mm": 0.05,
+            "axis_count": 3,
+            "coolant": true
+          }
+        },
+        {
+          "step_type": "slot_milling",
+          "precision_level": "high",
+          "capacity_per_hour": 3.5,
+          "setup_minutes": 30,
+          "params": {
+            "max_spindle_speed": 8000,
+            "max_slot_width": 30,
+            "tolerance_mm": 0.02,
+            "axis_count": 3,
+            "coolant": true
+          }
+        }
+      ]
+    },
+    {
+      "code": "EQ-MC-02",
+      "name": "4#加工中心",
+      "model": "VMC1160",
+      "manufacturer": "海天精工",
+      "workstation_node": "N016",
+      "install_date": "2025-06-20",
+      "status": "normal",
+      "is_active": true,
+      "remark": "2025 新增，大行程。这条用来验证 D4『新增设备零改代码即可参与排产』",
+      "capabilities": [
+        {
+          "step_type": "milling",
+          "precision_level": "high",
+          "capacity_per_hour": 5.0,
+          "setup_minutes": 35,
+          "params": {
+            "max_spindle_speed": 10000,
+            "travel_x": 1100,
+            "travel_y": 600,
+            "travel_z": 600,
+            "tolerance_mm": 0.008,
+            "axis_count": 3,
+            "coolant": true,
+            "tool_capacity": 30
+          }
+        },
+        {
+          "step_type": "drilling",
+          "precision_level": "medium",
+          "capacity_per_hour": 9.0,
+          "setup_minutes": 20,
+          "params": {
+            "max_spindle_speed": 8000,
+            "max_drill_diameter": 25,
+            "tolerance_mm": 0.04,
+            "axis_count": 3,
+            "coolant": true
+          }
+        },
+        {
+          "step_type": "slot_milling",
+          "precision_level": "high",
+          "capacity_per_hour": 4.0,
+          "setup_minutes": 30,
+          "params": {
+            "max_spindle_speed": 10000,
+            "max_slot_width": 40,
+            "tolerance_mm": 0.015,
+            "axis_count": 3,
+            "coolant": true
+          }
+        },
+        {
+          "step_type": "gear_milling",
+          "precision_level": "medium",
+          "capacity_per_hour": 1.8,
+          "setup_minutes": 60,
+          "params": {
+            "max_module": 4,
+            "max_gear_diameter": 320,
+            "tolerance_mm": 0.03,
+            "axis_count": 3,
+            "coolant": true
+          }
+        }
+      ]
+    },
+    {
+      "code": "EQ-DR-01",
+      "name": "5#钻床",
+      "model": "Z3050",
+      "manufacturer": "中捷",
+      "workstation_node": "N017",
+      "install_date": "2021-09-01",
+      "status": "wearing",
+      "is_active": true,
+      "remark": "老旧设备，主轴已出现磨损迹象，任务 6 的主要监测对象",
+      "capabilities": [
+        {
+          "step_type": "drilling",
+          "precision_level": "normal",
+          "capacity_per_hour": 5.0,
+          "setup_minutes": 15,
+          "params": {
+            "max_spindle_speed": 1600,
+            "max_drill_diameter": 50,
+            "tolerance_mm": 0.10,
+            "axis_count": 1,
+            "coolant": true
+          }
+        }
+      ]
+    },
+    {
+      "code": "EQ-GR-01",
+      "name": "6#磨床",
+      "model": "M1432A",
+      "manufacturer": "上海机床",
+      "workstation_node": "N018",
+      "install_date": "2022-07-12",
+      "status": "normal",
+      "is_active": true,
+      "remark": "外圆磨，齿轮轴工序",
+      "capabilities": [
+        {
+          "step_type": "grinding",
+          "precision_level": "high",
+          "capacity_per_hour": 2.5,
+          "setup_minutes": 40,
+          "params": {
+            "max_speed": 3000,
+            "max_grind_diameter": 320,
+            "max_grind_length": 1000,
+            "tolerance_mm": 0.005,
+            "axis_count": 2,
+            "coolant": true
+          }
+        }
+      ]
+    },
+    {
+      "code": "EQ-CL-01",
+      "name": "7#清洗机",
+      "model": "超声清洗线",
+      "manufacturer": "自制",
+      "workstation_node": "N019",
+      "install_date": "2023-01-20",
+      "status": "normal",
+      "is_active": true,
+      "remark": "通用工序，可插任意族",
+      "capabilities": [
+        {
+          "step_type": "cleaning",
+          "precision_level": "normal",
+          "capacity_per_hour": 20.0,
+          "setup_minutes": 5,
+          "params": {
+            "bath_count": 3,
+            "max_workpiece_diameter": 400,
+            "temperature_max": 70,
+            "axis_count": 0,
+            "coolant": false
+          }
+        }
+      ]
+    },
+    {
+      "code": "EQ-DB-01",
+      "name": "8#去毛刺台",
+      "model": "手工工位",
+      "manufacturer": "自制",
+      "workstation_node": "N020",
+      "install_date": "2023-01-20",
+      "status": "normal",
+      "is_active": true,
+      "remark": "人工工位，产能按人计；一代 6 种零件 30 道工序未引用 deburring，OEE 与产能负荷统计时排除",
+      "capabilities": [
+        {
+          "step_type": "deburring",
+          "precision_level": "normal",
+          "capacity_per_hour": 15.0,
+          "setup_minutes": 2,
+          "params": {
+            "station_count": 2,
+            "axis_count": 0,
+            "coolant": false
+          }
+        }
+      ]
+    }
+  ],
+  "_没有设备的工序": {
+    "cutting": "下料。说明书 2.2 节 8 台设备里没有锯床——这是个缺口。建议①在 masterdata 里把下料设置为委外或车间外的工序（不占设备）；②或加一台 9# 锯床。待 B 定。",
+    "inspection": "检验。三坐标/影像仪工位 ×2 在检验区（N026），不占用加工设备，按 masterdata.workstation 处理，不建能力记录。"
+  },
+  "_单点风险工序": {
+    "grinding": "磨削。只有 6# 磨床一台（2.5 件/小时），全车间瓶颈之一。",
+    "gear_milling": "滚齿。只有 4# 加工中心一台（1.8 件/小时、换型 60 分钟）；若 4# 排不上，齿轮轴会卡。"
+  }
+}

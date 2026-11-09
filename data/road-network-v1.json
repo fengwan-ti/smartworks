@@ -1,0 +1,500 @@
+{
+  "version": "1.0",
+  "unit": "mm",
+  "workshop": "默认车间",
+  "nodes": [
+    {
+      "code": "N001",
+      "x": 1000,
+      "y": 1000,
+      "type": "lane",
+      "name": "原料仓-南通道西端"
+    },
+    {
+      "code": "N002",
+      "x": 1000,
+      "y": 6000,
+      "type": "lane",
+      "name": "原料仓-中通道西端"
+    },
+    {
+      "code": "N003",
+      "x": 1000,
+      "y": 10000,
+      "type": "lane",
+      "name": "原料仓-北通道西端"
+    },
+    {
+      "code": "N004",
+      "x": 9000,
+      "y": 1000,
+      "type": "dock",
+      "name": "原料收发料口-1"
+    },
+    {
+      "code": "N005",
+      "x": 9000,
+      "y": 6000,
+      "type": "lane",
+      "name": "主通道-南"
+    },
+    {
+      "code": "N006",
+      "x": 9000,
+      "y": 10000,
+      "type": "dock",
+      "name": "原料收发料口-2"
+    },
+    {
+      "code": "N007",
+      "x": 9000,
+      "y": 15000,
+      "type": "lane",
+      "name": "主通道-中北"
+    },
+    {
+      "code": "N008",
+      "x": 9000,
+      "y": 20000,
+      "type": "lane",
+      "name": "主通道-北"
+    },
+    {
+      "code": "N009",
+      "x": 13000,
+      "y": 1000,
+      "type": "lane",
+      "name": "加工区-西南通道"
+    },
+    {
+      "code": "N010",
+      "x": 13000,
+      "y": 6000,
+      "type": "lane",
+      "name": "加工区-中西通道"
+    },
+    {
+      "code": "N011",
+      "x": 13000,
+      "y": 10000,
+      "type": "lane",
+      "name": "加工区-中通道"
+    },
+    {
+      "code": "N012",
+      "x": 13000,
+      "y": 15000,
+      "type": "lane",
+      "name": "加工区-中北通道"
+    },
+    {
+      "code": "N013",
+      "x": 16000,
+      "y": 1000,
+      "type": "dock",
+      "name": "1#数控车床装卸点"
+    },
+    {
+      "code": "N014",
+      "x": 16000,
+      "y": 6000,
+      "type": "dock",
+      "name": "2#数控车床装卸点"
+    },
+    {
+      "code": "N015",
+      "x": 16000,
+      "y": 10000,
+      "type": "dock",
+      "name": "3#加工中心装卸点"
+    },
+    {
+      "code": "N016",
+      "x": 16000,
+      "y": 15000,
+      "type": "dock",
+      "name": "4#加工中心装卸点"
+    },
+    {
+      "code": "N017",
+      "x": 16000,
+      "y": 20000,
+      "type": "dock",
+      "name": "5#钻床装卸点"
+    },
+    {
+      "code": "N018",
+      "x": 30000,
+      "y": 1000,
+      "type": "dock",
+      "name": "6#磨床装卸点"
+    },
+    {
+      "code": "N019",
+      "x": 30000,
+      "y": 6000,
+      "type": "dock",
+      "name": "7#清洗机装卸点"
+    },
+    {
+      "code": "N020",
+      "x": 30000,
+      "y": 10000,
+      "type": "dock",
+      "name": "8#去毛刺台装卸点"
+    },
+    {
+      "code": "N021",
+      "x": 30000,
+      "y": 20000,
+      "type": "lane",
+      "name": "加工区-东北通道"
+    },
+    {
+      "code": "N022",
+      "x": 20000,
+      "y": 20000,
+      "type": "lane",
+      "name": "充电区-南入口"
+    },
+    {
+      "code": "N023",
+      "x": 20000,
+      "y": 24000,
+      "type": "charger",
+      "name": "充电桩-1"
+    },
+    {
+      "code": "N024",
+      "x": 24000,
+      "y": 24000,
+      "type": "charger",
+      "name": "充电桩-2"
+    },
+    {
+      "code": "N025",
+      "x": 40000,
+      "y": 6000,
+      "type": "lane",
+      "name": "检验区-南入口"
+    },
+    {
+      "code": "N026",
+      "x": 40000,
+      "y": 10000,
+      "type": "dock",
+      "name": "三坐标/影像仪工位装卸点"
+    },
+    {
+      "code": "N027",
+      "x": 46000,
+      "y": 6000,
+      "type": "lane",
+      "name": "成品仓-西入口"
+    },
+    {
+      "code": "N028",
+      "x": 46000,
+      "y": 10000,
+      "type": "lane",
+      "name": "成品仓-北入口"
+    },
+    {
+      "code": "N029",
+      "x": 50000,
+      "y": 6000,
+      "type": "dock",
+      "name": "成品仓-发货口"
+    }
+  ],
+  "edges": [
+    {
+      "from": "N001",
+      "to": "N002",
+      "distance": 5000,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N002",
+      "to": "N003",
+      "distance": 4000,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N001",
+      "to": "N005",
+      "distance": 9434,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N002",
+      "to": "N005",
+      "distance": 8000,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N003",
+      "to": "N006",
+      "distance": 8000,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N006",
+      "to": "N005",
+      "distance": 4000,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N001",
+      "to": "N004",
+      "distance": 8000,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N004",
+      "to": "N005",
+      "distance": 5000,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N005",
+      "to": "N007",
+      "distance": 9000,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N007",
+      "to": "N008",
+      "distance": 5000,
+      "is_bidirectional": false
+    },
+    {
+      "from": "N005",
+      "to": "N009",
+      "distance": 6403,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N005",
+      "to": "N010",
+      "distance": 4000,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N005",
+      "to": "N011",
+      "distance": 5657,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N007",
+      "to": "N011",
+      "distance": 6403,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N007",
+      "to": "N012",
+      "distance": 4000,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N008",
+      "to": "N012",
+      "distance": 6403,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N008",
+      "to": "N022",
+      "distance": 11000,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N008",
+      "to": "N017",
+      "distance": 7000,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N009",
+      "to": "N010",
+      "distance": 5000,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N010",
+      "to": "N011",
+      "distance": 4000,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N011",
+      "to": "N012",
+      "distance": 5000,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N009",
+      "to": "N013",
+      "distance": 3000,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N010",
+      "to": "N014",
+      "distance": 3000,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N011",
+      "to": "N015",
+      "distance": 3000,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N012",
+      "to": "N016",
+      "distance": 3000,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N012",
+      "to": "N017",
+      "distance": 5831,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N013",
+      "to": "N018",
+      "distance": 14000,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N014",
+      "to": "N019",
+      "distance": 14000,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N015",
+      "to": "N020",
+      "distance": 14000,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N017",
+      "to": "N021",
+      "distance": 14000,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N016",
+      "to": "N017",
+      "distance": 5000,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N018",
+      "to": "N022",
+      "distance": 21471,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N019",
+      "to": "N022",
+      "distance": 17205,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N020",
+      "to": "N022",
+      "distance": 14142,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N022",
+      "to": "N021",
+      "distance": 10000,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N018",
+      "to": "N019",
+      "distance": 5000,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N019",
+      "to": "N020",
+      "distance": 4000,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N022",
+      "to": "N023",
+      "distance": 4000,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N022",
+      "to": "N024",
+      "distance": 5657,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N019",
+      "to": "N025",
+      "distance": 10000,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N020",
+      "to": "N025",
+      "distance": 10770,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N026",
+      "to": "N025",
+      "distance": 4000,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N025",
+      "to": "N026",
+      "distance": 4000,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N026",
+      "to": "N028",
+      "distance": 6000,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N025",
+      "to": "N027",
+      "distance": 6000,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N028",
+      "to": "N027",
+      "distance": 4000,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N027",
+      "to": "N029",
+      "distance": 4000,
+      "is_bidirectional": true
+    },
+    {
+      "from": "N028",
+      "to": "N029",
+      "distance": 5657,
+      "is_bidirectional": true
+    }
+  ]
+}

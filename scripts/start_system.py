@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """启动前后端并打开浏览器。由 3-启动系统.bat 调用。
 
 三个踩坑后修正的点：
@@ -120,9 +120,11 @@ def main():
     time.sleep(5)
 
     head('启动前端 ' + WEB_URL)
-    spawn('SmartWorks-FRONTEND-do-not-close',
-          FRONTEND,
-          '"%s" run dev' % npm)
+    # 注意：这里必须用 npm 这个短名，不能拼绝对路径。
+    # 绝对路径带空格（C:\Program Files\nodejs\npm.CMD），
+    # 传给 cmd /k 时会被 Python 再加一层引号变成 "..."，cmd 就当成无效命令了。
+    # npm 已在 PATH 上，cmd 会自己解析到 npm.CMD。
+    spawn('SmartWorks-FRONTEND-do-not-close', FRONTEND, 'npm run dev')
     print('  等待 15 秒让前端编译 ...')
     time.sleep(15)
 

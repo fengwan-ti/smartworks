@@ -5,6 +5,7 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from simple_history.models import HistoricalRecords
+from django.utils import timezone
 
 
 class Department(models.Model):
@@ -34,6 +35,7 @@ class Position(models.Model):
     name = models.CharField(max_length=64, verbose_name='岗位名称')
     description = models.CharField(max_length=255, blank=True, verbose_name='说明')
     is_active = models.BooleanField(default=True, verbose_name='是否启用')
+    created_at = models.DateTimeField(default=timezone.now, verbose_name='创建时间')
 
     class Meta:
         db_table = 'core_position'
@@ -51,6 +53,8 @@ class Shift(models.Model):
     name = models.CharField(max_length=32, verbose_name='班次名称')
     start_time = models.TimeField(verbose_name='开始时间')
     end_time = models.TimeField(verbose_name='结束时间')
+    is_active = models.BooleanField(default=True, verbose_name='是否启用')
+    created_at = models.DateTimeField(default=timezone.now, verbose_name='创建时间')
 
     class Meta:
         db_table = 'core_shift'
@@ -81,6 +85,7 @@ class Menu(models.Model):
     permission_code = models.CharField(max_length=64, blank=True, verbose_name='权限码')
     sort = models.IntegerField(default=0, verbose_name='排序')
     is_active = models.BooleanField(default=True, verbose_name='是否启用')
+    created_at = models.DateTimeField(default=timezone.now, verbose_name='创建时间')
 
     class Meta:
         db_table = 'core_menu'
@@ -99,6 +104,7 @@ class Role(models.Model):
     description = models.CharField(max_length=255, blank=True, verbose_name='说明')
     menus = models.ManyToManyField(Menu, blank=True, related_name='roles', verbose_name='可访问菜单')
     is_active = models.BooleanField(default=True, verbose_name='是否启用')
+    created_at = models.DateTimeField(default=timezone.now, verbose_name='创建时间')
 
     class Meta:
         db_table = 'core_role'
@@ -126,6 +132,10 @@ class User(AbstractUser):
     phone = models.CharField(max_length=20, blank=True, verbose_name='手机号')
     history = HistoricalRecords()
 
+    # 例外说明：用户表沿用 Django 自带的 date_joined 作为创建时间，
+    # 不另建 created_at，避免同一含义两个字段；用户也没有业务编码 code。
+    schema_exempt = ('code', 'created_at')
+
     class Meta:
         db_table = 'core_user'
         verbose_name = '用户'
@@ -143,6 +153,10 @@ class DataDict(models.Model):
     dict_name = models.CharField(max_length=128, verbose_name='字典名称')
     sort = models.IntegerField(default=0, verbose_name='排序')
     is_active = models.BooleanField(default=True, verbose_name='是否启用')
+
+    # 例外说明：字段名用 dict_code / dict_name，比 code / name 更清楚；
+    # 字典是配置数据，没有"创建时间"，故豁免 created_at。
+    schema_exempt = ('code', 'name', 'created_at')
 
     class Meta:
         db_table = 'core_data_dict'
@@ -166,11 +180,17 @@ class OperationLog(models.Model):
     ip = models.CharField(max_length=64, blank=True, verbose_name='IP')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='时间')
 
+    # 例外说明：日志是追加型流水，没有业务编码、没有名称、不做软删除。
+    schema_exempt = ('code', 'name', 'is_active')
+
     class Meta:
         db_table = 'core_operation_log'
         verbose_name = '操作日志'
         verbose_name_plural = verbose_name
         ordering = ['-created_at']
+
+    def __str__(self):
+        return '%s %s %s' % (self.created_at, self.action, self.target_model)
 
 
 class Notification(models.Model):
@@ -184,8 +204,14 @@ class Notification(models.Model):
     is_read = models.BooleanField(default=False, verbose_name='是否已读')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='时间')
 
+    # 例外说明：通知是消息流水，标题即名称，没有业务编码、不做软删除。
+    schema_exempt = ('code', 'name', 'is_active')
+
     class Meta:
         db_table = 'core_notification'
         verbose_name = '通知'
         verbose_name_plural = verbose_name
         ordering = ['-created_at']
+
+    def __str__(self):
+        return '%s -> %s' % (self.title, self.user_id)

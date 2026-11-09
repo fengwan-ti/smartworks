@@ -1,6 +1,7 @@
 """core 应用的接口。视图只做校验与调用，业务逻辑在 services.py。"""
 from django.contrib.auth import authenticate
 from rest_framework import status, viewsets
+from rest_framework.decorators import action
 from rest_framework.authtoken.models import Token
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -78,9 +79,35 @@ class UserViewSet(viewsets.ModelViewSet):
 
 
 class RoleViewSet(viewsets.ModelViewSet):
+    """角色管理。额外提供「分配菜单」动作，让权限配置全程在页面上完成。"""
+
     queryset = Role.objects.all().order_by('code')
     serializer_class = RoleSerializer
     pagination_class = StandardPagination
+
+    @action(detail=True, methods=['get', 'post'], url_path='menus')
+    def menus_of_role(self, request, pk=None):
+        """GET 查看角色已分配的菜单；POST 用 menu_ids 整体覆盖。
+
+        POST 体：{"menu_ids": [1, 2, 3]}
+        用整体覆盖而不是增量，是为了让前端"保存"按钮的语义明确，避免多次调用后状态错乱。
+        """
+        role = self.get_object()
+        if request.method.lower() == 'get':
+            ids = list(role.menus.values_list('id', flat=True))
+            return Response({'role_id': role.id, 'role_code': role.code, 'menu_ids': ids})
+
+        menu_ids = request.data.get('menu_ids')
+        if not isinstance(menu_ids, list):
+            raise BizError(11001, 'menu_ids 必须是数组')
+        bad = [x for x in menu_ids if not isinstance(x, int)]
+        if bad:
+            raise BizError(11002, 'menu_ids 里必须都是整数（菜单 id）')
+        role.menus.set(menu_ids)
+        ids = list(role.menus.values_list('id', flat=True))
+        write_operation_log(request.user, 'assign_menus', 'core.Role', role.id,
+                            {'menu_ids': ids}, ip=_client_ip(request))
+        return Response({'role_id': role.id, 'menu_ids': ids})
 
 
 class MenuViewSet(viewsets.ModelViewSet):
