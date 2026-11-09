@@ -72,3 +72,204 @@ class ProcessTemplate(models.Model):
 
     def __str__(self):
         return f'{self.code} {self.name}'
+
+
+class RouteStatus(models.TextChoices):
+    """工艺路线状态：draft → active → obsolete（同一产品最多一条 active）。"""
+    DRAFT = 'draft', '草稿'
+    ACTIVE = 'active', '生效'
+    OBSOLETE = 'obsolete', '停用'
+
+
+class BomStatus(models.TextChoices):
+    """BOM 状态：与路线同一套取值。"""
+    DRAFT = 'draft', '草稿'
+    ACTIVE = 'active', '生效'
+    OBSOLETE = 'obsolete', '停用'
+
+
+class ChangeoverSource(models.TextChoices):
+    """换型时间来源（对齐 A 在 er-v1 登记的枚举）。"""
+    STANDARD = 'standard', '工艺标准'
+    MEASURED = 'measured', '实测'
+    ESTIMATED = 'estimated', '估值'
+    IMPORTED = 'imported', '导入'
+
+
+class ProcessRoute(models.Model):
+    """工艺路线：某产品按版本的一套工序（由 pr_route_step 按 seq 组成）。
+
+    产品/产品族来自 A 的 masterdata，只外键引用、不在此建表。
+    """
+    code = models.CharField(max_length=64, unique=True, verbose_name='路线编码')
+    product = models.ForeignKey(
+        'masterdata.Product', on_delete=models.PROTECT,
+        related_name='process_routes', verbose_name='产品',
+    )
+    family = models.ForeignKey(
+        'masterdata.ProductFamily', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='process_routes',
+        verbose_name='产品族（冗余，需与产品一致）',
+    )
+    version = models.PositiveIntegerField(default=1, verbose_name='版本')
+    status = models.CharField(
+        max_length=16, choices=RouteStatus.choices,
+        default=RouteStatus.DRAFT, verbose_name='状态',
+    )
+    remark = models.TextField(blank=True, default='', verbose_name='备注')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+
+    class Meta:
+        db_table = 'pr_route'
+        verbose_name = '工艺路线'
+        verbose_name_plural = verbose_name
+        ordering = ['product_id', '-version']
+        constraints = [
+            models.UniqueConstraint(fields=['product', 'version'],
+                                    name='uq_pr_route_product_version'),
+        ]
+        indexes = [
+            models.Index(fields=['product', 'status'], name='idx_pr_route_product_status'),
+            models.Index(fields=['family', 'status'], name='idx_pr_route_family_status'),
+        ]
+
+    def __str__(self):
+        return f'{self.code} {self.product.name} V{self.version}'
+
+
+class RouteStep(models.Model):
+    """路线上的工序：可引用模板（模板为空时是专用工序），可覆盖工时/参数/设备要求。"""
+    route = models.ForeignKey(
+        ProcessRoute, on_delete=models.CASCADE,
+        related_name='steps', verbose_name='所属路线',
+    )
+    seq = models.PositiveIntegerField(verbose_name='工序序号')
+    template = models.ForeignKey(
+        ProcessTemplate, null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='route_steps', verbose_name='工序模板',
+    )
+    step_type = models.CharField(max_length=32, choices=StepType.choices, verbose_name='工序类型')
+    std_hours = models.DecimalField(max_digits=8, decimal_places=3, verbose_name='标准工时（小时/件）')
+    required_equipment_type = models.CharField(
+        max_length=32, blank=True, default='', verbose_name='所需设备类型（仅展示）',
+    )
+    key_params = models.JSONField(default=dict, blank=True, verbose_name='关键工艺参数')
+    inspection_rule = models.JSONField(default=dict, blank=True, verbose_name='检验要求')
+    is_special = models.BooleanField(default=False, verbose_name='专用工序')
+    is_equipment_free = models.BooleanField(
+        default=False, verbose_name='不占设备',
+        help_text='下料/检验等：排产只占工时、不匹配设备',
+    )
+    remark = models.TextField(blank=True, default='', verbose_name='备注')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+
+    class Meta:
+        db_table = 'pr_route_step'
+        verbose_name = '路线工序'
+        verbose_name_plural = verbose_name
+        ordering = ['route_id', 'seq']
+        constraints = [
+            models.UniqueConstraint(fields=['route', 'seq'],
+                                    name='uq_pr_route_step_route_seq'),
+        ]
+        indexes = [
+            models.Index(fields=['step_type'], name='idx_pr_step_step_type'),
+        ]
+
+    def __str__(self):
+        return f'{self.route.code} #{self.seq} {self.step_type}'
+
+
+class Bom(models.Model):
+    """单层 BOM（第一代不做装配体/多层 BOM）。"""
+    code = models.CharField(max_length=64, unique=True, verbose_name='BOM 编码')
+    product = models.ForeignKey(
+        'masterdata.Product', on_delete=models.PROTECT,
+        related_name='boms', verbose_name='产品',
+    )
+    version = models.PositiveIntegerField(default=1, verbose_name='版本')
+    status = models.CharField(
+        max_length=16, choices=BomStatus.choices,
+        default=BomStatus.DRAFT, verbose_name='状态',
+    )
+    remark = models.TextField(blank=True, default='', verbose_name='备注')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+
+    class Meta:
+        db_table = 'pr_bom'
+        verbose_name = 'BOM'
+        verbose_name_plural = verbose_name
+        ordering = ['product_id', '-version']
+        constraints = [
+            models.UniqueConstraint(fields=['product', 'version'],
+                                    name='uq_pr_bom_product_version'),
+        ]
+
+    def __str__(self):
+        return f'{self.code} {self.product.name} V{self.version}'
+
+
+class BomItem(models.Model):
+    """BOM 明细：单件用量 + 损耗率（第一代一行一个物料）。"""
+    bom = models.ForeignKey(
+        Bom, on_delete=models.CASCADE, related_name='items', verbose_name='所属 BOM',
+    )
+    material = models.ForeignKey(
+        'masterdata.Material', on_delete=models.PROTECT,
+        related_name='bom_items', verbose_name='物料',
+    )
+    qty_per = models.DecimalField(max_digits=12, decimal_places=3, verbose_name='单件用量')
+    loss_rate = models.DecimalField(
+        max_digits=5, decimal_places=2, default=0, verbose_name='损耗率（%）',
+    )
+    is_substitute = models.BooleanField(default=False, verbose_name='是否替代料')
+    remark = models.TextField(blank=True, default='', verbose_name='备注')
+
+    class Meta:
+        db_table = 'pr_bom_item'
+        verbose_name = 'BOM 明细'
+        verbose_name_plural = verbose_name
+        ordering = ['bom_id', 'material_id']
+        constraints = [
+            models.UniqueConstraint(fields=['bom', 'material'],
+                                    name='uq_pr_bom_item_bom_material'),
+        ]
+
+    def __str__(self):
+        return f'{self.bom.code} {self.material.code} x{self.qty_per}'
+
+
+class ChangeoverMatrix(models.Model):
+    """换型时间矩阵：from 产品 → to 产品的换型分钟数（有方向，不假设对称）。"""
+    from_product = models.ForeignKey(
+        'masterdata.Product', on_delete=models.CASCADE,
+        related_name='changeovers_from', verbose_name='前产品',
+    )
+    to_product = models.ForeignKey(
+        'masterdata.Product', on_delete=models.CASCADE,
+        related_name='changeovers_to', verbose_name='后产品',
+    )
+    changeover_minutes = models.PositiveIntegerField(verbose_name='换型分钟数')
+    source = models.CharField(
+        max_length=16, choices=ChangeoverSource.choices,
+        default=ChangeoverSource.ESTIMATED, verbose_name='数据来源',
+    )
+    remark = models.TextField(blank=True, default='', verbose_name='备注')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+
+    class Meta:
+        db_table = 'pr_changeover_matrix'
+        verbose_name = '换型矩阵'
+        verbose_name_plural = verbose_name
+        ordering = ['from_product_id', 'to_product_id']
+        constraints = [
+            models.UniqueConstraint(fields=['from_product', 'to_product'],
+                                    name='uq_pr_changeover_pair'),
+        ]
+
+    def __str__(self):
+        return f'{self.from_product.code}->{self.to_product.code}: {self.changeover_minutes}min'

@@ -91,6 +91,15 @@
 - **验证方式**：`makemigrations` 生成 0002 并迁移成功；`seed_process` / `import_templates` 重灌后 PT-001/PT-011 的 `is_equipment_free=True`、设备类型为空；pytest 13 条全过；ruff 全过；前端 `npm run build` 通过；error-codes 表补 26 条
 - **结论**：采用（B-1/B-2 闭环，等 D 确认 available 接口字段后即可写排产）
 
+### 记录 009
+- **日期 / 使用人**：2026-11-09 / 成员 B
+- **角色与模块**：B / process —— 工艺路线、BOM、换型矩阵（表 + 接口 + 种子数据）
+- **提示词**：见附录 P-009（"做"）
+- **AI 产出**：`process/models.py` 新增 5 张表（ProcessRoute / RouteStep / Bom / BomItem / ChangeoverMatrix + 3 组枚举）；迁移 `0003`；`services.py` 增加路线编码/版本、生效唯一性、复制、工序校验、BOM 与明细校验、换型校验、矩阵聚合；`serializers/filters/views/urls/admin` 全量补齐（含 `/routes/{id}/copy|activate|steps/`、`/boms/{id}/items/`、`/changeovers/matrix|import/`）；管理命令 `seed_routes`（从 02 Excel 读 6 路线/30 工序/BOM/30 换型对，幂等）；测试 `tests/test_routes.py` 8 条
+- **人工修改**：①DRF 的 UniqueTogetherValidator 会先于业务校验返回 10001，统一在 Meta 里 `validators = []`，把唯一性交回 services（12005/12007/12011/12014/12024）；②版本号改为服务端生成（serializer 只读），否则同一产品建第二条路线会被“product+version 唯一”直接拒；③BOM 物料编码从提案的 MT-RM-000x 改成 A 在 `init_demo` 里实际建的 MT-45/MT-40CR/MT-AL6061；④种子命令先建 draft 再统一置 active，绕过“无工序不能生效”的校验；⑤路由文件按契约把 `steps/items` 做成嵌套 action，不额外引入第三方嵌套路由库
+- **验证方式**：`makemigrations`+`migrate` 成功；`seed_routes` 输出“路线 6 条（工序 30）/BOM 6 条/换型 30 对”；pytest 21 条全过（路线 5 + BOM 2 + 换型 1 + 模板 13）；ruff 通过；实测 API：routes count=6、每条 steps 4~6、连接板下料 0.3h free=True、boms count=6、changeover matrix products=6 cells=30
+- **结论**：采用（W2 的工艺配置后端闭环完成；下一步工艺路线设计页 + BOM/换型页面）
+
 ---
 
 ## 附录：长提示词原文
@@ -127,3 +136,8 @@
 
 > 总结给A和D发的消息 / ok，发了，你继续。
 >（要求：把两人要的消息整理成可直接转发的一段话；然后按 D 的两个决策改代码——枚举单一来源、不占设备字段、种子与 Excel 同步、前端展示；改动要有迁移、测试和构建验证；并把决策写成文档存档。）
+
+### P-009（B / W2 路线/BOM/换型落地，2026-11-09）
+
+> 做。
+>（要求：按契约把工艺路线、BOM、换型矩阵的表/接口/种子数据一次做完；有外键就先对 masterdata 的实际表结构；唯一性、状态机等业务规则放 services 并用 12xxx 错误码；要能迁移、能灌数据、有测试、有真实请求验证。）
