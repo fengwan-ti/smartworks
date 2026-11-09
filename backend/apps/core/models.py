@@ -4,8 +4,8 @@
 """
 from django.contrib.auth.models import AbstractUser
 from django.db import models
-from django.utils import timezone
 from simple_history.models import HistoricalRecords
+from django.utils import timezone
 
 
 class Department(models.Model):
