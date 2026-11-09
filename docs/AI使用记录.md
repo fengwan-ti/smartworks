@@ -82,6 +82,15 @@
 - **验证方式**：合并后所有 app 路由齐全、`git status` 干净；`python experiments/order_forecast_baseline.py` 输出与 04 §5.2 完全一致（宏均 MA 13.7% / SN 5.0%，微均 12.6% / 4.9%）；`push` 成功（`feature/process-w1-model` 已出现在远程）
 - **结论**：采用（基线标尺已固定并可复现；等 A 用同一脚本确认后冻结）
 
+### 记录 008
+- **日期 / 使用人**：2026-11-09 / 成员 B
+- **角色与模块**：B / process —— 按 D 的《W2 要料》调整工序模板与排产口径
+- **提示词**：见附录 P-008（"总结给A和D发的消息 / ok，发了，你继续"）
+- **AI 产出**：读 D 的新交付（8 台设备 15 条能力、11 值 step_type 字典、2 个待拍板问题）；产出 `10-D要料回复-B方决策-20261109.md`；代码上：`process/models.py` 删除自定义 `StepType` 改为 `from apps.equipment.constants import StepType`，新增 `is_equipment_free` 字段（迁移 0002），`services` 校验“非不占设备工序必须有设备类型”，`serializers/filters/views` 同步，`seed_process` 与 `import_templates` 把下料/检验置为不占设备，前端模板页加“不占设备”开关与列；`07` 升 v1.1、`06` 补字段与口径、`docs/error-codes.md` 补 B 号段 26 条
+- **人工修改**：①选 D 的方案①而不是加设备（保持说明书 8 台设备设定，答辩少解释一层）；②去毛刺不插进 30 道工序（保护 W1 验收基线），改为请 D 标 oee_excluded；③`step_type` 不再自定义、统一从 equipment 常量导入；④不读 `params`，只认三列匹配；⑤Excel 用“设备类型留空”表达不占设备，避免加第 10 列打乱已有模板
+- **验证方式**：`makemigrations` 生成 0002 并迁移成功；`seed_process` / `import_templates` 重灌后 PT-001/PT-011 的 `is_equipment_free=True`、设备类型为空；pytest 13 条全过；ruff 全过；前端 `npm run build` 通过；error-codes 表补 26 条
+- **结论**：采用（B-1/B-2 闭环，等 D 确认 available 接口字段后即可写排产）
+
 ---
 
 ## 附录：长提示词原文
@@ -113,3 +122,8 @@
 
 > 我现在连了VPN了。
 >（要求：先测通、把本地分支推上去；再 fetch/merge 远程最新代码，冲突手工合并、保留双方路由；读 A/D 的回复，把需要 B 改的（数据位置、产品编码、基线口径）当天改掉；A 对基线数字有异议时不要硬改数字，先定义口径、给可复现脚本，再请对方给参数对齐。）
+
+### P-008（B / D 的 W2 要料落地，2026-11-09）
+
+> 总结给A和D发的消息 / ok，发了，你继续。
+>（要求：把两人要的消息整理成可直接转发的一段话；然后按 D 的两个决策改代码——枚举单一来源、不占设备字段、种子与 Excel 同步、前端展示；改动要有迁移、测试和构建验证；并把决策写成文档存档。）

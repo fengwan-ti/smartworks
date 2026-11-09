@@ -12,27 +12,16 @@ W2 第一步只落 ``pr_process_template``（工序模板）——它不依赖�
 """
 from django.db import models
 
-
-class StepType(models.TextChoices):
-    """工序类型（全项目唯一口径，见 docs/role-b-w1/07-step_type取值字典.md v1.0）。
-
-    D 的设备能力 eq_equipment_capability.step_type、排产匹配、报工都用这一套值。
-    """
-    CUTTING = 'cutting', '下料'
-    ROUGH_TURNING = 'rough_turning', '粗车'
-    FINISH_TURNING = 'finish_turning', '精车'
-    MILLING = 'milling', '铣削（铣面）'
-    SLOT_MILLING = 'slot_milling', '铣槽'
-    GEAR_MILLING = 'gear_milling', '铣齿'
-    DRILLING = 'drilling', '钻孔'
-    GRINDING = 'grinding', '磨削'
-    DEBURRING = 'deburring', '去毛刺'
-    CLEANING = 'cleaning', '清洗'
-    INSPECTION = 'inspection', '检验'
+# 工序类型：全项目唯一来源是 D 的 equipment/constants.py，process 里不许再定义一份。
+# 见 docs/role-d-w1/D契约补丁-20261026.md 与 D 的《02-step_type字典-11值.md》。
+from apps.equipment.constants import StepType  # noqa: F401  (re-export 供本应用引用)
 
 
 class EquipmentType(models.TextChoices):
-    """设备类型（与 D 的设备台账一致；排产据此匹配设备能力）。"""
+    """设备类型（仅工艺展示用；**排产匹配不用这个字段**，只用 step_type + 产能 + 精度）。
+
+    注意：inspection_station 在新口径下不再使用（检验工序 is_equipment_free=True）。
+    """
     LATHE = 'lathe', '数控车床'
     MACHINING_CENTER = 'machining_center', '加工中心'
     DRILL = 'drill', '钻床'
@@ -57,10 +46,15 @@ class ProcessTemplate(models.Model):
         max_digits=8, decimal_places=3, verbose_name='标准工时（小时/件）',
     )
     required_equipment_type = models.CharField(
-        max_length=32, choices=EquipmentType.choices, verbose_name='所需设备类型',
+        max_length=32, choices=EquipmentType.choices, blank=True, default='',
+        verbose_name='所需设备类型（仅展示）',
     )
     key_params = models.JSONField(default=dict, blank=True, verbose_name='关键工艺参数')
     inspection_rule = models.JSONField(default=dict, blank=True, verbose_name='检验要求')
+    is_equipment_free = models.BooleanField(
+        default=False, verbose_name='不占设备',
+        help_text='下料/检验等前置或质检工序：排产只占工时，不匹配设备',
+    )
     is_active = models.BooleanField(default=True, verbose_name='是否启用')
     remark = models.TextField(blank=True, default='', verbose_name='备注')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')

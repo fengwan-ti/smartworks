@@ -1,8 +1,8 @@
-# step_type 取值字典 v1.0（B 主笔 · D 复核）
+# step_type 取值字典 v1.1（B 主笔 · D 复核）
 
 > 来源：D 的《设计评审意见》P0-1（2026-10-26）+ B 的《工序模板与产品族数据字典 v1.0》§3.1。
 > 用途：**全项目工序类型唯一口径**，四人所有涉及"工序类型"的字段/接口/页面都用这张表，不许自造同义词。
-> 状态：**B 已定稿 v1.0，等 D 一句话复核 → 冻结**（冻结后改动需 B、D 双方同意并在群里说明）。
+> 状态：**v1.1 已定稿并冻结**（D 11-03《02-step_type字典-11值.md》确认 11 值不变；本次只补“不占设备工序”与匹配口径，不新增取值）。
 > 落地位置：`pr_process_template.step_type`、`pr_route_step.step_type`、`pl_work_order_operation.step_type`、`eq_equipment_capability.step_type`、`pd_report_record`、`qa_inspection_order`、A 的 `/planning/employee-skills/qualified/?step_type=`。
 
 ## 0. 结论（先看这张表）
@@ -114,3 +114,20 @@
 |---|---|---|---|
 | v0.9（W1 初稿） | 2026-10-26 | B 在 06 文档给出 10 值 | B |
 | **v1.0** | 2026-11-02 | 采纳 D 的 11 值（拆 slot_milling、gear_milling、cleaning） | B + D |
+
+
+## 8. v1.1 变更（2026-11-09，落地 D 的《W2 要料与工序口径》）
+
+| 项 | 约定 |
+|---|---|
+| 唯一来源 | `backend/apps/equipment/constants.py` 的 `StepType`（D 维护）。B 的 process 应用 `from apps.equipment.constants import StepType`，**不再自定义** |
+| 前端/接口 | 权威接口是 `GET /api/v1/equipment/step-types/`；B 的 `/process/enums/` 保留作兼容，数据从同一常量取 |
+| 不占设备工序 | `cutting`（下料）、`inspection`（检验）在 8 台设备里**无对应设备**：模板 `is_equipment_free=True`、`required_equipment_type` 留空；排产只占工时（下料 0.25h/件、检验 0.30h/件），不匹配设备 |
+| 排产匹配口径 | **只用三列**：`step_type` / `capacity_per_hour` / `precision_level`；`params`（JSON）只做展示，不参与匹配（D 的 B-2） |
+| `deburring` | 第一代不插入 6 条路线（30 道工序是 W1 验收基线），8# 去毛刺台标 `oee_excluded=true`；W6 需要再插 |
+| 设备类型枚举 | `inspection_station` 停用（不再有工序使用），“不占设备”取代它；其余 6 个保留作工艺展示，不参与排产匹配 |
+
+| 版本 | 日期 | 变更 | 提出 |
+|---|---|---|---|
+| v1.0 | 2026-11-02 | 采纳 D 的 11 值 | B + D |
+| **v1.1** | 2026-11-09 | 唯一来源改为 equipment 常量；加“不占设备工序”与三列匹配口径 | B（据 D 11-03 要料） |

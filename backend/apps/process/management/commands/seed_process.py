@@ -12,7 +12,7 @@ from apps.process.models import ProcessTemplate
 
 TEMPLATES = [
     dict(code='PT-001', name='下料', step_type='cutting', std_hours=Decimal('0.250'),
-         required_equipment_type='lathe',
+         required_equipment_type='', is_equipment_free=True,
          key_params={'cut_type': '锯切/切断', 'allowance_mm': 2},
          inspection_rule={'check': '长度/端面', 'first_piece': False},
          remark='板料下料时路线层覆盖为加工中心'),
@@ -60,7 +60,7 @@ TEMPLATES = [
          inspection_rule={'check': '棱边无毛刺', 'first_piece': False},
          remark='通用路线备用'),
     dict(code='PT-011', name='检验', step_type='inspection', std_hours=Decimal('0.300'),
-         required_equipment_type='inspection_station',
+         required_equipment_type='', is_equipment_free=True,
          key_params={'key_dimensions': 3, 'gauge': '卡尺/三坐标'},
          inspection_rule={'type': 'FQC', 'aql': 1.0, 'first_piece': True,
                           'key_dimensions': 3}),

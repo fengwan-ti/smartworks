@@ -45,7 +45,10 @@
         </el-table-column>
         <el-table-column prop="std_hours" label="标准工时(h)" width="110" align="right" />
         <el-table-column label="所需设备类型" width="150">
-          <template #default="{ row }">{{ equipmentLabel(row.required_equipment_type) }}</template>
+          <template #default="{ row }">
+            <el-tag v-if="row.is_equipment_free" size="small" type="warning">不占设备</el-tag>
+            <span v-else>{{ equipmentLabel(row.required_equipment_type) }}</span>
+          </template>
         </el-table-column>
         <el-table-column label="关键参数" min-width="180">
           <template #default="{ row }">
@@ -109,8 +112,12 @@
           <el-input-number v-model="form.std_hours" :min="0.001" :max="24" :step="0.05" :precision="3" style="width: 200px" />
           <span class="form-tip">单件工时，不含换型与准备</span>
         </el-form-item>
+        <el-form-item label="不占设备">
+          <el-switch v-model="form.is_equipment_free" />
+          <span class="form-tip">下料/检验等前置或质检工序：排产只占工时，不匹配设备</span>
+        </el-form-item>
         <el-form-item label="所需设备类型" prop="required_equipment_type">
-          <el-select v-model="form.required_equipment_type" placeholder="请选择" style="width: 100%">
+          <el-select v-model="form.required_equipment_type" placeholder="请选择" style="width: 100%" :disabled="form.is_equipment_free">
             <el-option
               v-for="e in equipmentOptions"
               :key="e.value"
@@ -197,6 +204,7 @@ const emptyForm = () => ({
   key_params_text: '{}',
   inspection_rule_text: '{}',
   is_active: true,
+  is_equipment_free: false,
   remark: '',
 })
 const form = reactive(emptyForm())
@@ -205,7 +213,6 @@ const rules = {
   name: [{ required: true, message: '请填写模板名称', trigger: 'blur' }],
   step_type: [{ required: true, message: '请选择工序类型', trigger: 'change' }],
   std_hours: [{ required: true, message: '请填写标准工时', trigger: 'change' }],
-  required_equipment_type: [{ required: true, message: '请选择设备类型', trigger: 'change' }],
   key_params_text: [{ validator: jsonValidator, trigger: 'blur' }],
   inspection_rule_text: [{ validator: jsonValidator, trigger: 'blur' }],
 }
@@ -292,6 +299,7 @@ function openEdit(row) {
     key_params_text: JSON.stringify(row.key_params || {}, null, 2),
     inspection_rule_text: JSON.stringify(row.inspection_rule || {}, null, 2),
     is_active: row.is_active,
+    is_equipment_free: Boolean(row.is_equipment_free),
     remark: row.remark || '',
   })
   dialogVisible.value = true
@@ -303,7 +311,8 @@ function buildPayload() {
     name: form.name,
     step_type: form.step_type,
     std_hours: String(form.std_hours),
-    required_equipment_type: form.required_equipment_type,
+    required_equipment_type: form.is_equipment_free ? '' : form.required_equipment_type,
+    is_equipment_free: form.is_equipment_free,
     key_params: JSON.parse(form.key_params_text || '{}'),
     inspection_rule: JSON.parse(form.inspection_rule_text || '{}'),
     is_active: form.is_active,
@@ -313,6 +322,10 @@ function buildPayload() {
 
 async function submit() {
   await formRef.value.validate()
+  if (!form.is_equipment_free && !form.required_equipment_type) {
+    ElMessage.error('请选择所需设备类型，或打开“不占设备”')
+    return
+  }
   saving.value = true
   try {
     if (editingId.value) {

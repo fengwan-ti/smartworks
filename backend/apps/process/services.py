@@ -7,8 +7,9 @@
 from decimal import Decimal
 
 from apps.core.exceptions import BizError
+from apps.equipment.constants import StepType
 
-from .models import EquipmentType, ProcessTemplate, StepType
+from .models import EquipmentType, ProcessTemplate
 
 MAX_STD_HOURS = Decimal('24')
 
@@ -31,9 +32,16 @@ def validate_template_payload(data, instance=None):
     step_type = data.get('step_type', getattr(instance, 'step_type', None))
     _validate_enum(step_type, StepType.values, '工序类型')
 
+    is_free = data.get('is_equipment_free', getattr(instance, 'is_equipment_free', False))
     equipment_type = data.get(
-        'required_equipment_type', getattr(instance, 'required_equipment_type', None))
-    _validate_enum(equipment_type, EquipmentType.values, '设备类型')
+        'required_equipment_type', getattr(instance, 'required_equipment_type', ''))
+    if is_free:
+        if equipment_type:
+            _validate_enum(equipment_type, EquipmentType.values, '设备类型')
+    else:
+        if not equipment_type:
+            raise BizError(12004, '非“不占设备”的工序必须指定设备类型')
+        _validate_enum(equipment_type, EquipmentType.values, '设备类型')
 
     std_hours = data.get('std_hours', getattr(instance, 'std_hours', None))
     if std_hours is None:

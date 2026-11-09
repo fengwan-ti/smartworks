@@ -4,9 +4,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.equipment.constants import StepType
+
 from . import services
 from .filters import ProcessTemplateFilter
-from .models import EquipmentType, ProcessTemplate, StepType
+from .models import EquipmentType, ProcessTemplate
 from .serializers import ProcessTemplateSerializer
 
 
@@ -42,8 +44,9 @@ class ProcessEnumView(APIView):
     GET /api/v1/process/enums/
       → { step_types: [{value,label}], equipment_types: [{value,label}] }
 
-    说明：step_type 由 B 定义（07 文档 v1.0）；equipment_type 的最终口径
-    归 D 的设备能力表，A 把 step_type 灌进 core_data_dict 后本接口可下线。
+    step_type 的唯一来源是 apps.equipment.constants.StepType（D 维护）；
+    本接口只是给 B 的前端下拉和旧页面兼容用，权威接口是 D 的
+    GET /api/v1/equipment/step-types/。
     """
     permission_classes = [IsAuthenticated]
 

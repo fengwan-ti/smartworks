@@ -99,6 +99,7 @@ class Command(BaseCommand):
                     'required_equipment_type': _cell_text(values[4]),
                     'key_params': _json_cell(values[5], 'key_params'),
                     'inspection_rule': _json_cell(values[6], 'inspection_rule'),
+                    'is_equipment_free': not _cell_text(values[4]),
                     'is_active': _bool_cell(values[7]),
                     'remark': _cell_text(values[8]),
                 }

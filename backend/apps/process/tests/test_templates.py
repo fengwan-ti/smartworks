@@ -92,6 +92,22 @@ class ProcessTemplateApiTests(APITestCase):
         self.assertNotIn('gear_hobbing', values)
         self.assertEqual(resp.data['step_types'][0]['label'], '下料')
 
+    def test_create_equipment_free_template(self):
+        payload = {
+            'name': '下料', 'step_type': 'cutting', 'std_hours': '0.25',
+            'required_equipment_type': '', 'is_equipment_free': True,
+        }
+        resp = self.client.post(BASE, payload, format='json')
+        self.assertEqual(resp.status_code, 201, resp.data)
+        self.assertTrue(resp.data['is_equipment_free'])
+        self.assertEqual(resp.data['required_equipment_type'], '')
+
+    def test_non_free_requires_equipment_type(self):
+        payload = self._payload(required_equipment_type='')
+        resp = self.client.post(BASE, payload, format='json')
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(resp.data['code'], 12004)
+
     def test_requires_auth(self):
         self.client.credentials()
         resp = self.client.get(BASE)
