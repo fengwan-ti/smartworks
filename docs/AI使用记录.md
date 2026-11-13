@@ -118,6 +118,15 @@
 - **验证方式**：`npm run build` 通过；pytest 21 条全过、ruff 通过；实测 matrix `products=6 cells=30` 且 cells 带 id、PATCH 一格返回 200 且值为 16（随后重置）、BOM `count=6` 且明细 `MT-45 2.500`；页面 HTTP 200
 - **结论**：采用（W2 工艺配置三个页面完成：工序模板 / 工艺路线 / BOM / 换型矩阵；下一步订单模块）
 
+### 记录 012
+- **日期 / 使用人**：2026-11-13 / 成员 B
+- **角色与模块**：B / order —— 销售订单、MPS、齐套检查（W3 后台）
+- **提示词**：见附录 P-012（"继续做"）
+- **AI 产出**：`order/models.py` 6 张表（SalesOrder/OrderItem/DemandForecast/Mps/MpsDetail/MaterialRequirement）+ 订单状态机枚举；迁移 `order/0001`；`services.py`（订单编码、交期/数量校验、状态流转 12015~12017、MPS 编码与从已确认订单聚合 12018、齐套检查按 BOM 展开并写缺口表 12019、库存可用量预留 `get_available_qty` 单点）；`serializers/filters/views/urls/admin` 全量（含 confirm/cancel/items、`/mps/from-orders/`、`/mps/{id}/check-kit/`）；`config/urls.py` 增加 `/api/v1/order/`；管理命令 `seed_orders`（6 张演示订单，4 张已确认）；测试 `tests/test_orders.py` 9 条
+- **人工修改**：①库存可用量没有硬编码在齐套逻辑里，集中到 `get_available_qty()` 一个函数，C 的接口上线后只改这里；响应里明确标 `availability_source=mock（按 0 计算）`，不假装有库存；②订单只在草稿状态可改明细，已确认只能改交期/优先级/备注（12017）；③从订单生成 MPS 只取已确认订单，聚合到产品粒度；④MPS 明细第一代只由订单生成，手工增删先拒绝，避免半成品接口
+- **验证方式**：makemigrations/migrate 成功；pytest 全仓库 85 条全过（order 9 条）；ruff 通过；实测：6 张演示订单、`from-orders` 生成 MPS202611-01（4 个产品，数量 60/50/40/35）、齐套检查返回 `ready=false` 且 MT-45 需求 252.9 / MT-40CR 220.335（与 BOM×订单量手算一致）
+- **结论**：采用（订单→MPS→齐套后台闭环；下一步订单/MPS 页面 + 规则版排产）
+
 ---
 
 ## 附录：长提示词原文
@@ -169,3 +178,8 @@
 
 > 打开了，传完之后继续做任务。
 >（要求：先 push 待提交内容并 fetch 远程；然后按"自己的活"继续，把 BOM 维护页和换型矩阵页一次做完；前端要能真正调用后端接口，改完构建验证，并用真实请求抽查接口。）
+
+### P-012（B / 订单与 MPS 后台，2026-11-13）
+
+> 继续做。
+>（要求：按 W3 任务清单做订单模块后台——销售订单+明细+状态机、MPS 由订单生成、齐套检查；外部没接好的接口（C 的库存）用单点 mock 函数隔离并在响应里说明；要迁移、有测试、真实请求跑通。）
