@@ -85,6 +85,17 @@
 | `cleaning` | 清洗 | 清洗机 | 0.10 |
 | `inspection` | 检验 | 三坐标 / 影像仪 | 0.25 |
 
+**唯一来源（权威定义）**
+
+| 项 | 内容 |
+|---|---|
+| 代码常量 | `apps/equipment/constants.py` 的 `StepType`（D 维护） |
+| 字典接口 | `GET /api/v1/equipment/step-types/`（11 个值，B 可直接取材校对） |
+| 数据字典 | `core_data_dict` 中 `dict_type='step_type'` 的 11 条 |
+
+> **B 的 `process` 应用请 `from apps.equipment.constants import StepType`，不要另定义枚举。**
+> 两处枚举一旦分叉，W3 排产时「B 写粗车、库里是 rough_turning」就查不到设备。
+
 **三条约定**
 
 1. 全小写、下划线分隔、**不复数不缩写**（写 `turning`，不写 `turn`）。
@@ -116,6 +127,34 @@
 
 **为什么不可达必须是 `null`**：填大数会让 AGV 调度把"到不了"当成"绕得远但能做"，
 排出来的方案到现场执行不了。这个差别在单测里看不出来，要到真跑起来才暴露。
+
+**编号与单位（2026-11-13 补，D 提出）**
+
+- 节点编号 `N001`–`N029`，**三位数字补零**；旧格式 `N01`–`N25` **已作废**（对应文件已删）
+- 坐标与距离单位统一 **毫米**；不可达用 `null`，不用 `-1`、不用 `0`
+- 双向通道**只存一条边** + `is_bidirectional=true`，不建反向边
+
+**距离矩阵唯一实现（三处约束）**
+
+| 层 | 位置 | 谁用 |
+|---|---|---|
+| 算法层（唯一实现） | `apps/algorithms/scheduling/path/graph.py::build_distance_matrix` | 任务 1/2/3 |
+| 数据适配层 | `apps/logistics/services.py::get_distance_matrix` | 接口与联调 |
+| 接口 | `GET /logistics/road-network/distance-matrix/` | 前端 |
+
+> **任何模块要距离，调适配层，不许写第三份实现。**
+
+**设备能力的唯一写入口（A-6 确认，2026-11-13）**
+
+| 项 | 结论 |
+|---|---|
+| 表 | `eq_equipment_capability`，**只有 D 一个应用建、一个应用写** |
+| 写接口 | `GET/POST /equipment/equipments/{id}/capabilities/`、`DELETE .../capabilities/{cid}/` |
+| B 侧 | `/process/equipment-capabilities/` 是**只读视图**，底层同一张表，**不许再建一张** |
+| 理由 | 两张表存同一件事，W4 排产一定对不上 |
+
+> **任何模块要距离，调适配层，不许写第三份实现。**
+> A 的任务 3 继续用算法层的纯函数，D 的接口调适配层，两者底层是同一个函数。
 
 **数据与实现位置**
 

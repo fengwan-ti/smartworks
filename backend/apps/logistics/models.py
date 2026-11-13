@@ -53,6 +53,10 @@ class RoadNode(models.Model):
 
 
 class RoadEdge(models.Model):
+    # 规范例外（A 补，2026-11-13）：边是两点之间的连线，
+    # 没有业务编码与名称；唯一标识由 (from_node, to_node) 承担。
+    schema_exempt = ('code', 'name')
+
     """路网边：两个节点之间的一段通道。
 
     distance 存的是**两点间实际路径长度（毫米）**，不是两端坐标的欧氏距离

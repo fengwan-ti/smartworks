@@ -58,6 +58,10 @@ class Equipment(models.Model):
 
 
 class EquipmentCapability(models.Model):
+    # 规范例外（A 补，2026-11-13）：能力是设备的下挂明细，
+    # 天然没有业务编码与名称；唯一约束 (equipment, step_type) 已足够标识一条。
+    schema_exempt = ('code', 'name')
+
     """设备能力：这台设备能干哪种工序、精度多少、每小时能干几件。
 
     ⚠️ 排产匹配**只读 step_type / precision_level / capacity_per_hour 三列**。

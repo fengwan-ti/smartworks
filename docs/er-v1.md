@@ -322,6 +322,146 @@ A 先建 4 张共享表的原因：D 的成品单据要外键引用 Batch / Ware
 
 ---
 
+## 三·九、W2 新增 7 张表完整字段（D 交付，A 已采纳，2026-11-13）
+
+> 以下为 D 的 `01-字段清单-7张表.md` 原文并入。3.6 / 3.8 节原有的是「关键字段」摘要，
+> 本节才是完整字段、约束与索引。**四人建表以本节为准。**
+
+
+用途：A 的 `docs/er-v1.md` 第 3.6/3.8 节目前只有表名和「关键字段」，
+下面是可以直接抄进去的完整字段表。**这是「统一数据库表和字段」这件事里 D 交的那一份。**
+
+公共约定（照抄，不要另立）：主键 `id` 自增；业务编码 `code` 唯一；
+`created_at`/`updated_at` 自动；数量 `decimal(12,3)`；金额 `decimal(12,2)`；
+枚举存**小写字符串**；动态参数 `jsonb`；备注 `remark`；布尔 `is_` 开头。
+
+---
+
+## 1. eq_equipment 设备台账
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| id | bigint 自增 | ✔ | 主键 |
+| code | varchar(32) 唯一 | ✔ | `EQ-<类型>-<2位序号>`，如 EQ-CNC-01 |
+| name | varchar(64) | ✔ | 设备名称 |
+| model | varchar(64) | | 型号 |
+| manufacturer | varchar(64) | | 厂商 |
+| workshop_id | 外键 → md_workshop | | 所属车间（SET_NULL） |
+| workstation_id | 外键 → md_workstation | | 所属工位；工位的 `agv_load_point` 就是 AGV 装卸节点 |
+| status | varchar(16) | ✔ | `normal` / `wearing` / `abnormal`，**当前值，前端只读** |
+| install_date | date | | 安装日期 |
+| is_active | bool | ✔ | 默认 true |
+| remark | varchar(255) | | 备注 |
+
+历史：`django-simple-history` 记录（表 `hist_equipment`）。
+
+## 2. eq_equipment_capability 设备能力（D 写，B 只读）
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| id | bigint 自增 | ✔ | 主键 |
+| equipment_id | 外键 → eq_equipment | ✔ | 设备（级联删除） |
+| step_type | varchar(32) | ✔ | 11 个工序类型之一 |
+| precision_level | varchar(16) | ✔ | `high` / `medium` / `normal` |
+| capacity_per_hour | decimal(12,3) | ✔ | 件/小时 |
+| setup_minutes | int | ✔ | 换型准备分钟（默认 0） |
+| params | jsonb | | **只做展示，不参与排产匹配** |
+| is_active | bool | ✔ | 默认 true |
+
+约束：`UNIQUE(equipment_id, step_type)`；索引 `(step_type, is_active)`。
+
+## 3. lg_road_node 路网节点
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| id | bigint 自增 | ✔ | 主键 |
+| code | varchar(16) 唯一 | ✔ | `N001`…`N029`，**三位数字** |
+| name | varchar(64) | | 节点名称（如「5#钻床装卸点」） |
+| x | int | ✔ | X 坐标，**毫米** |
+| y | int | ✔ | Y 坐标，**毫米** |
+| node_type | varchar(16) | ✔ | `lane` 通道 / `dock` 装卸点 / `charger` 充电位 |
+| is_active | bool | ✔ | 默认 true |
+| remark | varchar(255) | | 备注 |
+
+## 4. lg_road_edge 路网边
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| id | bigint 自增 | ✔ | 主键 |
+| from_node_id | 外键 → lg_road_node | ✔ | 起点（级联删除） |
+| to_node_id | 外键 → lg_road_node | ✔ | 终点 |
+| distance | decimal(12,3) | ✔ | **沿路长度（毫米）**，不是两点直线距离 |
+| is_bidirectional | bool | ✔ | 默认 true（双向边只存一条，不建反向） |
+| is_active | bool | ✔ | 默认 true |
+| remark | varchar(255) | | 备注 |
+
+约束：`UNIQUE(from_node_id, to_node_id)`；`CHECK(from_node_id <> to_node_id)`；
+`CHECK(distance > 0)`。历史表：`hist_road_edge`。
+
+## 5. in_finished_inbound 成品入库单
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| id | bigint 自增 | ✔ | 主键 |
+| code | varchar(32) 唯一 | ✔ | `PI-YYYYMMDD-001` |
+| batch_id | 外键 → in_batch | ✔ | 成品批次（PROTECT） |
+| product_id | 外键 → md_product | ✔ | 产品（PROTECT） |
+| qty | decimal(12,3) | ✔ | 入库数量，必须 >0 |
+| warehouse_id | 外键 → in_warehouse | ✔ | 仓库（PROTECT） |
+| location_id | 外键 → in_location | | 库位 |
+| work_order_code | varchar(32) | | 来源工单号（B 的表建好后可加外键，字符串保留做对账） |
+| inspection_code | varchar(32) | | 检验单号；填了就校验必须 passed |
+| inbound_date | date | ✔ | 入库日期 |
+| status | varchar(16) | ✔ | `draft` / `confirmed` / `cancelled` |
+| operator_id | 外键 → core_user | | 操作人 |
+| remark | varchar(255) | | 备注 |
+
+## 6. in_shipment 发货出库单
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| id | bigint 自增 | ✔ | 主键 |
+| code | varchar(32) 唯一 | ✔ | `SH-YYYYMMDD-001` |
+| customer_id | 外键 → md_customer | | 客户 |
+| warehouse_id | 外键 → in_warehouse | ✔ | 发货仓库 |
+| order_code | varchar(32) | | 来源订单号 |
+| ship_date | date | | 发货日期 |
+| status | varchar(16) | ✔ | `draft` / `confirmed` / `shipped` / `cancelled` |
+| operator_id | 外键 → core_user | | 操作人 |
+| remark | varchar(255) | | 备注 |
+
+## 7. in_shipment_item 发货明细
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| id | bigint 自增 | ✔ | 主键 |
+| shipment_id | 外键 → in_shipment | ✔ | 发货单（级联删除） |
+| batch_id | 外键 → in_batch | ✔ | 批次（PROTECT） |
+| qty | decimal(12,3) | ✔ | 必须 >0 |
+| location_id | 外键 → in_location | | 发货库位 |
+| remark | varchar(255) | | 备注 |
+
+约束：`UNIQUE(shipment_id, batch_id)`；`CHECK(qty > 0)`。
+
+---
+
+## 与 C 的边界（一句话写进契约）
+
+> **成品仓与原料仓同库不同单据表。**
+> 底层 `in_warehouse` / `in_location` / `in_batch` / `in_stock_transaction` 由 C 维护；
+> D 只新增 `in_finished_inbound` / `in_shipment` / `in_shipment_item` 三张单据表，
+> 库存变动一律写 C 的 `in_stock_transaction`，**不新建任何"成品库存表"**。
+
+## 需要 A 补进 api-contract 的四条
+
+1. `step_type` 11 个值（`cutting` … `inspection`）列入字典，写明「B 的工艺模板只能从这 11 个里选」。
+2. 路网口径：**编号 N001-N029、单位毫米、不可达用 `null`**、双向边只存一条。
+3. 设备能力唯一定位：`(equipment_id, step_type)`，B 只读 `step_type / precision_level / capacity_per_hour` 三列。
+4. 错误码：14501/14502 沿用已登记；新增 `14104 成品批次不属于该产品`（当前用序列化器校验 + `14104`）。
+
+
+---
+
 ## 四、命名与字段约定（全员必须遵守）
 
 | 约定 | 规则 |

@@ -24,7 +24,8 @@ POSITIONS = [
     ('ADMIN', '系统管理员'),
 ]
 
-# 菜单：code, name, type, path, icon, sort, parent_code
+# 菜单：code, name, type, path, icon, sort, parent_code, permission_code
+# permission_code 为空表示不单独控制（目录节点一般不放权限码）
 MENUS = [
     ('dashboard', '工作台', 'menu', '/dashboard', 'HomeFilled', 1, None),
     ('system', '系统管理', 'dir', '/system', 'Setting', 90, None),
@@ -43,6 +44,33 @@ MENUS = [
     ('process_bom', 'BOM 管理', 'menu', '/process/boms', 'Document', 23, 'process'),
     ('process_changeover', '换型矩阵', 'menu', '/process/changeovers',
      'Refresh', 24, 'process'),
+
+    # ---- 设备管理（D）----
+    ('equipment', '设备管理', 'dir', '/equipment', 'Cpu', 30, None, ''),
+    ('equipment_list', '设备台账', 'menu', '/equipment/list',
+     'Monitor', 31, 'equipment', 'equipment:list'),
+    ('equipment_monitor', '设备状态监测', 'menu', '/equipment/monitor',
+     'Odometer', 32, 'equipment', 'equipment:monitor'),
+    ('equipment_maintain', '维修工单', 'menu', '/equipment/maintain',
+     'Tools', 33, 'equipment', 'equipment:maintain'),
+    ('equipment_oee', 'OEE 分析', 'menu', '/equipment/oee',
+     'TrendCharts', 34, 'equipment', 'equipment:oee'),
+
+    # ---- 物流管理（D）----
+    ('logistics', '物流管理', 'dir', '/logistics', 'Van', 40, None, ''),
+    ('logistics_agv', 'AGV 台账', 'menu', '/logistics/agvs',
+     'Files', 41, 'logistics', 'logistics:agv'),
+    ('logistics_task', '搬运任务', 'menu', '/logistics/tasks',
+     'Guide', 42, 'logistics', 'logistics:task'),
+    ('logistics_dispatch', '调度工作台', 'menu', '/logistics/dispatch',
+     'Operation', 43, 'logistics', 'logistics:dispatch'),
+
+    # ---- 仓储管理（C 管原料、D 管成品；父菜单由 A 维护）----
+    ('inventory', '仓储管理', 'dir', '/inventory', 'Box', 50, None, ''),
+    ('inventory_finished_in', '成品入库', 'menu', '/inventory/finished-in',
+     'Download', 51, 'inventory', 'inventory:finished-in'),
+    ('inventory_aging', '库龄分析', 'menu', '/inventory/aging',
+     'Calendar', 52, 'inventory', 'inventory:aging'),
 ]
 
 DICTS = [
@@ -105,14 +133,21 @@ class Command(BaseCommand):
             'name': '中班', 'start_time': '16:00', 'end_time': '00:00'})
 
         menu_map = {}
-        for code, name, mtype, path, icon, sort, parent in MENUS:
-            menu, _ = Menu.objects.get_or_create(
+        for row in MENUS:
+            code, name, mtype, path, icon, sort, parent = row[:7]
+            perm = row[7] if len(row) > 7 else ''
+            menu, created = Menu.objects.get_or_create(
                 code=code,
                 defaults={
-                    'name': name, 'menu_type': mtype, 'path': path, 'icon': icon, 'sort': sort,
-                    'parent': menu_map.get(parent),
+                    'name': name, 'menu_type': mtype, 'path': path, 'icon': icon,
+                    'sort': sort, 'parent': menu_map.get(parent),
+                    'permission_code': perm,
                 },
             )
+            # 已存在的菜单补齐 permission_code（可重复执行）
+            if not created and perm and menu.permission_code != perm:
+                menu.permission_code = perm
+                menu.save(update_fields=['permission_code'])
             menu_map[code] = menu
 
         admin_role, _ = Role.objects.get_or_create(
@@ -144,6 +179,36 @@ class Command(BaseCommand):
                 defaults={'dict_name': name, 'sort': sort},
             )
 
+        self._seed_workstations()
+
         self.stdout.write(self.style.SUCCESS(
             f'初始化完成：岗位 {Position.objects.count()} 个，菜单 {Menu.objects.count()} 个，'
-            f'字典 {DataDict.objects.count()} 条'))
+            f'字典 {DataDict.objects.count()} 条，工位 {self._ws_count()} 个'))
+
+    def _ws_count(self):
+        try:
+            from apps.masterdata.models import Workstation
+            return Workstation.objects.count()
+        except Exception:                                      # noqa: BLE001
+            return 0
+
+    def _seed_workstations(self):
+        """建车间与 12 个工位。
+
+        为什么放进 init_core 而不是 init_demo：
+          D 的 eq_equipment.workstation_id 要挂到这些工位上，
+          W3 派生转序搬运任务要靠「上道工位 → 下道工位」取起终点。
+          init_core 是所有人都要跑的，放这里保证任何机器上都有工位数据。
+        """
+        from apps.masterdata.constants import WORKSHOPS, WORKSTATIONS
+        from apps.masterdata.models import Workshop, Workstation
+
+        workshop = None
+        for code, name in WORKSHOPS:
+            workshop, _ = Workshop.objects.get_or_create(
+                code=code, defaults={'name': name})
+
+        for code, name, node in WORKSTATIONS:
+            Workstation.objects.update_or_create(
+                code=code,
+                defaults={'name': name, 'workshop': workshop, 'agv_load_point': node})
