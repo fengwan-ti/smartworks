@@ -20,16 +20,71 @@
 ## 记录列表
 
 ### 记录 001
-- **日期 / 使用人**：
-- **角色与模块**：
-- **提示词**：
+- **日期 / 使用人**：2026-11-13 / 成员 D
+- **角色与模块**：D / equipment（设备台账与排产视图）、logistics（未改动，仅核对）
+- **提示词**：见附录 P-001（分两轮：①按 B 的 W3 回执改 `/equipments/available/` 的结构；②按 B-1 决策处理 `cutting` / `inspection` 不占设备与 8# 去毛刺台的 OEE 排除）
 - **AI 产出**：
+  - `backend/apps/equipment/serializers.py`：新增 `AvailableEquipmentSerializer`，把 `/available/` 的输出从"套一层 equipment"改成扁平一行一台设备，`changeover_minutes` 由 `setup_minutes` 出口换名
+  - `backend/apps/equipment/models.py` + `migrations/0003_equipment_oee_excluded.py`：`Equipment.oee_excluded` 字段
+  - `backend/apps/equipment/views.py`：`available` 动作换用新序列化器并补文档字符串
+  - `backend/apps/equipment/management/commands/seed_equipments.py`、`data/equipments-v1.json`：`oee_excluded` 入库；`_没有设备的工序` 两段说明按 B-1 定案重写
+  - `backend/apps/equipment/management/commands/set_equipment_status.py`：临时改设备状态的命令（演示"按状态选机"用，W7 有状态记录表后删）
+  - `backend/apps/equipment/tests/test_available_contract.py`：6 条契约测试，把 B 排产依赖的字段名钉死
+  - `docs/api-contract.md`（2.9.1 补登记 8 个自定义动作 + `/available/` 响应示例 + 变更记录）、`docs/api-status.md`
 - **人工修改**：
+  - 首轮生成的测试断言"5# 钻床种子状态应为 normal"与台账事实冲突（`data/equipments-v1.json` 里 5# 本来就记的 `wearing`，任务 6 的监测对象就是它）。改为"先把状态归零再演"，并补一条"磨损仍可排产、只有 abnormal 才被 `only_available` 排掉"的断言——原来的写法会把排产逻辑引导成"wearing 直接排除"，那是错的。
+  - 迁移文件按项目习惯从 `0003_equipment_oee_excluded_and_more.py` 改名为 `0003_equipment_oee_excluded.py`（一字段一迁移，文件名说清改了什么）。
+  - 种子命令的提示文案从 `⚠️ 没有任何设备能做` 改为 `ℹ️ 不占设备（B-1 已定案）`：空数组是决策结果，不是数据缺口，原来的措辞会让人以为要补设备。
 - **验证方式**：
-- **结论**：
+  - `python manage.py check` 无问题；`makemigrations --check --dry-run` 无待生成迁移
+  - `python -m pytest -q` **103 条全过**（含新增 6 条契约测试）
+  - 手动对照 `data/equipments-v1.json`：8 台设备里只有 `EQ-DB-01`（8# 去毛刺台）`oee_excluded=true`，其余为 false
+- **结论**：采用
 
 ---
 
 ## 附录：长提示词原文
 
 （把超过 200 字的提示词全文放这里，上表只写编号，如 P-001）
+
+### P-001（记录 001，2026-11-13，成员 D）
+
+> ⚠️ 下面是本轮任务的**要求整理稿**（多条短指令与上下文拼接成一段），不是逐字原文。
+> 结课提交前把对话里的原文贴进来替换本段——课程要的是原文，不是复述。
+
+```
+【背景】
+我在 SmartWorks 里负责 D（设备与物流）。仓库本地路径 E:\smartworks-repo，当前分支 dw3。
+B 已经交付了排产（W3），他的代码直接读 /api/v1/equipment/equipments/available/ 的返回，
+并且已经写成 row['changeover_minutes'] 这种取值方式。
+
+【要求 1：把这条接口改成排产能直接吃的形状】
+- 现在是套一层 equipment 的对象，改成扁平的一行一台设备。
+- B 要的字段一个都不能少：equipment_id / code / name / capacity_per_hour /
+  precision_level / changeover_minutes，再加 status、oee_excluded、
+  workstation_code、agv_load_point 方便排产和派工。
+- changeover_minutes 就是表里的 setup_minutes，不许改列名，也不许建第二列。
+- 表结构视图 /capabilities/ 保持不变，只有排产视图改。
+
+【要求 2：按 B-1 决策处理两道不占设备的工序】
+- cutting（下料）和 inspection（检验）在 B-1 里定案为"不占设备"，
+  process 模板标 is_equipment_free=true，排产只占工时（下料 0.25h/件、检验 0.3h/件）。
+- 所以 available?step_type=cutting 返回空数组是正确结果，不是数据没建。
+  种子命令和接口文档的措辞都要改成这个意思，别再用"⚠️ 没有设备能做"。
+- 8 台设备不增不改，D 不补锯床、不补检验设备。
+
+【要求 3：8# 去毛刺台不计入 OEE】
+- 第一代 30 道工序基线里没用到去毛刺，OEE 页面会把它算成"永远零产出"的设备。
+- 给设备加 oee_excluded 字段，只有 8# 去毛刺台为 true，其余 7 台 false。
+- W6 把去毛刺插进路线后改回 false。
+
+【要求 4：给这两件事补测试】
+- 契约测试要钉住 B 依赖的字段名：谁改结构，测试先红。
+- 顺带把"按状态选机"的演示动作测出来（改状态 → 排产候选变化）。
+
+【要求 5】
+- 契约文件 api-contract.md、接口看板 api-status.md 一起更新；
+- AI 使用记录当天写。
+- 最后跑全量测试，别把 A / B / C 已有的测试改坏。
+```
+

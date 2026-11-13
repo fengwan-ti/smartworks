@@ -247,6 +247,45 @@
 | 117 | `/equipment/maintenance-orders/{id}/complete/` | POST | 完工 | 未开始 |
 | 118 | `/equipment/oee/` | GET | OEE（可用率 × 性能 × 良率） | 未开始 |
 
+#### 2.9.1 D 已上线的自定义动作（W2–W4，原表漏登记，此处补）
+
+| 路径 | 方法 | 说明 | 状态 |
+|---|---|---|---|
+| `/equipment/equipments/available/` | GET | **排产视图**：按工序查可用设备，`?step_type=`（必填）、`min_capacity`、`precision_level`、`only_available=1`。B 的排产、C 的派工吃这个 | ✅ W3 上线，W4 改为扁平结构 |
+| `/equipment/equipments/capability-matrix/` | GET | 工序 × 设备能力矩阵（台账页展示用） | ✅ W2 |
+| `/equipment/equipments/brief/` | GET | 设备下拉（id + code + name） | ✅ W2 |
+| `/equipment/equipments/next-code/` | GET | 按前缀生成下一个设备编码 | ✅ W2 |
+| `/equipment/equipments/{id}/capabilities/{capability_id}/` | DELETE | 删除单条能力记录 | ✅ W2 |
+| `/equipment/step-types/` | GET | 工序类型字典（11 个值 + 中文名） | ✅ W2 |
+| `/equipment/sensor-readings/` | GET | 传感器读数。**注意：资源名是 `sensor-readings`，不是本表的 `readings`** | ✅ W3 |
+| `/equipment/sensor-readings/latest/`、`series/`、`states/`、`simulate/` | GET/POST | 最新值、时间序列、状态序列、模拟写入 | ✅ W3 |
+
+**`/available/` 的返回结构（W4 定稿，B 排产直接依赖，字段只能加不能改）：**
+
+```json
+{
+  "code": 0,
+  "msg": "ok",
+  "data": [
+    {
+      "capability_id": 12, "equipment_id": 3,
+      "code": "EQ-CNC-01", "name": "1#数控车床",
+      "status": "normal", "status_label": "正常", "oee_excluded": false,
+      "step_type": "rough_turning", "capacity_per_hour": 6.0,
+      "precision_level": "high", "changeover_minutes": 25,
+      "workstation_code": "", "agv_load_point": "N013"
+    }
+  ]
+}
+```
+
+三条不可动的约定：
+1. **扁平一行一台设备**，不再套一层 `equipment` 对象（W2 的 `/capabilities/` 才是表结构视图，那个不改）。
+2. **`changeover_minutes` 就是表里的 `setup_minutes`**，同一个数、不是两列。联调周不改列名，只在出口处换名。
+3. **`cutting` / `inspection` 返回空数组是正确结果**（B-1 定案：这两道工序不占设备，模板标 `is_equipment_free=true`），不是数据没建。
+
+字段名被 `apps/equipment/tests/test_available_contract.py` 钉住，改结构先看那个文件为什么说不能改。
+
 ### 2.10 logistics（负责人 D）
 
 | # | 路径 | 方法 | 说明 | 状态 |
@@ -338,3 +377,4 @@
 |---|---|---|---|
 | W1 | 初版建立 | A | 全员 |
 | W1 | 修正：产品族归 masterdata（A 维护），process 不再建 pr_product_family | A | B |
+| W4 | 补登记 equipment 的 8 个自定义动作（含 `/equipments/available/`）；`/available/` 返回改为扁平结构，`changeover_minutes` 为 `setup_minutes` 的出口别名；`cutting`/`inspection` 空数组属正确结果 | D | B、C |

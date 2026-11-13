@@ -27,6 +27,7 @@ from apps.equipment.constants import EquipmentStatus, PrecisionLevel, StepType
 from apps.equipment.filters import EquipmentFilter, SensorReadingFilter
 from apps.equipment.models import Equipment, SensorReading
 from apps.equipment.serializers import (
+    AvailableEquipmentSerializer,
     EquipmentBriefSerializer,
     EquipmentCapabilitySerializer,
     EquipmentSerializer,
@@ -89,6 +90,13 @@ class EquipmentViewSet(viewsets.ModelViewSet):
         """按工序找可用设备。B 的排产、C 的派工都用这个。
 
         查询参数：step_type（必填）、min_capacity、precision_level、only_available=1
+
+        返回的是**扁平一行一台设备**（equipment_id / code / name / capacity_per_hour /
+        precision_level / changeover_minutes …），B 不用再往里掏一层 equipment。
+
+        ⚠️ `cutting` / `inspection` 在 B-1 决策里是「不占设备」的工序，
+           这里会返回空数组 —— 那是**正确结果**，不是数据没建。
+           排产遇到 is_equipment_free=true 的模板请直接跳过设备匹配、只占工时。
         """
         step_type = request.query_params.get('step_type')
         if not step_type:
@@ -100,7 +108,7 @@ class EquipmentViewSet(viewsets.ModelViewSet):
             precision_level=request.query_params.get('precision_level') or None,
             only_available=request.query_params.get('only_available') in ('1', 'true', 'True'),
         )
-        return Response(EquipmentCapabilitySerializer(caps, many=True).data)
+        return Response(AvailableEquipmentSerializer(caps, many=True).data)
 
     @action(detail=False, methods=['get'], url_path='capability-matrix')
     def capability_matrix(self, request):

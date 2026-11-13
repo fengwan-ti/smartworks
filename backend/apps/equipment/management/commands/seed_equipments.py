@@ -92,6 +92,7 @@ class Command(BaseCommand):
                 'status': item.get('status', EquipmentStatus.NORMAL),
                 'install_date': item.get('install_date') or None,
                 'is_active': item.get('is_active', True),
+                'oee_excluded': item.get('oee_excluded', False),
                 'remark': item.get('remark', ''),
             }
             equipment, is_created = Equipment.objects.update_or_create(
@@ -128,8 +129,8 @@ class Command(BaseCommand):
         no_equipment = payload.get('_没有设备的工序') or {}
         if no_equipment:
             self.stdout.write(self.style.WARNING(
-                f'⚠️ 这 {len(no_equipment)} 道工序没有任何设备能做：'
-                f'{"、".join(no_equipment)}。B 排产时会找不到设备。',
+                f'ℹ️ 这 {len(no_equipment)} 道工序不占设备（B-1 已定案）：'
+                f'{"、".join(no_equipment)}。排产遇到 is_equipment_free 的模板直接跳过设备匹配。',
             ))
             for step_type, reason in no_equipment.items():
                 self.stdout.write(f'   · {step_type}：{reason}')

@@ -25,6 +25,47 @@ class EquipmentCapabilitySerializer(serializers.ModelSerializer):
         extra_kwargs = {'equipment': {'required': False}}
 
 
+class AvailableEquipmentSerializer(serializers.ModelSerializer):
+    """B 的排产直接用的一条「哪台设备能干这道工序」，一行就是一次可选设备。
+
+    和 /capabilities/ 的区别：那个是**表结构视图**（字段跟数据库列名一致，给台账页用），
+    这个是**排产视图**（字段名对齐 B 的排产代码，一层扁平，不用再往里掏一层 equipment）。
+
+    ⚠️ `changeover_minutes` 就是数据库列 `setup_minutes`，同一个数、不是两列。
+       当初 W2 建表叫 setup_minutes，B 的换型矩阵叫 changeover_minutes；
+       W4 是联调周不改列名，所以在出口处换名，表结构不动。
+    """
+    capability_id = serializers.IntegerField(source='id', read_only=True)
+    equipment_id = serializers.IntegerField(read_only=True)
+    code = serializers.CharField(source='equipment.code', read_only=True)
+    name = serializers.CharField(source='equipment.name', read_only=True)
+    status = serializers.CharField(source='equipment.status', read_only=True)
+    status_label = serializers.CharField(
+        source='equipment.get_status_display', read_only=True,
+    )
+    oee_excluded = serializers.BooleanField(
+        source='equipment.oee_excluded', read_only=True,
+    )
+    capacity_per_hour = serializers.FloatField(read_only=True)
+    changeover_minutes = serializers.IntegerField(source='setup_minutes', read_only=True)
+    workstation_code = serializers.CharField(
+        source='equipment.workstation.code', read_only=True, default='',
+    )
+    agv_load_point = serializers.CharField(
+        source='equipment.workstation.agv_load_point', read_only=True, default='',
+    )
+
+    class Meta:
+        model = EquipmentCapability
+        fields = (
+            'capability_id', 'equipment_id', 'code', 'name',
+            'status', 'status_label', 'oee_excluded',
+            'step_type', 'capacity_per_hour', 'precision_level',
+            'changeover_minutes', 'workstation_code', 'agv_load_point',
+        )
+        read_only_fields = fields
+
+
 class EquipmentSerializer(serializers.ModelSerializer):
     status_label = serializers.CharField(source='get_status_display', read_only=True)
     workshop_name = serializers.CharField(source='workshop.name', read_only=True, default='')
@@ -42,7 +83,7 @@ class EquipmentSerializer(serializers.ModelSerializer):
             'id', 'code', 'name', 'model', 'manufacturer',
             'workshop', 'workshop_name', 'workstation', 'workstation_name',
             'agv_load_point', 'status', 'status_label',
-            'install_date', 'is_active', 'remark',
+            'install_date', 'is_active', 'oee_excluded', 'remark',
             'capabilities', 'created_at', 'updated_at',
         )
         read_only_fields = ('status', 'created_at', 'updated_at')

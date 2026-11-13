@@ -297,7 +297,8 @@
       "install_date": "2023-01-20",
       "status": "normal",
       "is_active": true,
-      "remark": "人工工位，产能按人计；一代 6 种零件 30 道工序未引用 deburring，OEE 与产能负荷统计时排除",
+      "oee_excluded": true,
+      "remark": "人工工位，产能按人计；一代 6 种零件 30 道工序未引用 deburring（B 决策：W6 再插），OEE 与产能负荷统计时排除",
       "capabilities": [
         {
           "step_type": "deburring",
@@ -314,8 +315,8 @@
     }
   ],
   "_没有设备的工序": {
-    "cutting": "下料。说明书 2.2 节 8 台设备里没有锯床——这是个缺口。建议①在 masterdata 里把下料设置为委外或车间外的工序（不占设备）；②或加一台 9# 锯床。待 B 定。",
-    "inspection": "检验。三坐标/影像仪工位 ×2 在检验区（N026），不占用加工设备，按 masterdata.workstation 处理，不建能力记录。"
+    "cutting": "下料。已定案（B-1 选①）：不占设备，process 模板标 is_equipment_free=true、required_equipment_type 留空，排产只占工时 0.25h/件。8 台设备不增不改，因此这里本来就不该有能力记录。",
+    "inspection": "检验。已定案（B-1 选①）：不占设备，模板标 is_equipment_free=true，排产只占工时 0.3h/件；三坐标/影像仪工位在检验区（N026），按 masterdata.workstation 处理。B 模板不再使用 inspection_station 这个设备类型，D 不补检验设备。"
   },
   "_单点风险工序": {
     "grinding": "磨削。只有 6# 磨床一台（2.5 件/小时），全车间瓶颈之一。",

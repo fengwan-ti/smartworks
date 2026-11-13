@@ -46,6 +46,11 @@ class Equipment(models.Model):
     )
     install_date = models.DateField(null=True, blank=True, verbose_name='安装日期')
     is_active = models.BooleanField(default=True, verbose_name='是否启用')
+    oee_excluded = models.BooleanField(
+        default=False, verbose_name='不计入 OEE',
+        help_text='第一代 30 道工序基线里没用上的设备置 true（8# 去毛刺台），'
+                  '否则 OEE 页面会把它算成"零产出设备"。W6 把去毛刺插进路线后改回 false',
+    )
     remark = models.CharField(max_length=255, blank=True, verbose_name='备注')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')

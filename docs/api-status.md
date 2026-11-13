@@ -2,7 +2,7 @@
 
 > 更新方式：每完成一个模块，把对应行改为「已上线」并写上提交号。
 > 状态取值：⬜ 未开始 / 🟡 开发中 / ✅ 已上线 / ⛔ 已取消
-> 最近更新：2026-10-26
+> 最近更新：2026-11-13
 
 ## 一、模块级进度
 
@@ -13,11 +13,11 @@
 | process | B | 16 | ⬜ 未开始 | 工序模板、工艺路线、BOM、换型矩阵 |
 | order | B | 10 | ⬜ 未开始 | 销售订单 |
 | planning | A / B | 22 | ⬜ 未开始 | 人员技能（A）与排产（B） |
-| inventory | C / D | 18 | 🟡 开发中 | 表已建 4 张（A 建的骨架），接口未开始 |
+| inventory | C / D | 18 | 🟡 开发中 | D 的成品仓（入库/发货/库龄）已上线 W2；C 的原料与库存流水未开始 |
 | production | C | 14 | ⬜ 未开始 | 工单执行、报工、追溯 |
 | quality | C | 12 | ⬜ 未开始 | 检验单、视觉检测结果 |
-| equipment | D | 16 | ⬜ 未开始 | 台账、能力、点检、状态、告警、维修 |
-| logistics | D | 20 | ⬜ 未开始 | 路网、AGV、搬运任务、调度、路径 |
+| equipment | D | 16 | 🟡 开发中 | 已上线：台账 + 能力 + **排产视图 `/available/`** + 运行矩阵 + 传感器读数（W2–W3，W4 补扁平结构）。未开始：点检、状态记录、告警、维保、OEE（W7） |
+| logistics | D | 20 | 🟡 开发中 | 已上线：路网 + 距离矩阵 + 最短路径 + AGV 台账/派车/充能 + 搬运任务全流程（W2–W3，分支 `dw3`）。未开始：任务 1/2 调度接口 `agv-plans/single|multi`、A 的路径规划接口壳子 |
 | analytics | A | 6 | ⬜ 未开始 | 看板聚合 |
 | algorithms | 共用 | 8 | 🟡 开发中 | 任务 3 算法层已完成，接口待 D 提供壳子 |
 
@@ -52,14 +52,21 @@
 | 测试文件 | 数量 | 状态 |
 |---|---|---|
 | `apps/core/tests/test_unified_response.py` | 4 | ✅ 全过 |
+| `apps/core/tests/test_permissions.py` | 10 | ✅ 全过 |
 | `apps/algorithms/scheduling/path/tests/test_path_planning.py` | 14 | ✅ 全过 |
-| **合计** | **18** | **✅ 全过** |
+| `apps/equipment/tests/test_w2_equipment.py` | 9 | ✅ 全过 |
+| `apps/equipment/tests/test_w3_sensor.py` | 16 | ✅ 全过 |
+| `apps/equipment/tests/test_available_contract.py` | 6 | ✅ 全过（**字段名契约测试，给 B 兜底**） |
+| `apps/inventory/tests/test_w2_finished.py` | 8 | ✅ 全过 |
+| `apps/logistics/tests/test_w2_network.py` | 10 | ✅ 全过 |
+| `apps/logistics/tests/test_w3_transport.py` | 26 | ✅ 全过 |
+| **合计** | **103** | **✅ 全过（2026-11-13 全量跑过）** |
 
 跑法：
 
 ```bat
 cd SmartWorks\backend
-..\.venv\Scripts\python.exe manage.py test
+..\.venv\Scripts\python.exe -m pytest -q
 ```
 
 ## 五、提交记录
@@ -78,3 +85,7 @@ cd SmartWorks\backend
 | a265c4c | 样式改纯 CSS，消 sass 警告 |
 | 3331b8f | BaseTable 插槽加固 + 加载流程解耦 |
 | 5b98a44 | 库存拆分 + 数据集评估 + 三份交接文件 |
+| e340b43 | 数据表规范检查 + 超级管理员 + 权限框架 |
+| b7c9d8f | **D 的 W2**：设备台账与能力、路网导入与距离矩阵、成品仓入库发货与库龄（分支 `feature/d-w2-code`） |
+| 2bb3ce8 | **D 的 W3**：AGV 台账与搬运任务派生、传感器读数导入与模拟（分支 `dw3`） |
+| 7c4fbe4 | D 的 W3 收尾：搬运闭环演示命令 + 派车即出车（分支 `dw3`） |
