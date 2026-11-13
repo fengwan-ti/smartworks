@@ -63,6 +63,12 @@ const routes = [
         component: () => import('@/views/order/MpsPlan.vue'),
         meta: { title: '主生产计划' }
       },
+      {
+        path: 'order/forecast',
+        name: 'ForecastChart',
+        component: () => import('@/views/order/ForecastChart.vue'),
+        meta: { title: '需求预测' }
+      },
       // ---- 排产（B / M05）----
       {
         path: 'planning/schedule',

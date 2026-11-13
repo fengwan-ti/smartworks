@@ -6,6 +6,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.core.exceptions import BizError
+from apps.masterdata.models import Product
 
 from . import services
 from .filters import DemandForecastFilter, MpsFilter, SalesOrderFilter
@@ -114,8 +115,48 @@ class MpsViewSet(viewsets.ModelViewSet):
 
 
 class DemandForecastViewSet(viewsets.ReadOnlyModelViewSet):
-    """需求预测结果（W5 由算法写入，这里只读）。"""
+    """需求预测结果 + 运行预测（任务 7）。"""
     queryset = DemandForecast.objects.select_related('product')
     serializer_class = DemandForecastSerializer
     filterset_class = DemandForecastFilter
     permission_classes = [IsAuthenticated]
+
+    @action(detail=False, methods=['get'], url_path='history')
+    def history(self, request):
+        from . import forecasting
+
+        code = request.query_params.get('product')
+        weeks = int(request.query_params.get('weeks', 52))
+        periods, series = forecasting.load_series()
+        if code not in series:
+            raise BizError(19401, f'数据里没有产品 {code}')
+        return Response({
+            'product': code,
+            'periods': [p.isoformat() for p in periods[-weeks:]],
+            'values': [round(v, 1) for v in series[code][-weeks:]],
+        })
+
+    @action(detail=False, methods=['post'], url_path='run')
+    def run_forecast(self, request):
+        from . import forecasting
+
+        model = request.data.get('model') or 'sarima'
+        horizon = int(request.data.get('horizon') or 8)
+        if horizon < 1 or horizon > 26:
+            raise BizError(12004, 'horizon 必须在 1~26 之间')
+        periods, series = forecasting.load_series()
+        codes = request.data.get('products') or list(series.keys())
+        results, errors = [], []
+        for code in codes:
+            product = Product.objects.filter(code=code).first()
+            if not product:
+                errors.append({'product': code, 'message': '产品不存在（masterdata 无此编码）'})
+                continue
+            try:
+                result = forecasting.run_forecast(code, model, horizon)
+                forecasting.save_forecast(product, result)
+                results.append(result)
+            except BizError as exc:
+                errors.append({'product': code, 'message': exc.message})
+        return Response({'model': model, 'horizon': horizon,
+                         'results': results, 'errors': errors})
