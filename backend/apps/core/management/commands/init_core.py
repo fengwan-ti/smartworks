@@ -36,6 +36,13 @@ MENUS = [
     ('md_product', '产品', 'menu', '/masterdata/products', 'Box', 11, 'md'),
     ('md_material', '物料', 'menu', '/masterdata/materials', 'Goods', 12, 'md'),
     ('md_workshop', '车间工位', 'menu', '/masterdata/workshops', 'OfficeBuilding', 13, 'md'),
+    # 工艺配置（B 负责的模块，入口由 A 统一维护）
+    ('process', '工艺配置', 'dir', '/process', 'SetUp', 20, None),
+    ('process_template', '工序模板', 'menu', '/process/templates', 'Tickets', 21, 'process'),
+    ('process_route', '工艺路线', 'menu', '/process/routes', 'Share', 22, 'process'),
+    ('process_bom', 'BOM 管理', 'menu', '/process/boms', 'Document', 23, 'process'),
+    ('process_changeover', '换型矩阵', 'menu', '/process/changeovers',
+     'Refresh', 24, 'process'),
 ]
 
 DICTS = [
@@ -53,6 +60,29 @@ DICTS = [
     ('equipment_status', 'normal', '正常', 1),
     ('equipment_status', 'wearing', '磨损', 2),
     ('equipment_status', 'abnormal', '异常', 3),
+    # ---- step_type 工序类型（11 值，2026-11-04 冻结，见 api-contract 一·五节）----
+    ('step_type', 'cutting', '下料', 1),
+    ('step_type', 'rough_turning', '粗车', 2),
+    ('step_type', 'finish_turning', '精车', 3),
+    ('step_type', 'milling', '铣削', 4),
+    ('step_type', 'slot_milling', '铣槽', 5),
+    ('step_type', 'gear_milling', '铣齿', 6),
+    ('step_type', 'drilling', '钻孔', 7),
+    ('step_type', 'grinding', '磨外圆', 8),
+    ('step_type', 'deburring', '去毛刺', 9),
+    ('step_type', 'cleaning', '清洗', 10),
+    ('step_type', 'inspection', '检验', 11),
+    # ---- 工艺路线与 BOM 状态（B 的 A3 要求登记）----
+    ('route_status', 'draft', '草稿', 1),
+    ('route_status', 'active', '生效', 2),
+    ('route_status', 'obsolete', '停用', 3),
+    ('bom_status', 'draft', '草稿', 1),
+    ('bom_status', 'active', '生效', 2),
+    ('bom_status', 'obsolete', '停用', 3),
+    ('changeover_source', 'standard', '标准值', 1),
+    ('changeover_source', 'measured', '实测值', 2),
+    ('changeover_source', 'estimated', '估算值', 3),
+    ('changeover_source', 'imported', '外部导入', 4),
 ]
 
 

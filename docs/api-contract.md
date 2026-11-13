@@ -50,9 +50,9 @@
 |---|---|---|
 | 0 | 通用 | 成功 |
 | 10000-10099 | A | 通用参数、分页、序列化校验 |
-| 10100-10199 | A | 认证与登录 |
-| 10200-10299 | A | 权限与数据范围 |
-| 10300-10399 | A | 资源不存在 |
+| 10100-10199 | A | 登录与账号（如账号密码错误 10101） |
+| 10200-10299 | A | 令牌与权限（**10201 未认证、10202 无权限**） |
+| 10300-10399 | A | 资源不存在（**10301**） |
 | 10900 | A | 服务器内部错误 |
 | 11000-11999 | A | 组织、人员、技能、排班、主数据、看板 |
 | 12000-12999 | B | 工艺、BOM、换型、订单、MPS、排产 |
@@ -222,17 +222,31 @@ md_workstation.agv_load_point → lg_road_node.code（必须是 type=dock）
 
 | # | 路径 | 方法 | 说明 | 状态 |
 |---|---|---|---|---|
-| 32 | `/process/templates/` | GET POST | 工序模板库（支持 step_type 筛选） | 未开始 |
-| 33 | `/process/templates/{id}/` | GET PUT PATCH DELETE | 工序模板维护 | 未开始 |
-| 34 | `/process/boms/` | GET POST | BOM 主表（按产品查询，含版本） | 未开始 |
+| 32 | `/process/templates/` | GET POST | 工序模板库（支持 step_type 筛选） | ✅ 已上线（B，11 条种子） |
+| 33 | `/process/templates/{id}/` | GET PUT PATCH DELETE | 工序模板维护 | ✅ 已上线（B） |
+| 34 | `/process/boms/` | GET POST | BOM 主表（按产品查询，含版本） | 🟡 B 开发中 |
 | 35 | `/process/boms/{id}/items/` | GET POST | BOM 明细 | 未开始 |
-| 36 | `/process/routes/` | GET POST | 工艺路线 | 未开始 |
+| 36 | `/process/routes/` | GET POST | 工艺路线 | 🟡 B 开发中 |
 | 37 | `/process/routes/{id}/` | GET PUT PATCH DELETE | 工艺路线维护 | 未开始 |
 | 38 | `/process/routes/{id}/copy/` | POST | **复制路线**（新产品继承同族模板，入参 new_product_id） | 未开始 |
 | 39 | `/process/routes/{id}/steps/` | GET POST | 路线工序（按 seq 排序，可增删调序） | 未开始 |
-| 40 | `/process/changeovers/` | GET POST | 换型时间矩阵 | 未开始 |
-| 41 | `/process/changeovers/import/` | POST | 换型矩阵 Excel 批量导入 | 未开始 |
+| 40 | `/process/changeovers/` | GET POST | 换型时间矩阵 | 🟡 B 开发中 |
+| 41 | `/process/changeovers/import/` | POST | 换型矩阵 Excel 批量导入（依赖 openpyxl） | 🟡 B 开发中 |
 | 42 | `/process/equipment-capabilities/` | GET | **只读**，数据由 D 写入 | 未开始 |
+
+### 2.3.1 Excel 导入导出的约定（B 的工序模板 / 换型矩阵共用）
+
+| 项 | 约定 |
+|---|---|
+| 依赖 | `openpyxl==3.1.5`（已写入 `backend/requirements.txt`） |
+| 实现方式 | Django management command（`import_templates` / `export_templates` / `import_changeovers`），**不另开 HTTP 接口** |
+| 为什么走命令不走接口 | Excel 导入是低频运维动作，做接口要处理文件上传、临时存储、进度反馈，成本远高于收益；命令在服务器上跑一次即可 |
+| 编码 | 导出用 `xlsx`（不是 csv），避免中文与多 sheet 问题 |
+| 校验 | 导入先整表校验，任一行不合法则**整批回滚**，不做"部分成功" |
+| 返回 | 打印"成功 N 条 / 跳过 M 条（已存在）/ 失败 K 条（含行号与原因）" |
+
+> 契约原表里的 `/process/changeovers/import/` 保留为**预留接口**，第一代不实现，
+> 实际导入走 `manage.py import_changeovers --file xxx.xlsx`。
 
 ### 2.4 order（负责人 B）
 
