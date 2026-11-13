@@ -189,11 +189,14 @@ def copy_route(source, new_product_id):
     return new_route
 
 
-def validate_step_payload(data, route):
+def validate_step_payload(data, route, instance=None):
     seq = data.get('seq')
     if not isinstance(seq, int) or seq <= 0:
         raise BizError(12004, '工序序号必须为正整数')
-    if RouteStep.objects.filter(route=route, seq=seq).exists():
+    qs = RouteStep.objects.filter(route=route, seq=seq)
+    if instance:
+        qs = qs.exclude(pk=instance.pk)
+    if qs.exists():
         raise BizError(12005, f'工序序号重复：{seq}')
     step_type = data.get('step_type')
     if step_type not in StepType.values:
@@ -220,7 +223,7 @@ def create_step(route, data):
 def update_step(step, data):
     merged = {f: data.get(f, getattr(step, f)) for f in (
         'seq', 'step_type', 'std_hours', 'required_equipment_type', 'is_equipment_free')}
-    validate_step_payload(merged, step.route)
+    validate_step_payload(merged, step.route, instance=step)
     for k, v in data.items():
         setattr(step, k, v)
     step.save()

@@ -35,7 +35,7 @@ const routes = [
       {
         path: 'process/routes',
         name: 'ProcessRoutes',
-        component: () => import('@/views/common/Placeholder.vue'),
+        component: () => import('@/views/process/RouteDesign.vue'),
         meta: { title: '工艺路线' }
       },
       {
