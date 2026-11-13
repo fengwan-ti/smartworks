@@ -50,6 +50,26 @@ const routes = [
         component: () => import('@/views/process/ChangeoverMatrix.vue'),
         meta: { title: '换型矩阵' }
       },
+      // ---- 订单与计划（B / M04）----
+      {
+        path: 'order/sales',
+        name: 'OrderList',
+        component: () => import('@/views/order/OrderList.vue'),
+        meta: { title: '销售订单' }
+      },
+      {
+        path: 'order/mps',
+        name: 'MpsPlan',
+        component: () => import('@/views/order/MpsPlan.vue'),
+        meta: { title: '主生产计划' }
+      },
+      // ---- 排产（B / M05）----
+      {
+        path: 'planning/schedule',
+        name: 'ScheduleGantt',
+        component: () => import('@/views/planning/ScheduleGantt.vue'),
+        meta: { title: '排产与甘特图' }
+      },
       // 以下为 init_core 种子菜单对应的占位路由。菜单树已通，页面按周次实现。
       ...['system/users|用户管理',
         'system/roles|角色管理',

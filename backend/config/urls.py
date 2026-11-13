@@ -16,6 +16,7 @@ urlpatterns = [
     # B（工艺与计划）
     path('api/v1/process/', include('apps.process.urls')),
     path('api/v1/order/', include('apps.order.urls')),
+    path('api/v1/planning/', include('apps.planning.urls')),
     # D（设备与物流调度）W2：设备台账、路网与距离矩阵、成品仓
     path('api/v1/equipment/', include('apps.equipment.urls')),
     path('api/v1/logistics/', include('apps.logistics.urls')),
