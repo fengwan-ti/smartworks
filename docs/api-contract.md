@@ -265,15 +265,15 @@
 ```json
 {
   "code": 0,
-  "msg": "ok",
+  "message": "ok",
   "data": [
     {
-      "capability_id": 12, "equipment_id": 3,
+      "capability_id": 1, "equipment_id": 1,
       "code": "EQ-CNC-01", "name": "1#数控车床",
       "status": "normal", "status_label": "正常", "oee_excluded": false,
       "step_type": "rough_turning", "capacity_per_hour": 6.0,
-      "precision_level": "high", "changeover_minutes": 25,
-      "workstation_code": "", "agv_load_point": "N013"
+      "precision_level": "normal", "changeover_minutes": 25,
+      "workstation_code": "WS-N013", "agv_load_point": "N013"
     }
   ]
 }
