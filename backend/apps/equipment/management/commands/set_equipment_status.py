@@ -23,13 +23,27 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument('--code', help='设备编码，如 EQ-DR-01')
-        parser.add_argument('--status', required=True, choices=EquipmentStatus.values,
-                            help='normal / wearing / abnormal')
+        parser.add_argument('--status', choices=EquipmentStatus.values,
+                            help='normal / wearing / abnormal（配 --list 时可省略）')
         parser.add_argument('--all', action='store_true',
                             help='改全部启用设备（演示结束恢复 normal 用）')
+        parser.add_argument('--list', dest='list_only', action='store_true',
+                            help='只打印当前状态与 OEE 标记，不改')
 
     def handle(self, *args, **options):
+        if options['list_only']:
+            for equipment in Equipment.objects.order_by('code'):
+                flag = '  不计 OEE' if equipment.oee_excluded else ''
+                self.stdout.write(
+                    f'{equipment.code:<12}{equipment.name:<12}'
+                    f'{equipment.get_status_display()}{flag}',
+                )
+            return
+
         status = options['status']
+        if not status:
+            raise CommandError('要给 --status（只想看状态请用 --list）')
+
         qs = Equipment.objects.all()
         if not options['all']:
             if not options['code']:
