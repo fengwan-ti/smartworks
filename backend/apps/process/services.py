@@ -316,11 +316,12 @@ def changeover_matrix():
     products = list(Product.objects.filter(is_active=True).order_by('code'))
     cells = list(ChangeoverMatrix.objects.select_related(
         'from_product', 'to_product').values(
-        'from_product_id', 'to_product_id', 'changeover_minutes', 'source'))
+        'id', 'from_product_id', 'to_product_id', 'changeover_minutes', 'source'))
     return {
         'products': [{'id': p.id, 'code': p.code, 'name': p.name} for p in products],
         'cells': [
-            {'from_product_id': c['from_product_id'],
+            {'id': c['id'],
+             'from_product_id': c['from_product_id'],
              'to_product_id': c['to_product_id'],
              'changeover_minutes': c['changeover_minutes'],
              'source': c['source']}

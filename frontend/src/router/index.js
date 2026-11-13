@@ -41,13 +41,13 @@ const routes = [
       {
         path: 'process/boms',
         name: 'ProcessBoms',
-        component: () => import('@/views/common/Placeholder.vue'),
+        component: () => import('@/views/process/BomEdit.vue'),
         meta: { title: 'BOM 维护' }
       },
       {
         path: 'process/changeovers',
         name: 'ProcessChangeovers',
-        component: () => import('@/views/common/Placeholder.vue'),
+        component: () => import('@/views/process/ChangeoverMatrix.vue'),
         meta: { title: '换型矩阵' }
       },
       // 以下为 init_core 种子菜单对应的占位路由。菜单树已通，页面按周次实现。
