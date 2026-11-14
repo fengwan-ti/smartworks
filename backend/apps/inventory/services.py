@@ -7,6 +7,8 @@
   confirm_inbound(order, user)      入库确认（写流水、生成批次）
   confirm_outbound(order, user)     出库确认（FIFO 分配、写流水）
 """
+from decimal import Decimal
+
 from django.db import transaction
 from django.db.models import Sum
 from django.utils import timezone
