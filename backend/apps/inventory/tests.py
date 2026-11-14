@@ -143,3 +143,34 @@ class TakingTests(InventoryBase):
         rows = resp.json()['data']
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]['batch_no'], 'B20261101')
+
+
+class WriteStockTransactionTests(InventoryBase):
+    """D 的成品入库/发货跨域入口（契约 4.15：只调函数不碰表）。"""
+
+    def setUp(self):
+        super().setUp()
+        self.confirm_inbound()
+        from apps.inventory.models_warehouse import Batch
+        self.batch = Batch.objects.get(batch_no='B20261101')
+
+    def test_inbound_positive(self):
+        from apps.inventory.services import write_stock_transaction
+        tx = write_stock_transaction(self.batch, 'inbound', 50,
+                                     warehouse=self.warehouse,
+                                     ref_doc='PI-20261103-001')
+        self.assertEqual(tx.qty, 50)
+
+    def test_ship_negative_with_check(self):
+        from apps.inventory.services import write_stock_transaction
+        tx = write_stock_transaction(self.batch, 'ship', 30,
+                                     ref_doc='SH-20261103-001')
+        self.assertEqual(tx.qty, -30)
+        # 超发要拦
+        with self.assertRaises(Exception):
+            write_stock_transaction(self.batch, 'ship', 999)
+
+    def test_invalid_biz_type(self):
+        from apps.inventory.services import write_stock_transaction
+        with self.assertRaises(Exception):
+            write_stock_transaction(self.batch, 'produce_inbound', 10)

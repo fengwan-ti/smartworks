@@ -48,6 +48,43 @@ def gen_outbound_code():
     return _gen_code('LL', OutboundOrder)
 
 
+@transaction.atomic
+def write_stock_transaction(batch, biz_type, qty, warehouse=None, location=None,
+                            operator=None, ref_doc='', remark=''):
+    """跨域写流水统一入口（D 的成品入库 / 发货必须调这个，不许自己 INSERT）。
+
+    约定（与契约 4.15 一致）：
+    - inbound / return：qty 传正数
+    - issue / ship：qty 传正数（数量），内部写负数，并校验批次可用量
+    - adjust：qty 可正可负（盘点专用，跨域一般不调）
+    ref_doc 传对方单据号（如 PI-20261103-001 / SH-...），用于追溯。
+    """
+    valid_types = dict(StockTransaction._meta.get_field('biz_type').choices)
+    if biz_type not in valid_types:
+        raise BizError(E.QTY_INVALID, f'未知的流水类型 {biz_type}')
+    qty = Decimal(str(qty))
+    if biz_type in ('inbound', 'return'):
+        if qty <= 0:
+            raise BizError(E.QTY_INVALID, '入库/退料数量必须大于 0')
+        signed = qty
+    elif biz_type in ('issue', 'ship'):
+        if qty <= 0:
+            raise BizError(E.QTY_INVALID, '出库/发货数量必须大于 0')
+        if get_available_qty(batch) < qty:
+            raise BizError(E.BATCH_QTY_INSUFFICIENT,
+                           f'批次 {batch.batch_no} 可用量不足，不能出库 {qty}')
+        signed = -qty
+    else:  # adjust
+        if qty == 0:
+            raise BizError(E.QTY_INVALID, '调整数量不能为 0')
+        signed = qty
+    return StockTransaction.objects.create(
+        batch=batch, biz_type=biz_type, qty=signed,
+        warehouse=warehouse, location=location,
+        operator=operator, ref_doc=ref_doc, remark=remark,
+    )
+
+
 def get_available_qty(batch):
     """批次可用量 = 该批次全部流水代数和（正入负出）。"""
     agg = StockTransaction.objects.filter(batch=batch).aggregate(s=Sum('qty'))
