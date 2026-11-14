@@ -43,10 +43,10 @@
           <line
             v-for="(e, i) in edges"
             :key="'e' + i"
-            :x1="px(e.from_node_code).x"
-            :y1="px(e.from_node_code).y"
-            :x2="px(e.to_node_code).x"
-            :y2="px(e.to_node_code).y"
+            :x1="px(e.from_code).x"
+            :y1="px(e.from_code).y"
+            :x2="px(e.to_code).x"
+            :y2="px(e.to_code).y"
             :stroke="isPathEdge(e) ? '#E17B2A' : '#C9D2DC'"
             :stroke-width="isPathEdge(e) ? 5 : 2"
             :stroke-dasharray="e.is_bidirectional ? '' : '8 6'"
@@ -211,7 +211,7 @@ function isOnPath(code) {
 }
 
 function isPathEdge(e) {
-  return pathPairs.value.has(e.from_node_code + '|' + e.to_node_code)
+  return pathPairs.value.has(e.from_code + '|' + e.to_code)
 }
 
 function radius(n) {
