@@ -41,6 +41,34 @@
   - 手动对照 `data/equipments-v1.json`：8 台设备里只有 `EQ-DB-01`（8# 去毛刺台）`oee_excluded=true`，其余为 false
 - **结论**：采用
 
+### 记录 002
+- **日期 / 使用人**：2026-11-14 / 成员 D
+- **角色与模块**：D / equipment（告警、维修工单、点检、监测总览）、logistics（任务 1 单机调度、任务 2 多机调度、方案留档）、前端 4 个页面
+- **提示词**：见附录 P-002（一次性下达：做完 W4 剩余项 + W5 全部算法与页面，再生成要发给 A/B/C 的东西和上传 GitHub 的材料）
+- **AI 产出**：
+  - `backend/apps/equipment/models.py` + `migrations/0004_alarm_maintenance_inspection.py`：`Alarm`、`MaintenanceOrder`（带历史表）、`InspectionPlan`、`InspectionRecord` 四张表
+  - `backend/apps/equipment/services.py`：阈值规则 `ALARM_RULES`、`scan_sensor_alarms`（60 分钟去重、critical 自动开工单）、`ack_alarm`/`close_alarm`、工单三动作状态机、`maintenance_metrics`（MTTR 只算已完修）、`inspection_due`、`record_inspection`、`monitor_overview`
+  - `backend/apps/logistics/scheduling.py`：`plan_single_agv`（最近邻 + 2-opt + 载重/电量/分批）、`plan_multi_agv`（贪心插入 + relocate）、`_baseline_nearest`（就近派车基线）
+  - `backend/apps/logistics/services.py`：`build_schedule`、`apply_schedule`、`save_schedule_plan`、`matrix_as_dict`、`_schedulable_agvs`
+  - `backend/apps/logistics/models.py` + `migrations/0003_scheduleplan.py`：`lg_agv_schedule_plan` 方案留档
+  - 命令：`check_alarms`、`demo_w5_schedule`、`experiment_schedule`、`seed_d_menus`
+  - 测试：`test_w4_alarm_maintenance.py`（12 条）、`test_w5_scheduling.py`（15 条）
+  - 前端：`views/equipment/MonitorBoard.vue`、`AlarmList.vue`、`MaintenanceList.vue`、`views/logistics/SchedulePlan.vue`、`api/equipment.js`、`api/logistics.js`、`router/index.js`、`assets/styles/index.css`
+- **人工修改**：
+  - **告警阈值**：AI 一开始在页面提示里写"振动 > 4.5 mm/s、温度 > 78℃、电流 > 12 A"，与代码里的 `ALARM_RULES`（1.8/2.4、55/65、11/13）不一致。改成从代码口径写，并把规则名指到 `services.ALARM_RULES`——页面上写一套、后端判另一套，演示时必然对不上。
+  - **维修工单状态机**：AI 初版在页面上给了一个状态下拉框。改掉，只留 派工/开始/完工 三个按钮——下拉能直接跳到"已完工"，`started_at` 会空着，工时统计全错。
+  - **relocate 的回滚**：初版试完不接受时用"删掉再加回队尾"还原，顺序被改乱了，下一轮基于错序列继续搜。改成保存 `orig_src`/`orig_dst` 原样还原。
+  - **2-opt 的层次**：初版想直接复用 A 的 `plan_route` 做 2-opt，结果优化的是几何路径，任务顺序没变、空驶一点没降。改成只在**任务序列**上反转。
+  - **空驶率变差**：初版报告只写"makespan 缩短 44%"。补上"空驶率同时高了 3.7 点"和原因（字典序目标、摊平工作量的代价），并把 17.8 m 换 413 s 的账算出来——不写清楚，老师一问 6 单那组就穿。
+  - **演示命令的可复现性**：`demo_w5_schedule` 初版把库里所有待派任务都排进去（上次演示残留 12 条），数字不可复现。改成只排本次造出来的 `task_codes`。
+  - **合并 main 后的路径冲突**：AI 自起的 `/equipment/maintenance`、`/logistics/schedule` 与 A 的 `init_core` 菜单路径不一致，侧边栏会重复且点旧的 404。统一到 init_core 的路径，`seed_d_menus` 从"插 10 条"降为"只补告警 1 条"。
+- **验证方式**：
+  - `python manage.py check` 无问题；`makemigrations --check --dry-run` 无待生成迁移
+  - `python -m pytest` **157 条全过**（D 模块 130 + A/B 27，合并 main 之后）
+  - 前端 `npm run build` 通过，4 个页面 chunk 生成
+  - 实测：`check_alarms` 扫 8 台设备出 7 条告警、3 条 critical 自动开 3 张工单；`demo_w5_schedule` makespan 933.2→520.3 s；`experiment_schedule` 四档规模（6/12/20/30）缩短 41.0%/35.3%/38.0%/34.5%
+- **结论**：采用（算法结论采用；"空驶率变差"按人工要求写进实验记录，未粉饰）
+
 ---
 
 ## 附录：长提示词原文
@@ -88,3 +116,32 @@ B 已经交付了排产（W3），他的代码直接读 /api/v1/equipment/equipm
 - 最后跑全量测试，别把 A / B / C 已有的测试改坏。
 ```
 
+
+### P-002（记录 002，2026-11-14，成员 D）
+
+> 下面是本轮任务的**要求整理稿**（把群里的多条消息与截图说明合并成一段），不是逐字原文。
+> 结课提交前把对话原文贴进来替换本段。
+
+```
+【背景】
+SmartWorks 课程项目，我负责 D（设备与物流调度）。仓库 E:\smartworks-repo，分支 dw3，
+已合并远端 main。技术栈 Django 6 + DRF + Vue3 + Element Plus。
+
+【本周要做完的】
+1. W4 设备侧收尾：设备监测页（4 路曲线）、点检计划与记录、告警 + 维修工单基础版。
+   要求：能创建、能处置、能扫出告警；点检异常要能关联到告警。
+2. W5 算法：任务 1 单机调度（最近邻 + 2-opt）、任务 2 多机调度（分配 + 排序），
+   都要输出任务序列与 KPI；要能和"就近派车"基线对比，出实验表（详细设计第 7 章要用）。
+3. 前端：AGV 调度工作台页面，要能选任务、选车、出方案。
+4. B 的回执：8# 去毛刺台标 oee_excluded；/available/ 返回 B 排产要的 6 个字段。
+
+【约束】
+- 距离矩阵用 A 的 build_distance_matrix，不许再写一份。
+- 调度算法要是纯函数，能单测，不碰 ORM。
+- 不许给车床偷偷加 cutting 能力来盖住"下料没设备"的问题。
+- 数字必须可复现（固定 seed），不许挑单次最好结果。
+- 做完生成：给 A/B/C 的说明、要上传 GitHub 的材料（推送步骤 + PR 正文）。
+
+【交付】
+每个 W 建一个 E:\上课课件\...\任务\SmartWorks-W5 目录，里面放说明文档 + code 副本。
+```
