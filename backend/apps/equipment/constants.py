@@ -9,7 +9,7 @@
         from apps.equipment.constants import StepType
     不要在 process 里再定义一份。
 
-    ⚠️ 如果 A 之后把公共枚举收到 apps/core/enums.py，只需把这里的定义改成
+    [注意] 如果 A 之后把公共枚举收到 apps/core/enums.py，只需把这里的定义改成
         from apps.core.enums import StepType
     其他文件不用动（它们都是从这里 import 的）。
 """

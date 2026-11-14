@@ -133,7 +133,7 @@ class Command(BaseCommand):
     def _workshop_and_stations(self):
         """建工位，装卸点编号必须与 D 的路网 dock 节点、设备台账完全一致。
 
-        ⚠️ 这里曾经出过一次真实冲突：最初随手填了 N003/N005/N008，与 D 的
+        [注意] 这里曾经出过一次真实冲突：最初随手填了 N003/N005/N008，与 D 的
         equipments-v1.json 里 N013~N020 对不上，导致"设备挂在哪个装卸点"
         两边说法不同。工位装卸点是 A（主数据）与 D（路网/设备）的共用字段，
         必须与 data/equipments-v1.json 和 data/road-network-v1.json 对齐。

@@ -64,7 +64,7 @@ def match_capabilities(step_type, min_capacity=None, precision_level=None,
     返回 EquipmentCapability 查询集（含 equipment、workstation 预取），
     按产能从高到低排序 —— 产能高的排前面，排产贪心时先挑它。
 
-    ⚠️ 只比 step_type / capacity_per_hour / precision_level 三列，**不读 params**。
+    [注意] 只比 step_type / capacity_per_hour / precision_level 三列，**不读 params**。
     """
     validate_step_type(step_type)
 

@@ -11,7 +11,7 @@ WORKSHOPS = [
 ]
 
 # 工位：code, name, agv_load_point
-# ⚠️ agv_load_point 必须与 data/road-network-v1.json 的 type=dock 节点一致，
+# [注意] agv_load_point 必须与 data/road-network-v1.json 的 type=dock 节点一致，
 #    否则 D 的 eq_equipment.workstation_id 挂不上，W3 无法自动派生转序搬运任务。
 #    这 12 个节点由 D 逐个点出（见 D 的 W2 要料清单 A-5）。
 WORKSTATIONS = [

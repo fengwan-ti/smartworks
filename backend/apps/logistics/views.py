@@ -92,7 +92,7 @@ class NetworkHealthView(APIView):
 class ShortestPathView(APIView):
     """GET /api/v1/logistics/road-network/shortest-path/?from=N001&to=N020
 
-    ⚠️ 自检用。正式的路径规划接口是 A 的 /logistics/agv-paths/plan/（任务 3），
+    [注意] 自检用。正式的路径规划接口是 A 的 /logistics/agv-paths/plan/（任务 3），
     那个要出算法指标与对比，不是这一段。
     """
 

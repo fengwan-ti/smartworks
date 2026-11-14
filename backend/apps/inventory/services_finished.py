@@ -39,7 +39,7 @@ def _next_code(model, prefix, date_str):
 def _load_inspection(code):
     """按单号查 C 的检验单。quality 应用还没建表时返回 None（不阻断 D 的开发）。
 
-    ⚠️ 这不是「绕过校验」，是并行开发的 mock 约定：C 的表一进主干，
+    [注意] 这不是「绕过校验」，是并行开发的 mock 约定：C 的表一进主干，
     这段代码自动生效，D 这边一行都不用改。
     """
     if not code:

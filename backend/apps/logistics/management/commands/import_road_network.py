@@ -49,11 +49,11 @@ class Command(BaseCommand):
 
         if not health['is_connected']:
             self.stdout.write(self.style.WARNING(
-                f'⚠️ 路网不连通（{health["components"]} 块），'
+                f'[注意] 路网不连通（{health["components"]} 块），'
                 f'孤立节点：{health["isolated_nodes"]}。调度会算不出跨区任务。',
             ))
         if health['avg_detour_ratio'] and health['avg_detour_ratio'] > 1.5:
             self.stdout.write(self.style.WARNING(
-                '⚠️ 平均绕行比超过 1.5，说明横向通道太少，'
+                '[注意] 平均绕行比超过 1.5，说明横向通道太少，'
                 'AGV 实际里程会比直线距离大很多。',
             ))

@@ -22,7 +22,7 @@ class RoadNode(models.Model):
     """路网节点。AGV 只能沿边在节点之间走，不能走任意两点之间的直线。
 
     code 规则：N + 3 位序号（N001…N029）。
-    ⚠️ 为什么不沿用旧的 N01：仓库里曾有两套编号并存（agv_network.json 用 N01，
+    [注意] 为什么不沿用旧的 N01：仓库里曾有两套编号并存（agv_network.json 用 N01，
     road-network-v1.json 用 N001），W5 调度一跑就会「找不到节点」。
     全项目只认 N001 这一套（见 W2 要料清单）。
     """

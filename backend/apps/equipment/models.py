@@ -64,7 +64,7 @@ class EquipmentCapability(models.Model):
 
     """设备能力：这台设备能干哪种工序、精度多少、每小时能干几件。
 
-    ⚠️ 排产匹配**只读 step_type / precision_level / capacity_per_hour 三列**。
+    [注意] 排产匹配**只读 step_type / precision_level / capacity_per_hour 三列**。
     params 仅供详情页展示，不许参与匹配 —— 否则以后加设备就要改排产代码，
     正好撞上创新点「元数据驱动、零改代码」。
 
