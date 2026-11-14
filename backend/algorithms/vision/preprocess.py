@@ -12,13 +12,15 @@ import cv2
 import numpy as np
 
 DEFAULT_PARAMS = {
+    "detector": "lr",       # W6：lr 滑窗分类器（缺 model_t4.json 自动回退 rule）
+    "lr_stride": 32,        # 滑窗步长
     "gaussian_kernel": 5,
     "clahe_clip": 2.0,
     "clahe_grid": 8,
     "canny_low": 50,
     "canny_high": 150,
     "morph_kernel": 3,
-    "area_threshold": 6.0,  # 在 tools/vision_baseline.py 中由 train 集按 F1 搜出
+    "area_threshold": 6.0,  # rule 模式阈值（W4 由 train F1 搜出）
 }
 
 

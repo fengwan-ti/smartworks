@@ -9,6 +9,7 @@
 import time
 
 import cv2
+import numpy as np
 
 from .preprocess import chain_main, contour_boxes
 
@@ -17,8 +18,18 @@ def recognize_parts(image_bgr, params=None):
     t0 = time.perf_counter()
     p = dict(params or {})
 
+    # W6 调参：膨胀合并邻接边缘（dilate 核由 val 按 F1 搜出，默认 7）
     mask = chain_main(image_bgr, params)
-    min_area = float(p.get("min_part_area", 50.0))
+    k = int(p.get("dilate", 7))
+    kernel = np.ones((k, k), np.uint8)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+    H, W = mask.shape[:2]
+    # W6：最小面积按图面积比例（min_area_frac 由 val 搜出默认 0.012）；
+    # 兼容旧参数 min_part_area（绝对像素面积）
+    if "min_part_area" in p:
+        min_area = float(p["min_part_area"])
+    else:
+        min_area = float(p.get("min_area_frac", 0.012)) * H * W
     max_parts = int(p.get("max_parts", 10))
 
     boxes_raw = contour_boxes(mask, min_area=min_area)[:max_parts]
