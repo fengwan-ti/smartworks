@@ -9,12 +9,14 @@ from rest_framework.views import APIView
 
 from .exceptions import BizError
 from .filters import UserFilter
-from .models import DataDict, Menu, Role, User
+from .models import DataDict, Department, Menu, Position, Role, User
 from .pagination import StandardPagination
 from .serializers import (
     DataDictSerializer,
+    DepartmentSerializer,
     LoginSerializer,
     MenuSerializer,
+    PositionSerializer,
     RoleSerializer,
     UserSerializer,
 )
@@ -84,6 +86,9 @@ class RoleViewSet(viewsets.ModelViewSet):
     queryset = Role.objects.all().order_by('code')
     serializer_class = RoleSerializer
     pagination_class = StandardPagination
+    search_fields = ('code', 'name', 'description')
+    filterset_fields = ('is_active',)
+    ordering_fields = ('code', 'name')
 
     @action(detail=True, methods=['get', 'post'], url_path='menus')
     def menus_of_role(self, request, pk=None):
@@ -110,17 +115,43 @@ class RoleViewSet(viewsets.ModelViewSet):
         return Response({'role_id': role.id, 'menu_ids': ids})
 
 
+class DepartmentViewSet(viewsets.ModelViewSet):
+    """部门。用户管理页的部门下拉来源于此。"""
+
+    queryset = Department.objects.all().order_by('code')
+    serializer_class = DepartmentSerializer
+    pagination_class = StandardPagination
+    search_fields = ('code', 'name')
+    filterset_fields = ('is_active',)
+
+
+class PositionViewSet(viewsets.ModelViewSet):
+    """岗位。13 个岗位在 init_core 里建，前端只读为主。"""
+
+    queryset = Position.objects.all().order_by('code')
+    serializer_class = PositionSerializer
+    pagination_class = StandardPagination
+    search_fields = ('code', 'name')
+    filterset_fields = ('is_active',)
+
+
 class MenuViewSet(viewsets.ModelViewSet):
     queryset = Menu.objects.all().order_by('sort', 'code')
     serializer_class = MenuSerializer
     pagination_class = StandardPagination
+    search_fields = ('code', 'name', 'permission_code')
+    filterset_fields = ('menu_type', 'is_active', 'parent')
+    ordering_fields = ('sort', 'code')
 
 
 class DataDictViewSet(viewsets.ReadOnlyModelViewSet):
-    """数据字典：前端下拉选项来源。"""
+    """数据字典：前端下拉选项来源，也给「数据字典」页做只读查询。"""
 
     serializer_class = DataDictSerializer
     pagination_class = StandardPagination
+    search_fields = ('dict_type', 'dict_code', 'dict_name')
+    filterset_fields = ('dict_type', 'is_active')
+    ordering_fields = ('dict_type', 'sort')
 
     def get_queryset(self):
         qs = DataDict.objects.filter(is_active=True).order_by('dict_type', 'sort')

@@ -14,30 +14,61 @@ const routes = [
     redirect: '/dashboard',
     children: [
       {
-        path: 'logistics/path',
-        name: 'logistics-path',
-        component: () => import('@/views/logistics/PathPlanner.vue'),
-        meta: { title: '路径规划' }
+        path: 'dashboard',
+        name: 'Dashboard',
+        component: () => import('@/views/dashboard/index.vue'),
+        meta: { title: '工作台' }
       },
+      // ---- 系统管理（A 负责，已实现）----
+      {
+        path: 'system/users',
+        name: 'system-users',
+        component: () => import('@/views/system/UserList.vue'),
+        meta: { title: '用户管理' }
+      },
+      {
+        path: 'system/roles',
+        name: 'system-roles',
+        component: () => import('@/views/system/RoleList.vue'),
+        meta: { title: '角色管理' }
+      },
+      {
+        path: 'system/dicts',
+        name: 'system-dicts',
+        component: () => import('@/views/system/DictList.vue'),
+        meta: { title: '数据字典' }
+      },
+      // ---- 主数据 ----
       {
         path: 'masterdata/products',
         name: 'masterdata-products',
         component: () => import('@/views/masterdata/ProductList.vue'),
         meta: { title: '产品管理' }
       },
+      // ---- 物流与路网（A 的任务 3 展示页）----
       {
-        path: 'dashboard',
-        name: 'Dashboard',
-        component: () => import('@/views/dashboard/index.vue'),
-        meta: { title: '工作台' }
+        path: 'logistics/path',
+        name: 'logistics-path',
+        component: () => import('@/views/logistics/PathPlanner.vue'),
+        meta: { title: '路径规划' }
       },
-      // 以下为 init_core 种子菜单对应的占位路由。菜单树已通，页面按周次实现。
-      ...['system/users|用户管理',
-        'system/roles|角色管理',
-        'system/menus|菜单管理',
-        'system/dicts|数据字典',
+      // 以下为尚未实现的页面，统一走占位组件。菜单树已通，页面按周次补齐。
+      ...['system/menus|菜单管理',
         'masterdata/materials|物料管理',
-        'masterdata/workshops|车间工位'].map((item) => {
+        'masterdata/workshops|车间工位',
+        'process/templates|工序模板',
+        'process/routes|工艺路线',
+        'process/boms|BOM 管理',
+        'process/changeovers|换型矩阵',
+        'equipment/list|设备台账',
+        'equipment/monitor|设备状态监测',
+        'equipment/maintain|维修工单',
+        'equipment/oee|OEE 分析',
+        'logistics/agvs|AGV 台账',
+        'logistics/tasks|搬运任务',
+        'logistics/dispatch|调度工作台',
+        'inventory/finished-in|成品入库',
+        'inventory/aging|库龄分析'].map((item) => {
         const [path, title] = item.split('|')
         return {
           path,

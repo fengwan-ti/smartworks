@@ -24,9 +24,21 @@ class MenuSerializer(serializers.ModelSerializer):
 
 
 class RoleSerializer(serializers.ModelSerializer):
+    """角色。额外返回用户数与菜单数，供列表页直接显示（避免前端两次请求）。"""
+
+    user_count = serializers.SerializerMethodField()
+    menu_count = serializers.SerializerMethodField()
+
     class Meta:
         model = Role
-        fields = ('id', 'code', 'name', 'description', 'menus', 'is_active')
+        fields = ('id', 'code', 'name', 'description', 'menus', 'is_active',
+                  'user_count', 'menu_count')
+
+    def get_user_count(self, obj):
+        return obj.users.count()
+
+    def get_menu_count(self, obj):
+        return obj.menus.count()
 
 
 class DataDictSerializer(serializers.ModelSerializer):
@@ -36,12 +48,52 @@ class DataDictSerializer(serializers.ModelSerializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
-    """列表用精简字段；详情另见 UserDetailSerializer。"""
+    """列表用精简字段 + 三个显示名，详情另见 UserDetailSerializer。
+
+    为什么把 department_name / position_name / role_names 放在后端算：
+      列表页要显示"生产部 / 计划员 / 计划员、调度员"，
+      前端自己再查两张表就是 N+1 请求，直接给字符串最省事。
+    """
+
+    department_name = serializers.CharField(source='department.name', read_only=True, default='')
+    position_name = serializers.CharField(source='position.name', read_only=True, default='')
+    role_names = serializers.SerializerMethodField()
+    is_superuser = serializers.BooleanField(read_only=True)
+    is_staff = serializers.BooleanField(read_only=True)
+    # 只写不读：列表接口永远不返回密码哈希
+    password = serializers.CharField(write_only=True, required=False, allow_blank=True)
 
     class Meta:
         model = User
-        fields = ('id', 'username', 'name', 'employee_no', 'department', 'position',
-                  'roles', 'phone', 'is_active')
+        fields = ('id', 'username', 'name', 'employee_no', 'department', 'department_name',
+                  'position', 'position_name', 'roles', 'role_names', 'phone',
+                  'is_active', 'is_superuser', 'is_staff', 'password')
+
+    def get_role_names(self, obj):
+        return [r.name for r in obj.roles.all()]
+
+    # 多对多 roles 在 create/update 时要单独 set，否则会报 "直接赋值 m2m 不允许"
+    def create(self, validated_data):
+        roles = validated_data.pop('roles', [])
+        password = validated_data.pop('password', '') or '123456'
+        user = User(**validated_data)
+        user.set_password(password)
+        user.save()
+        if roles:
+            user.roles.set(roles)
+        return user
+
+    def update(self, instance, validated_data):
+        roles = validated_data.pop('roles', None)
+        password = validated_data.pop('password', '')
+        for key, value in validated_data.items():
+            setattr(instance, key, value)
+        if password:
+            instance.set_password(password)
+        instance.save()
+        if roles is not None:
+            instance.roles.set(roles)
+        return instance
 
 
 class UserDetailSerializer(UserSerializer):
