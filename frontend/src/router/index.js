@@ -14,6 +14,12 @@ const routes = [
     redirect: '/dashboard',
     children: [
       {
+        path: 'logistics/path',
+        name: 'logistics-path',
+        component: () => import('@/views/logistics/PathPlanner.vue'),
+        meta: { title: '路径规划' }
+      },
+      {
         path: 'masterdata/products',
         name: 'masterdata-products',
         component: () => import('@/views/masterdata/ProductList.vue'),

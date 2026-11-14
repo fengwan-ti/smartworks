@@ -64,6 +64,9 @@ MENUS = [
      'Guide', 42, 'logistics', 'logistics:task'),
     ('logistics_dispatch', '调度工作台', 'menu', '/logistics/dispatch',
      'Operation', 43, 'logistics', 'logistics:dispatch'),
+    # 任务 3 路径规划（A 负责的算法 + 页面，挂进 D 的物流管理目录）
+    ('logistics_path', '路径规划', 'menu', '/logistics/path',
+     'Position', 44, 'logistics', 'logistics:path'),
 
     # ---- 仓储管理（C 管原料、D 管成品；父菜单由 A 维护）----
     ('inventory', '仓储管理', 'dir', '/inventory', 'Box', 50, None, ''),
