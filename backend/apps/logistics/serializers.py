@@ -3,7 +3,7 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from apps.core.exceptions import BizError
-from apps.logistics.models import Agv, RoadEdge, RoadNode, TransportTask
+from apps.logistics.models import Agv, RoadEdge, RoadNode, SchedulePlan, TransportTask
 
 
 class RoadNodeSerializer(serializers.ModelSerializer):
@@ -186,3 +186,38 @@ class OperationTaskSerializer(serializers.Serializer):
         if not (attrs.get('from_equipment') or attrs.get('from_node')):
             raise BizError(10001, '上道工序位置必填：from_equipment 或 from_node')
         return attrs
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# W5：调度方案
+# ══════════════════════════════════════════════════════════════════════════
+
+class ScheduleRequestSerializer(serializers.Serializer):
+    """算方案 / 下发的入参。
+
+    apply=false 只算不动库（页面点"试算"）；
+    apply=true 直接把方案派成车（页面点"执行"）。
+    为什么不拆两个接口：两者的输入完全一样，拆开只会让前端多写一个函数。
+    """
+    agv_codes = serializers.ListField(
+        child=serializers.CharField(), required=False, default=list,
+    )
+    task_codes = serializers.ListField(
+        child=serializers.CharField(), required=False, default=list,
+    )
+    limit = serializers.IntegerField(required=False, default=50, min_value=1, max_value=200)
+    apply = serializers.BooleanField(required=False, default=False)
+
+
+class SchedulePlanSerializer(serializers.ModelSerializer):
+    status_label = serializers.CharField(source='get_status_display', read_only=True)
+    created_by_name = serializers.CharField(
+        source='created_by.username', read_only=True, default='',
+    )
+
+    class Meta:
+        model = SchedulePlan
+        fields = ('id', 'code', 'algorithm', 'status', 'status_label',
+                  'task_count', 'agv_count', 'kpi', 'detail',
+                  'created_by', 'created_by_name', 'created_at')
+        read_only_fields = fields

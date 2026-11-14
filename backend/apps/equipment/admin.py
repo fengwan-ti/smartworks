@@ -8,7 +8,15 @@
 """
 from django.contrib import admin
 
-from apps.equipment.models import Equipment, EquipmentCapability, SensorReading
+from apps.equipment.models import (
+    Alarm,
+    Equipment,
+    EquipmentCapability,
+    InspectionPlan,
+    InspectionRecord,
+    MaintenanceOrder,
+    SensorReading,
+)
 
 
 class EquipmentCapabilityInline(admin.TabularInline):
@@ -75,3 +83,50 @@ class SensorReadingAdmin(admin.ModelAdmin):
 
     def has_change_permission(self, request, obj=None):
         return False
+
+
+# ── W4：告警 / 维修工单 / 点检 ─────────────────────────────────────────────
+
+@admin.register(Alarm)
+class AlarmAdmin(admin.ModelAdmin):
+    list_display = ('code', 'equipment', 'level', 'status', 'channel',
+                    'metric_value', 'threshold', 'occurred_at')
+    list_filter = ('level', 'status', 'source', 'channel')
+    search_fields = ('code', 'equipment__code', 'message', 'rule')
+    list_select_related = ('equipment',)
+    date_hierarchy = 'occurred_at'
+    readonly_fields = ('code', 'occurred_at', 'created_at')
+
+
+@admin.register(MaintenanceOrder)
+class MaintenanceOrderAdmin(admin.ModelAdmin):
+    list_display = ('code', 'equipment', 'order_type', 'status', 'priority',
+                    'assignee', 'downtime_minutes', 'created_at')
+    list_filter = ('status', 'order_type', 'priority')
+    search_fields = ('code', 'equipment__code', 'fault_desc')
+    list_select_related = ('equipment', 'assignee')
+    readonly_fields = ('code', 'created_at', 'updated_at')
+
+
+class InspectionRecordInline(admin.TabularInline):
+    model = InspectionRecord
+    extra = 0
+    fields = ('checked_at', 'result', 'inspector', 'remark')
+    readonly_fields = ('alarm',)
+
+
+@admin.register(InspectionPlan)
+class InspectionPlanAdmin(admin.ModelAdmin):
+    list_display = ('code', 'equipment', 'name', 'cycle', 'last_done_at',
+                    'next_due_at', 'is_active')
+    list_filter = ('cycle', 'is_active')
+    search_fields = ('code', 'name', 'equipment__code')
+    list_select_related = ('equipment',)
+    inlines = (InspectionRecordInline,)
+
+
+@admin.register(InspectionRecord)
+class InspectionRecordAdmin(admin.ModelAdmin):
+    list_display = ('plan', 'equipment', 'checked_at', 'result', 'inspector')
+    list_filter = ('result',)
+    list_select_related = ('plan', 'equipment', 'inspector')

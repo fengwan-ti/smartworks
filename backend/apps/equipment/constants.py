@@ -136,3 +136,83 @@ class SensorSource(models.TextChoices):
     SIMULATED = 'simulated', '模拟生成'
     IMPORTED = 'imported', '文件导入'
     MANUAL = 'manual', '人工录入'
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# W4：告警、维修、点检
+# ══════════════════════════════════════════════════════════════════════════
+
+class AlarmLevel(models.TextChoices):
+    """告警等级。三档对应三种处置动作，不是"重要/次要"这种没用的分级。
+
+    · info     记录即可，不打扰人（例如清洗液温度轻微偏高）
+    · warning  要人看一眼，不一定要停机（磨损趋势）
+    · critical 必须停机处理，会同时生成维修工单（异常/超阈值）
+    """
+    INFO = 'info', '提示'
+    WARNING = 'warning', '警告'
+    CRITICAL = 'critical', '严重'
+
+
+class AlarmStatus(models.TextChoices):
+    """告警状态机：open ─确认→ acked ─关闭→ closed。
+
+    为什么不设「已忽略」：忽略和关闭在业务上没区别，
+    两套词只会让统计口径分裂（关闭数到底算不算忽略的）。
+    """
+    OPEN = 'open', '待处理'
+    ACKED = 'acked', '已确认'
+    CLOSED = 'closed', '已关闭'
+
+
+class AlarmSource(models.TextChoices):
+    """告警从哪来。答辩被问「这是规则还是算法」，看这一列。
+
+    · threshold 阈值规则（W4，确定性，可解释）
+    · model     状态识别模型（W7，任务 6）
+    · manual    人工上报（现场操作工发现异响/漏油）
+    """
+    THRESHOLD = 'threshold', '阈值规则'
+    MODEL = 'model', '模型识别'
+    MANUAL = 'manual', '人工上报'
+
+
+class MaintenanceType(models.TextChoices):
+    """维修工单类型。三种的考核口径不同，不能合成一类。
+
+    · corrective 故障维修（事后）—— 计入 MTTR
+    · preventive 预防性维修（按周期/按状态）—— 计入计划维修率
+    · inspection 点检发现的问题整改
+    """
+    CORRECTIVE = 'corrective', '故障维修'
+    PREVENTIVE = 'preventive', '预防性维修'
+    INSPECTION = 'inspection', '点检整改'
+
+
+class MaintenanceStatus(models.TextChoices):
+    """维修工单状态机：
+        created ─指派→ assigned ─开始→ repairing ─完成→ done
+           └──────────取消──────────→ cancelled
+    """
+    CREATED = 'created', '待指派'
+    ASSIGNED = 'assigned', '已指派'
+    REPAIRING = 'repairing', '维修中'
+    DONE = 'done', '已完成'
+    CANCELLED = 'cancelled', '已取消'
+
+
+class InspectionCycle(models.TextChoices):
+    """点检周期。第一代只做三种周期，不做"每 N 小时"——
+    产线一天两班、周期以天为单位，按小时算反而要额外维护班次表。
+    """
+    SHIFT = 'shift', '每班'
+    DAILY = 'daily', '每天'
+    WEEKLY = 'weekly', '每周'
+    MONTHLY = 'monthly', '每月'
+
+
+class InspectionResult(models.TextChoices):
+    """点检结论。只有两档，第三档「部分异常」会让统计没法算，
+    真有问题就拆成两条记录。"""
+    OK = 'ok', '正常'
+    ABNORMAL = 'abnormal', '异常'

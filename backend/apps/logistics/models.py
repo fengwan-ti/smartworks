@@ -1,8 +1,8 @@
 """物流调度模型（负责人 D）。
 
     W2  lg_road_node 路网节点、lg_road_edge 路网边      ✅ 已入库
-    W3  lg_agv AGV 台账、lg_transport_task 搬运任务      ✅ 本次
-    W5  lg_agv_schedule_plan / lg_agv_schedule_detail
+    W3  lg_agv AGV 台账、lg_transport_task 搬运任务      ✅ 已入库
+    W5  lg_agv_schedule_plan 调度方案留档                ✅ 本次
     W6  lg_agv_path（A 的路径规划写，D 只读）
 
 坐标系：原点在车间西南角，x 向东、y 向北，**单位毫米**（与 data/road-network-v1.json 一致）。
@@ -275,3 +275,45 @@ class TransportTask(models.Model):
 
     def __str__(self):
         return f'{self.code} {self.from_node_id}→{self.to_node_id}'
+
+
+class SchedulePlan(models.Model):
+    """一次调度计算的**方案留档**。
+
+    为什么要把方案存下来，而不是算完直接派车：
+        答辩会被问「算法到底比就近派车好在哪」。只存执行结果的话，
+        基线和优化方案的差距算完就没了；存成一条记录，
+        现场可以随时把两套 KPI 摆出来对比，也可以回放"当时是怎么派的"。
+
+    detail 存整个算法输出（每台车的序列、每段的里程与秒数），
+    kpi 单独拎出来存，是为了列表页不用解析一大堆 JSON。
+    """
+
+    class Status(models.TextChoices):
+        DRAFT = 'draft', '仅预览'
+        APPLIED = 'applied', '已下发'
+
+    code = models.CharField(max_length=32, unique=True, verbose_name='方案编号')
+    algorithm = models.CharField(max_length=64, blank=True, verbose_name='算法')
+    status = models.CharField(
+        max_length=16, choices=Status.choices, default=Status.DRAFT,
+        verbose_name='状态',
+    )
+    task_count = models.PositiveIntegerField(default=0, verbose_name='任务数')
+    agv_count = models.PositiveIntegerField(default=0, verbose_name='用车数')
+    kpi = models.JSONField(default=dict, blank=True, verbose_name='指标')
+    detail = models.JSONField(default=dict, blank=True, verbose_name='方案明细')
+    created_by = models.ForeignKey(
+        'core.User', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='schedule_plans', verbose_name='创建人',
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+
+    class Meta:
+        db_table = 'lg_agv_schedule_plan'
+        verbose_name = 'AGV 调度方案'
+        verbose_name_plural = verbose_name
+        ordering = ['-created_at', '-id']
+
+    def __str__(self):
+        return f'{self.code} {self.get_status_display()} {self.task_count} 条'

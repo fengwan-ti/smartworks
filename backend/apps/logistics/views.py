@@ -30,7 +30,7 @@ from rest_framework.views import APIView
 from apps.core.exceptions import BizError
 from apps.equipment.constants import AgvStatus, TransportTaskStatus
 from apps.logistics import services
-from apps.logistics.models import Agv, RoadEdge, RoadNode, TransportTask
+from apps.logistics.models import Agv, RoadEdge, RoadNode, SchedulePlan, TransportTask
 from apps.logistics.serializers import (
     AgvSerializer,
     OperationTaskSerializer,
@@ -38,6 +38,8 @@ from apps.logistics.serializers import (
     RoadEdgeSerializer,
     RoadNetworkImportSerializer,
     RoadNodeSerializer,
+    SchedulePlanSerializer,
+    ScheduleRequestSerializer,
     TransportTaskSerializer,
 )
 
@@ -278,3 +280,56 @@ def _assign_and_serialize(task, user, agv=None):
         'battery_after': detail['battery_after'],
         'estimated_seconds': detail['estimated_seconds'],
     }
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# W5：AGV 调度工作台
+# ══════════════════════════════════════════════════════════════════════════
+
+class AgvScheduleView(APIView):
+    """算一套调度方案 / 直接下发。
+
+    POST /api/v1/logistics/agv-schedule/
+        {"agv_codes": [], "task_codes": [], "limit": 50, "apply": false}
+
+    · apply=false：只算，存一条 draft 方案留档，返回完整方案 + 基线对比
+    · apply=true ：算完直接派车，任务状态转 assigned、写好计划起止
+
+    返回里的三个数是答辩要讲的：
+        makespan_s   最后一台车收工的时刻（越小越好）
+        empty_ratio  空驶里程 / 总里程（越小越好）
+        improvement  与「就近派车」基线的对比
+    """
+
+    def post(self, request):
+        serializer = ScheduleRequestSerializer(data=request.data or {})
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        result = services.build_schedule(
+            agv_codes=data.get('agv_codes') or None,
+            task_codes=data.get('task_codes') or None,
+            limit=data['limit'],
+        )
+
+        if data['apply']:
+            applied = services.apply_schedule(result, operator=request.user)
+            return Response({'plan': result, 'apply': applied}, status=201)
+
+        services.save_schedule_plan(result, operator=request.user)
+        return Response(result)
+
+    def get(self, request):
+        """浏览器直接看方案用（不写库，方便联调时反复刷新）。"""
+        result = services.build_schedule(
+            agv_codes=request.query_params.getlist('agv_codes') or None,
+            limit=int(request.query_params.get('limit') or 50),
+        )
+        return Response(result)
+
+
+class SchedulePlanViewSet(viewsets.ReadOnlyModelViewSet):
+    """历史调度方案（只读）。点开一条能看到当时的 KPI 与每台车的序列。"""
+    queryset = SchedulePlan.objects.select_related('created_by').all()
+    serializer_class = SchedulePlanSerializer
+    ordering = ('-created_at',)

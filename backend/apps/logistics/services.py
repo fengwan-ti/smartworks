@@ -22,6 +22,7 @@
 放视图里就得复制一份，复制的那份早晚和视图那份不一致。
 """
 import time
+from datetime import timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
 from django.db import transaction
@@ -45,7 +46,14 @@ from apps.equipment.constants import (
     TransportTaskStatus,
     TransportTaskType,
 )
-from apps.logistics.models import Agv, RoadEdge, RoadNode, TransportTask
+from apps.logistics import scheduling
+from apps.logistics.models import (
+    Agv,
+    RoadEdge,
+    RoadNode,
+    SchedulePlan,
+    TransportTask,
+)
 
 # 进程内缓存：{'key': payload}
 _MATRIX_CACHE = {}
@@ -830,3 +838,191 @@ def agv_workload():
             ).count(),
         })
     return rows
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# W5：AGV 调度（任务 1 单车 / 任务 2 多车）
+# ══════════════════════════════════════════════════════════════════════════
+
+def next_plan_code():
+    """方案编号 SP-20261114-0001（按天流水）。"""
+    today = timezone.localdate()
+    head = f'SP-{today:%Y%m%d}-'
+    last = (
+        SchedulePlan.objects.filter(code__startswith=head)
+        .order_by('-code').values_list('code', flat=True).first()
+    )
+    seq = int(last.rsplit('-', 1)[1]) + 1 if last else 1
+    return f'{head}{seq:04d}'
+
+
+def matrix_as_dict():
+    """距离矩阵转成 {起点: {终点: 毫米}}。
+
+    为什么不用现成的 (node_ids, matrix) 二维数组：
+        调度算法里到处是 `dist[a][b]`，二维数组要先查两次 index，
+        写出来还容易把行列搞反。字典没这个问题，29×29 的体积也无所谓。
+    """
+    payload = get_distance_matrix()
+    codes = payload['node_codes']
+    matrix = payload['matrix']
+    return {
+        code: {codes[j]: matrix[i][j] for j in range(len(codes))}
+        for i, code in enumerate(codes)
+    }
+
+
+def _schedulable_agvs(agv_codes=None):
+    """能参与调度的车。默认只要空闲且有位置的 —— 在充电/维修的车不该被排进去。
+
+    显式指定 agv_codes 时放宽状态限制：那是"我想看一下这三台车怎么排"的预览场景，
+    真下发时 apply_schedule 会再校验一次状态。
+    """
+    qs = Agv.objects.select_related('current_node').filter(is_active=True)
+    if agv_codes:
+        qs = qs.filter(code__in=agv_codes)
+    else:
+        qs = qs.filter(status=AgvStatus.IDLE)
+    return [agv for agv in qs if agv.current_node_id]
+
+
+def build_schedule(*, agv_codes=None, limit=50, task_codes=None):
+    """算一套调度方案（**只算不下发**）。
+
+    返回的 kpi 里同时带基线与优化方案的指标 —— 页面上一左一右两个数字，
+    就是"算法到底有没有用"的答案，不用另外做对比实验。
+    """
+    tasks_qs = (
+        TransportTask.objects
+        .filter(status=TransportTaskStatus.PENDING)
+        .select_related('from_node', 'to_node')
+        .order_by('priority', 'plan_start', 'code')
+    )
+    if task_codes:
+        tasks_qs = tasks_qs.filter(code__in=task_codes)
+    tasks = list(tasks_qs[:int(limit)])
+
+    if not tasks:
+        raise BizError(14505, '当前没有待派车的搬运任务，先派生或手工建几条再来调度')
+
+    agvs = _schedulable_agvs(agv_codes)
+    if not agvs:
+        raise BizError(14506, '没有可参与调度的 AGV（空闲且已定位）')
+
+    dist = matrix_as_dict()
+    task_payload = [{
+        'code': t.code,
+        'from': t.from_node.code,
+        'to': t.to_node.code,
+        'priority': t.priority,
+        'weight': float(t.qty or 0),
+        'task_type': t.task_type,
+    } for t in tasks]
+    agv_payload = [{
+        'code': a.code,
+        'name': a.name,
+        'node': a.current_node.code,
+        'speed': float(a.speed),
+        'capacity_kg': float(a.capacity_kg),
+        'battery': float(a.battery),
+    } for a in agvs]
+
+    result = scheduling.plan_multi_agv(
+        agvs=agv_payload, tasks=task_payload, dist=dist,
+        full_range_mm=AGV_FULL_RANGE_MM, battery_reserve=AGV_BATTERY_RESERVE,
+    )
+
+    # 把任务的可读信息补回去（算法只认 code，页面要显示"从哪到哪、多少件"）
+    task_map = {t.code: t for t in tasks}
+    for plan in result['plans']:
+        plan['tasks'] = [{
+            'code': code,
+            'task_type': task_map[code].task_type,
+            'from_location': task_map[code].from_location,
+            'to_location': task_map[code].to_location,
+            'qty': float(task_map[code].qty or 0),
+            'priority': task_map[code].priority,
+        } for code in plan['seq']]
+
+    result['plan_code'] = next_plan_code()
+    result['agv_count'] = len([p for p in result['plans'] if p['seq']])
+    result['task_count'] = len(tasks)
+    return result
+
+
+def save_schedule_plan(result, *, operator=None, status=SchedulePlan.Status.DRAFT):
+    """把方案落一条记录（预览也存，方便对比）。"""
+    kpi = {
+        'makespan_s': result['makespan_s'],
+        'total_empty_mm': result['total_empty_mm'],
+        'total_loaded_mm': result['total_loaded_mm'],
+        'empty_ratio': result['empty_ratio'],
+        'baseline_makespan_s': (result.get('baseline') or {}).get('makespan_s'),
+        'baseline_empty_ratio': (result.get('baseline') or {}).get('empty_ratio'),
+        'improvement': result.get('improvement'),
+    }
+    plan = SchedulePlan.objects.create(
+        code=result['plan_code'],
+        algorithm=result.get('algorithm', ''),
+        status=status,
+        task_count=result.get('task_count', 0),
+        agv_count=result.get('agv_count', 0),
+        kpi=kpi,
+        detail=result,
+        created_by=operator,
+    )
+    return plan
+
+
+@transaction.atomic
+def apply_schedule(result, operator=None):
+    """把方案下发成真实的派车：任务挂上 AGV、写好计划起止、状态转 assigned。
+
+    为什么不直接调 assign_agv：那个是"一条一条挑最近的车"（W3 的基线规则），
+    会把刚算好的方案打乱。这里按方案里的序列原样落库，
+    里程也用方案算出来的数（同一个矩阵，理论上和 assign_agv 一致）。
+    """
+    now = timezone.now()
+    applied, skipped = [], []
+
+    for plan in result['plans']:
+        if not plan['seq']:
+            continue
+        agv = Agv.objects.filter(code=plan['agv_code']).first()
+        if agv is None:
+            skipped.append({'agv': plan['agv_code'], 'reason': '车辆不存在'})
+            continue
+        for leg in plan['legs']:
+            task = TransportTask.objects.filter(code=leg['task_code']).first()
+            if task is None:
+                skipped.append({'task': leg['task_code'], 'reason': '任务不存在'})
+                continue
+            if task.status != TransportTaskStatus.PENDING:
+                skipped.append({'task': task.code,
+                                'reason': f'状态是「{task.get_status_display()}」，不是待派车'})
+                continue
+            task.agv = agv
+            task.empty_distance_mm = leg['empty_mm']
+            task.distance_mm = leg['loaded_mm']
+            task.status = TransportTaskStatus.ASSIGNED
+            task.plan_start = now + timedelta(seconds=leg['start_s'])
+            task.plan_end = now + timedelta(seconds=leg['end_s'])
+            task.save(update_fields=['agv', 'empty_distance_mm', 'distance_mm',
+                                     'status', 'plan_start', 'plan_end', 'updated_at'])
+            applied.append({'task': task.code, 'agv': agv.code,
+                            'plan_start': task.plan_start.strftime('%H:%M:%S'),
+                            'plan_end': task.plan_end.strftime('%H:%M:%S')})
+
+        # 派车即出车（与 assign_agv 保持同一个口径）
+        Agv.objects.filter(id=agv.id).update(
+            status=AgvStatus.RUNNING, updated_at=now,
+        )
+
+    plan_record = save_schedule_plan(result, operator=operator,
+                                     status=SchedulePlan.Status.APPLIED)
+    return {
+        'plan_code': plan_record.code,
+        'applied': applied,
+        'applied_count': len(applied),
+        'skipped': skipped,
+    }

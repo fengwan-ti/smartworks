@@ -2,8 +2,16 @@
 from rest_framework import serializers
 
 from apps.core.exceptions import BizError
-from apps.equipment.constants import EquipmentStatus
-from apps.equipment.models import Equipment, EquipmentCapability, SensorReading
+from apps.equipment.constants import AlarmLevel, EquipmentStatus
+from apps.equipment.models import (
+    Alarm,
+    Equipment,
+    EquipmentCapability,
+    InspectionPlan,
+    InspectionRecord,
+    MaintenanceOrder,
+    SensorReading,
+)
 
 
 class EquipmentCapabilitySerializer(serializers.ModelSerializer):
@@ -145,3 +153,142 @@ class SensorSimulateSerializer(serializers.Serializer):
     state = serializers.ChoiceField(
         choices=EquipmentStatus.choices, required=False, allow_blank=True, default='',
     )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# W4：告警 / 维修工单 / 点检
+# ══════════════════════════════════════════════════════════════════════════
+
+class AlarmSerializer(serializers.ModelSerializer):
+    equipment_code = serializers.CharField(source='equipment.code', read_only=True)
+    equipment_name = serializers.CharField(source='equipment.name', read_only=True)
+    level_label = serializers.CharField(source='get_level_display', read_only=True)
+    status_label = serializers.CharField(source='get_status_display', read_only=True)
+    source_label = serializers.CharField(source='get_source_display', read_only=True)
+    channel_label = serializers.CharField(
+        source='get_channel_display', read_only=True, default='',
+    )
+    acked_by_name = serializers.CharField(
+        source='acked_by.username', read_only=True, default='',
+    )
+
+    class Meta:
+        model = Alarm
+        fields = (
+            'id', 'code', 'equipment', 'equipment_code', 'equipment_name',
+            'level', 'level_label', 'status', 'status_label',
+            'source', 'source_label', 'channel', 'channel_label',
+            'rule', 'metric_value', 'threshold', 'message', 'occurred_at',
+            'acked_by', 'acked_by_name', 'acked_at', 'closed_at',
+            'remark', 'created_at',
+        )
+        # 告警是**事实记录**，除备注外一律不许改：改了就变成"人写的事件"
+        read_only_fields = (
+            'id', 'code', 'equipment', 'level', 'status', 'source', 'channel',
+            'rule', 'metric_value', 'threshold', 'message', 'occurred_at',
+            'acked_by', 'acked_at', 'closed_at', 'created_at',
+        )
+
+
+class MaintenanceOrderSerializer(serializers.ModelSerializer):
+    equipment_code = serializers.CharField(source='equipment.code', read_only=True)
+    equipment_name = serializers.CharField(source='equipment.name', read_only=True)
+    alarm_code = serializers.CharField(
+        source='alarm.code', read_only=True, default='',
+    )
+    order_type_label = serializers.CharField(
+        source='get_order_type_display', read_only=True,
+    )
+    status_label = serializers.CharField(source='get_status_display', read_only=True)
+    assignee_name = serializers.CharField(
+        source='assignee.username', read_only=True, default='',
+    )
+
+    class Meta:
+        model = MaintenanceOrder
+        fields = (
+            'id', 'code', 'equipment', 'equipment_code', 'equipment_name',
+            'alarm', 'alarm_code', 'order_type', 'order_type_label',
+            'status', 'status_label', 'priority',
+            'fault_desc', 'cause', 'action', 'spare_parts',
+            'assignee', 'assignee_name',
+            'planned_start', 'planned_end', 'started_at', 'finished_at',
+            'downtime_minutes', 'remark', 'created_at', 'updated_at',
+        )
+        read_only_fields = ('id', 'code', 'status', 'created_at', 'updated_at')
+
+
+class InspectionPlanSerializer(serializers.ModelSerializer):
+    equipment_code = serializers.CharField(source='equipment.code', read_only=True)
+    equipment_name = serializers.CharField(source='equipment.name', read_only=True)
+    cycle_label = serializers.CharField(source='get_cycle_display', read_only=True)
+
+    class Meta:
+        model = InspectionPlan
+        fields = (
+            'id', 'code', 'equipment', 'equipment_code', 'equipment_name',
+            'name', 'cycle', 'cycle_label', 'items',
+            'last_done_at', 'next_due_at', 'is_active', 'remark',
+            'created_at', 'updated_at',
+        )
+        read_only_fields = ('id', 'last_done_at', 'next_due_at',
+                            'created_at', 'updated_at')
+
+
+class InspectionRecordSerializer(serializers.ModelSerializer):
+    equipment_code = serializers.CharField(source='equipment.code', read_only=True)
+    inspector_name = serializers.CharField(
+        source='inspector.username', read_only=True, default='',
+    )
+    result_label = serializers.CharField(source='get_result_display', read_only=True)
+    alarm_code = serializers.CharField(source='alarm.code', read_only=True, default='')
+
+    class Meta:
+        model = InspectionRecord
+        fields = (
+            'id', 'plan', 'equipment', 'equipment_code', 'inspector',
+            'inspector_name', 'checked_at', 'result', 'result_label',
+            'items', 'alarm', 'alarm_code', 'remark', 'created_at',
+        )
+        read_only_fields = ('id', 'equipment', 'alarm', 'created_at')
+
+
+class AlarmManualSerializer(serializers.Serializer):
+    """人工上报一条告警（现场听见异响、看见漏油时用）。
+
+    不给 source 参数：人工上报的 source 恒为 manual，让调用方传
+    等于给了"把人工事件伪装成规则触发"的口子。
+    """
+    equipment = serializers.IntegerField()
+    level = serializers.ChoiceField(
+        choices=AlarmLevel.choices, required=False, default=AlarmLevel.WARNING,
+    )
+    message = serializers.CharField(max_length=255)
+    channel = serializers.CharField(required=False, allow_blank=True, default='')
+    remark = serializers.CharField(required=False, allow_blank=True, default='')
+
+
+class MaintenanceFinishSerializer(serializers.Serializer):
+    """维修完工的入参。downtime_minutes 必填 —— MTTR 全靠它，不能默认 0。"""
+    downtime_minutes = serializers.IntegerField(min_value=0)
+    cause = serializers.CharField(required=False, allow_blank=True, default='')
+    action = serializers.CharField(required=False, allow_blank=True, default='')
+    spare_parts = serializers.CharField(required=False, allow_blank=True, default='')
+
+
+class InspectionRecordCreateSerializer(serializers.Serializer):
+    """录点检结果的入参。items 里每项 ok=false 会被汇总成告警描述。"""
+    result = serializers.ChoiceField(
+        choices=InspectionRecord._meta.get_field('result').choices,
+        required=False, default='ok',
+    )
+    items = serializers.ListField(child=serializers.DictField(), required=False, default=list)
+    checked_at = serializers.DateTimeField(required=False, allow_null=True, default=None)
+    remark = serializers.CharField(required=False, allow_blank=True, default='')
+
+
+class AlarmScanSerializer(serializers.Serializer):
+    """扫描入参。dedupe_minutes 默认 60：一小时内同一规则不重复报。"""
+    equipment_code = serializers.CharField(required=False, allow_blank=True, default='')
+    dedupe_minutes = serializers.IntegerField(required=False, default=60, min_value=0)
+    auto_ticket_for_critical = serializers.BooleanField(required=False, default=True)

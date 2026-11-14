@@ -9,6 +9,7 @@ router.register('road-nodes', views.RoadNodeViewSet, basename='road-node')
 router.register('road-edges', views.RoadEdgeViewSet, basename='road-edge')
 router.register('agvs', views.AgvViewSet, basename='agv')
 router.register('transport-tasks', views.TransportTaskViewSet, basename='transport-task')
+router.register('schedule-plans', views.SchedulePlanViewSet, basename='schedule-plan')
 
 urlpatterns = [
     # 路网批量操作（放在 router 之前，避免 road-network 被当成 road-nodes 的 id）
@@ -19,5 +20,7 @@ urlpatterns = [
          name='road-network-health'),
     path('road-network/shortest-path/', views.ShortestPathView.as_view(),
          name='road-network-shortest-path'),
+    # W5 调度
+    path('agv-schedule/', views.AgvScheduleView.as_view(), name='agv-schedule'),
     path('', include(router.urls)),
 ]
