@@ -214,3 +214,60 @@ class MaterialAvailableTests(InventoryBase):
                                {'material_ids': f'{self.material.id},{m2.id}'})
         rows = resp.json()['data']['results']
         self.assertEqual(len(rows), 2)
+
+
+class DashboardAggTests(InventoryBase):
+    """W4 承诺项：库存周转率与缺料预警（A 的看板联调用）。"""
+
+    def _inbound_and_issue(self, qty='100.000', issue=40):
+        self.confirm_inbound(qty=qty)
+        from apps.inventory.services import write_stock_transaction
+        from apps.inventory.models_warehouse import Batch
+        batch = Batch.objects.get(batch_no='B20261101')
+        write_stock_transaction(batch, 'issue', issue)
+
+    def test_turnover_math(self):
+        self._inbound_and_issue(qty='100.000', issue=60)
+        resp = self.client.get('/api/v1/inventory/stock/turnover/')
+        self.assertEqual(resp.status_code, 200, resp.content)
+        rows = resp.json()['data']['results']
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+        # in=100 out=60 end=40 begin=0 avg=20 → turnover=3.0, days=30/3=10
+        self.assertEqual(float(row['turnover']), 3.0)
+        self.assertEqual(float(row['turnover_days']), 10.0)
+        self.assertEqual(float(row['begin_qty']), 0.0)
+        self.assertEqual(float(row['end_qty']), 40.0)
+
+    def test_turnover_no_out_is_none(self):
+        self.confirm_inbound(qty='100.000')
+        resp = self.client.get('/api/v1/inventory/stock/turnover/')
+        rows = resp.json()['data']['results']
+        self.assertEqual(len(rows), 1)
+        self.assertIsNone(rows[0]['turnover'])
+
+    def test_shortage_alert_below_safety(self):
+        self._inbound_and_issue(qty='100.000', issue=60)  # 余 40
+        resp = self.client.get('/api/v1/inventory/stock/shortage/',
+                               {'safety': '50'})
+        rows = resp.json()['data']['results']
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(float(rows[0]['shortage_qty']), 10.0)
+
+    def test_shortage_not_triggered_when_above(self):
+        self._inbound_and_issue(qty='100.000', issue=60)  # 余 40
+        resp = self.client.get('/api/v1/inventory/stock/shortage/',
+                               {'safety': '30'})
+        self.assertEqual(resp.json()['data']['results'], [])
+
+    def test_shortage_reports_negative_balance(self):
+        # 账面异常：可用量为负也要报（safety 默认 0）
+        self.confirm_inbound(qty='100.000')
+        from apps.inventory.services import write_stock_transaction
+        from apps.inventory.models_warehouse import Batch
+        batch = Batch.objects.get(batch_no='B20261101')
+        write_stock_transaction(batch, 'adjust', -120)
+        resp = self.client.get('/api/v1/inventory/stock/shortage/')
+        rows = resp.json()['data']['results']
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(float(rows[0]['available_qty']), -20.0)

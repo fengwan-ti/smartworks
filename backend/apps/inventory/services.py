@@ -7,10 +7,11 @@
   confirm_inbound(order, user)      入库确认（写流水、生成批次）
   confirm_outbound(order, user)     出库确认（FIFO 分配、写流水）
 """
+from datetime import timedelta
 from decimal import Decimal
 
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import Q, Sum
 from django.utils import timezone
 
 from apps.core.exceptions import BizError
@@ -306,6 +307,88 @@ def stock_ledger(params):
             'balance': r['balance'],
         }
         for r in rows
+    ]
+
+
+def turnover_rate(params):
+    """库存周转率（A 的看板用，W4 承诺项）。GET /inventory/stock/turnover/?days=30[&warehouse=1]
+
+    口径：turnover = 期间出库量 / 平均库存；平均库存 = (期初 + 期末) / 2，
+    期初由期末余额反推（期末 - 期间净变动）。turnover 单位"次"，
+    另给 turnover_days = days / turnover（平均周转天数）。
+    平均库存 <= 0 或无出库时 turnover 置 None（无意义，前端显示 '-'）。
+    """
+    days = int(params.get('days') or 30)
+    since = timezone.now() - timedelta(days=days)
+    txs = StockTransaction.objects.filter(created_at__gte=since)
+    warehouse_id = params.get('warehouse')
+    if warehouse_id:
+        txs = txs.filter(warehouse_id=warehouse_id)
+    moves = (txs.values('batch__material_id', 'batch__material__code',
+                        'batch__material__name')
+             .annotate(in_qty=Sum('qty', filter=Q(qty__gt=0)),
+                       out_qty=Sum('qty', filter=Q(qty__lt=0))))
+    all_txs = StockTransaction.objects.all()
+    if warehouse_id:
+        all_txs = all_txs.filter(warehouse_id=warehouse_id)
+    balance = {r['batch__material_id']: r['balance']
+               for r in all_txs.values('batch__material_id')
+               .annotate(balance=Sum('qty'))}
+    zero = Decimal('0')
+    results = []
+    for r in moves:
+        mid = r['batch__material_id']
+        in_qty = r['in_qty'] or zero
+        out_qty = -(r['out_qty'] or zero)
+        end_qty = balance.get(mid) or zero
+        begin_qty = end_qty - (in_qty - out_qty)
+        avg_qty = (begin_qty + end_qty) / 2
+        turnover = None
+        turnover_days = None
+        if avg_qty > 0 and out_qty > 0:
+            turnover = out_qty / avg_qty
+            turnover_days = Decimal(days) / turnover
+        results.append({
+            'material_id': mid,
+            'material_code': r['batch__material__code'],
+            'material_name': r['batch__material__name'],
+            'in_qty': in_qty,
+            'out_qty': out_qty,
+            'begin_qty': begin_qty,
+            'end_qty': end_qty,
+            'avg_qty': avg_qty,
+            'turnover': turnover,
+            'turnover_days': turnover_days,
+        })
+    results.sort(key=lambda x: (x['turnover'] is None, -(x['turnover'] or 0)))
+    return results
+
+
+def shortage_alert(params):
+    """缺料预警（A 的看板用，W4 承诺项）。GET /inventory/stock/shortage/?safety=100[&warehouse=1]
+
+    safety 为全局安全库存线（默认 0：只报可用量为负的账面异常）。
+    返回 data.results：[{material_id, material_code, material_name,
+                         available_qty, safety_qty, shortage_qty}]
+    shortage_qty = safety - available_qty（差额 <= 0 的不进列表）。
+    复用 material_available 的聚合口径，支持 material_ids / material / warehouse。
+    """
+    try:
+        safety = Decimal(str(params.get('safety', '0')))
+    except Exception:
+        safety = Decimal('0')
+    rows = material_available(params)
+    return [
+        {
+            'material_id': r['material_id'],
+            'material_code': r['material_code'],
+            'material_name': r['material_name'],
+            'available_qty': r['available_qty'],
+            'safety_qty': safety,
+            'shortage_qty': safety - r['available_qty'],
+        }
+        for r in rows
+        if r['available_qty'] < safety
     ]
 
 

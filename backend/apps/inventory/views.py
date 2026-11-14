@@ -209,3 +209,28 @@ class StockLedgerViewSet(viewsets.ViewSet):
         """
         rows = services.material_available(request.query_params)
         return Response({'results': rows})
+
+    @action(detail=False, methods=['get'], url_path='turnover')
+    def turnover(self, request):
+        """库存周转率（A 的看板用，W4 承诺项）。
+
+        GET /inventory/stock/turnover/?days=30[&warehouse=1]
+        返回 data.results（按周转率降序，无周转的排最后）：
+        [{material_id, material_code, material_name, in_qty, out_qty,
+          begin_qty, end_qty, avg_qty, turnover, turnover_days}]
+        turnover = 期间出库量 / 平均库存（次）；turnover_days = days / turnover。
+        """
+        rows = services.turnover_rate(request.query_params)
+        return Response({'results': rows})
+
+    @action(detail=False, methods=['get'], url_path='shortage')
+    def shortage(self, request):
+        """缺料预警（A 的看板用，W4 承诺项）。
+
+        GET /inventory/stock/shortage/?safety=100[&warehouse=1][&material_ids=1,2]
+        safety 为安全库存线（默认 0，只报可用量为负的账面异常）。
+        返回 data.results：[{material_id, material_code, material_name,
+                             available_qty, safety_qty, shortage_qty}]
+        """
+        rows = services.shortage_alert(request.query_params)
+        return Response({'results': rows})
