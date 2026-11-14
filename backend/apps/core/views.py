@@ -9,14 +9,15 @@ from rest_framework.views import APIView
 
 from .exceptions import BizError
 from .filters import UserFilter
-from .models import (DataDict, Department, Menu, OperationLog, Position,
-                     Role, User)
+from .models import (DataDict, Department, Menu, Notification, OperationLog,
+                     Position, Role, User)
 from .pagination import StandardPagination
 from .serializers import (
     DataDictSerializer,
     DepartmentSerializer,
     LoginSerializer,
     MenuSerializer,
+    NotificationSerializer,
     OperationLogSerializer,
     PositionSerializer,
     RoleSerializer,
@@ -176,6 +177,43 @@ class OperationLogViewSet(viewsets.ReadOnlyModelViewSet):
     search_fields = ('action', 'target_model', 'target_id', 'user__username')
     filterset_fields = ('action', 'target_model', 'user')
     ordering_fields = ('created_at', 'id')
+
+
+class NotificationViewSet(viewsets.ModelViewSet):
+    """站内通知。
+
+    数据范围：**只能看到自己的通知**（超管也一样，通知是私人消息，
+    不是业务数据，不需要"超管看全部"）。
+    写操作只允许标记已读，不允许新建（由业务侧 write_notification 产生）。
+    """
+
+    serializer_class = NotificationSerializer
+    pagination_class = StandardPagination
+    http_method_names = ['get', 'post', 'head', 'options']
+    search_fields = ('title', 'content', 'biz_type')
+    filterset_fields = ('is_read', 'biz_type')
+    ordering_fields = ('created_at', 'id')
+
+    def get_queryset(self):
+        return Notification.objects.filter(user=self.request.user).order_by('-created_at')
+
+    @action(detail=True, methods=['post'], url_path='read')
+    def mark_read(self, request, pk=None):
+        """标记单条已读。重复标记直接返回成功（幂等）。"""
+        obj = self.get_object()
+        if not obj.is_read:
+            obj.is_read = True
+            obj.save(update_fields=['is_read'])
+        return Response({'id': obj.id, 'is_read': True})
+
+    @action(detail=False, methods=['post'], url_path='read-all')
+    def mark_all_read(self, request):
+        n = self.get_queryset().filter(is_read=False).update(is_read=True)
+        return Response({'updated': n})
+
+    @action(detail=False, methods=['get'], url_path='unread-count')
+    def unread_count(self, request):
+        return Response({'unread': self.get_queryset().filter(is_read=False).count()})
 
 
 class DemoSuccessView(APIView):

@@ -34,6 +34,12 @@ MENUS = [
     ('system_menu', '菜单管理', 'menu', '/system/menus', 'Menu', 93, 'system'),
     ('system_dict', '数据字典', 'menu', '/system/dicts', 'Collection', 94, 'system'),
     ('system_log', '操作日志', 'menu', '/system/logs', 'Tickets', 95, 'system'),
+    ('system_notify', '通知', 'menu', '/system/notifications',
+     'Bell', 96, 'system'),
+    # 人员技能（A 负责，B 的排产派工校验要用）
+    ('planning', '计划管理', 'dir', '/planning', 'DataLine', 60, None, ''),
+    ('planning_skill', '员工技能', 'menu', '/planning/skills',
+     'UserFilled', 61, 'planning', 'planning:skill'),
     ('md', '主数据', 'dir', '/masterdata', 'Files', 10, None),
     ('md_product', '产品', 'menu', '/masterdata/products', 'Box', 11, 'md'),
     ('md_material', '物料', 'menu', '/masterdata/materials', 'Goods', 12, 'md'),

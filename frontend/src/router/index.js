@@ -46,6 +46,24 @@ const routes = [
         meta: { title: '操作日志' }
       },
       {
+        path: 'system/menus',
+        name: 'system-menus',
+        component: () => import('@/views/system/MenuList.vue'),
+        meta: { title: '菜单管理' }
+      },
+      {
+        path: 'system/notifications',
+        name: 'system-notifications',
+        component: () => import('@/views/system/NotificationList.vue'),
+        meta: { title: '通知' }
+      },
+      {
+        path: 'planning/skills',
+        name: 'planning-skills',
+        component: () => import('@/views/planning/EmployeeSkill.vue'),
+        meta: { title: '员工技能' }
+      },
+      {
         path: 'masterdata/products',
         name: 'masterdata-products',
         component: () => import('@/views/masterdata/ProductList.vue'),
@@ -59,8 +77,7 @@ const routes = [
         meta: { title: '路径规划' }
       },
       // 以下为尚未实现的页面，统一走占位组件。菜单树已通，页面按周次补齐。
-      ...['system/menus|菜单管理',
-        'masterdata/materials|物料管理',
+      ...['masterdata/materials|物料管理',
         'masterdata/workshops|车间工位',
         'process/templates|工序模板',
         'process/routes|工艺路线',

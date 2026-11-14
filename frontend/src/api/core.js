@@ -88,6 +88,20 @@ export function allMenus() {
   return request.get('/core/menus/', { params: { page_size: 500 } })
 }
 
+// ---------------- 通知 ----------------
+export function listNotifications(params) {
+  return request.get('/core/notifications/', { params })
+}
+export function markRead(id) {
+  return request.post(`/core/notifications/${id}/read/`)
+}
+export function markAllRead() {
+  return request.post('/core/notifications/read-all/')
+}
+export function unreadCount() {
+  return request.get('/core/notifications/unread-count/')
+}
+
 // ---- Day 1 验证统一响应体的三个接口 ----
 export function demoSuccess() {
   return request.get('/core/_demo/success/')

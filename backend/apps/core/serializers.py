@@ -1,8 +1,8 @@
 """core 应用的序列化器。"""
 from rest_framework import serializers
 
-from .models import (DataDict, Department, Menu, OperationLog, Position,
-                     Role, User)
+from .models import (DataDict, Department, Menu, Notification, OperationLog,
+                     Position, Role, User)
 
 
 class DepartmentSerializer(serializers.ModelSerializer):
@@ -112,6 +112,18 @@ class OperationLogSerializer(serializers.ModelSerializer):
         model = OperationLog
         fields = ('id', 'user', 'user_name', 'username', 'action', 'target_model',
                   'target_id', 'detail', 'ip', 'created_at')
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    """站内通知。派工、报警、待检提醒都走这张表。"""
+
+    user_name = serializers.CharField(source='user.display_name', read_only=True, default='')
+
+    class Meta:
+        model = Notification
+        fields = ('id', 'user', 'user_name', 'title', 'content', 'biz_type',
+                  'biz_id', 'is_read', 'created_at')
+        read_only_fields = ('user',)
 
 
 class LoginSerializer(serializers.Serializer):
