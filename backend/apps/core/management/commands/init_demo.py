@@ -16,7 +16,7 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
-from django.db import transaction
+from django.db import models, transaction
 
 from apps.core.models import Menu, Role, User
 from apps.masterdata.models import (
@@ -50,6 +50,7 @@ class Command(BaseCommand):
         self._workshop_and_stations()
         self._products()
         self._partners()
+        self._demo_accounts()
         self._summary()
 
     # ------------------------------------------------------------------
@@ -216,6 +217,51 @@ class Command(BaseCommand):
                 code=code, defaults={'name': name})
             self.stdout.write('  供应商 %-8s %-8s %s' % (code, name, '已创建' if created else '已存在'))
 
+    def _demo_accounts(self):
+        """建一个「计划员」对照账号，用于演示权限真的生效。
+
+        计划员拿到：主数据（产品/物料/车间工位）+ 计划管理（员工技能）
+        计划员拿不到：用户管理、角色管理、设备管理、物流管理、仓储管理
+
+        现场演示方式：
+          admin 登录 → 能看到 7 个目录
+          planner 登录 → 只能看到 3 个目录，且直接访问 /system/users 的接口返回 403
+        """
+        from apps.core.models import Menu, Role, User
+
+        planner_role = Role.objects.filter(code='PLANNER').first()
+        if planner_role is None:
+            self.stdout.write('  [提示] 找不到 PLANNER 角色，跳过演示账号')
+            return
+
+        # 把主数据与计划管理的菜单给计划员（按权限码前缀匹配，不靠人工点）
+        # 工作台是公共首页，任何角色都该有，所以单独带上
+        wanted = Menu.objects.filter(is_active=True).filter(
+            models.Q(permission_code__startswith='masterdata:')
+            | models.Q(permission_code__startswith='planning:')
+            | models.Q(code='dashboard')
+        )
+        planner_role.menus.set(wanted)
+        self.stdout.write('  计划员角色已分配 %d 条菜单（主数据 + 计划管理）' % wanted.count())
+
+        user, created = User.objects.get_or_create(
+            username='planner',
+            defaults={
+                'name': '演示计划员',
+                'employee_no': 'DEMO002',
+                'is_staff': False,
+                'is_superuser': False,
+                'is_active': True,
+            },
+        )
+        if created:
+            user.set_password('planner123')
+            user.save()
+            self.stdout.write('  对照账号 planner / planner123 已创建（无用户/角色/设备权限）')
+        else:
+            self.stdout.write('  对照账号 planner 已存在')
+        user.roles.add(planner_role)
+
     def _summary(self):
         self.stdout.write('')
         self.stdout.write('=' * 56)
@@ -227,5 +273,6 @@ class Command(BaseCommand):
                              Product.objects.count(), Workshop.objects.count(),
                              Workstation.objects.count()))
         self.stdout.write('')
-        self.stdout.write('  这个账号是超管，会看到全部菜单与全部接口权限')
+        self.stdout.write('  超管 demo / demo123      → 全部菜单与全部接口权限')
+        self.stdout.write('  对照 planner / planner123 → 只有主数据与计划管理（用于演示权限生效）')
         self.stdout.write('')

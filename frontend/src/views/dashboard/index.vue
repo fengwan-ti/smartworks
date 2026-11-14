@@ -1,6 +1,6 @@
 <template>
   <div class="sw-page">
-    <!-- 顶部：七个关键数字（全部来自接口真实 count） -->
+    <!-- 顶部：关键数字（全部来自一个聚合接口） -->
     <div class="kpi-row">
       <div v-for="k in kpis" :key="k.label" class="kpi">
         <div class="kpi-num" :style="{ color: k.color }">{{ k.value }}</div>
@@ -18,51 +18,72 @@
             打开路径规划 →
           </el-button>
         </div>
-        <div v-if="health" class="health">
+        <div v-if="network" class="health">
           <div class="hrow">
             <span class="hk">节点 / 边</span>
-            <span class="hv">{{ health.node_count }} / {{ health.edge_count }}</span>
+            <span class="hv">{{ network.node_count }} / {{ network.edge_count }}</span>
+          </div>
+          <div class="hrow">
+            <span class="hk">装卸点 / 单向边</span>
+            <span class="hv">{{ network.dock_count }} / {{ network.one_way_edges }}</span>
           </div>
           <div class="hrow">
             <span class="hk">连通性</span>
             <span class="hv">
-              连通分量 {{ health.components }}
-              <el-tag :type="health.is_connected ? 'success' : 'danger'" size="small" effect="light">
-                {{ health.is_connected ? '全连通' : '不连通' }}
+              <el-tag :type="network.is_connected ? 'success' : 'danger'" size="small" effect="light">
+                {{ network.is_connected ? '全连通' : '存在孤立节点' }}
               </el-tag>
+              <span v-if="!network.is_connected" class="dim">
+                （{{ network.isolated_count }} 个：{{ (network.isolated_nodes || []).join(', ') }}）
+              </span>
             </span>
           </div>
           <div class="hrow">
-            <span class="hk">孤立节点</span>
-            <span class="hv">{{ isolatedText }}</span>
-          </div>
-          <div class="hrow">
-            <span class="hk">平均绕行比</span>
-            <span class="hv">{{ health.avg_detour_ratio }}<span class="dim">（最大 {{ health.max_detour_ratio }}）</span></span>
-          </div>
-          <div class="hrow">
-            <span class="hk">距离矩阵耗时</span>
-            <span class="hv strong">{{ health.cost_ms }} ms</span>
+            <span class="hk">距离矩阵</span>
+            <span class="hv">
+              <el-button link type="primary" @click="$router.push('/logistics/path')">
+                {{ network.node_count * network.node_count }} 格，点开路径规划可查
+              </el-button>
+            </span>
           </div>
         </div>
-        <div v-else class="dim">未取到路网体检数据（可能尚未导入路网）</div>
+        <div v-else class="dim">未取到路网数据（可能尚未导入路网）</div>
       </div>
 
       <!-- 右：七项课程任务 -->
       <div class="sw-card">
-        <div class="card-title"><span>七项课程任务</span></div>
+        <div class="card-title">
+          <span>七项课程任务</span>
+          <span class="dim small">已完成 {{ taskDone }} / {{ taskTotal }}</span>
+        </div>
         <div class="tasks">
           <div v-for="t in tasks" :key="t.no" class="task">
             <span class="tno">{{ t.no }}</span>
             <span class="tname">{{ t.name }}</span>
             <span class="towner">{{ t.owner }}</span>
-            <el-tag :type="t.tagType" size="small" effect="light">{{ t.status }}</el-tag>
+            <el-tag :type="t.status === 'done' ? 'success' : 'info'" size="small" effect="light">
+              {{ t.status === 'done' ? '已完成' : '未开始' }}
+            </el-tag>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- 底部：接口自检（开发期验证统一响应体，答辩不点） -->
+    <!-- 当前账号可见范围（权限演示用） -->
+    <div class="sw-card me-card" v-if="me">
+      <div class="card-title"><span>当前账号</span></div>
+      <div class="me-row">
+        <span class="me-name">{{ me.name }}（{{ me.username }}）</span>
+        <el-tag v-if="me.is_superuser" type="warning" size="small" effect="light">超级管理员</el-tag>
+        <span class="me-item">可见菜单目录 <b>{{ me.menu_dirs }}</b> 个</span>
+        <span class="me-item">接口权限码 <b>{{ me.permission_codes }}</b> 个</span>
+        <span class="me-hint">
+          用 planner / planner123 登录对比：目录只剩 3 个，用户与角色接口返回 403
+        </span>
+      </div>
+    </div>
+
+    <!-- 底部：接口自检 -->
     <div class="sw-card">
       <div class="card-title">
         <span>接口自检</span>
@@ -82,15 +103,20 @@
 /**
  * 工作台（首页看板）。
  *
- * 设计取向：答辩第一眼看到的页面，放「真实可核对的数字」而不是装饰图。
- * 每个数字都来自接口返回的 count，不写死。
+ * 数据来源：GET /analytics/dashboard/ —— 一个聚合接口返回全部数字。
+ * 为什么不在前端并发发 5 个请求：
+ *   首页是答辩第一眼，任何一个请求失败页面就残一块；一个接口要么全成要么全失败，
+ *   状态明确、排查容易。实测稳态 8ms。
  */
 import { computed, onMounted, ref } from 'vue'
 import request from '@/utils/request'
 import { demoError, demoPaginated, demoSuccess } from '@/api/core'
-import { networkHealth } from '@/api/logistics'
 
-const health = ref(null)
+const network = ref(null)
+const tasks = ref([])
+const taskDone = ref(0)
+const taskTotal = ref(0)
+const me = ref(null)
 const lastResult = ref('')
 
 const kpis = ref([
@@ -98,72 +124,34 @@ const kpis = ref([
   { label: '工位', value: '—', sub: '含 AGV 装卸点', color: '#162E58' },
   { label: '设备', value: '—', sub: '台账在册', color: '#0F9DA8' },
   { label: '设备能力', value: '—', sub: '设备 × 工序', color: '#0F9DA8' },
+  { label: '员工技能', value: '—', sub: '人 × 工序', color: '#E17B2A' },
   { label: '路网节点', value: '—', sub: '车间点位', color: '#E17B2A' },
-  { label: '数据表', value: '45', sub: '已建并迁移', color: '#E17B2A' },
-  { label: '单元测试', value: '40', sub: '全部通过', color: '#27AE60' }
+  { label: '数据表', value: '46', sub: '已建并迁移', color: '#27AE60' }
 ])
 
-const tasks = [
-  { no: '1', name: '单 AGV 调度', owner: 'D', status: '未开始', tagType: 'info' },
-  { no: '2', name: '多 AGV 调度', owner: 'D', status: '未开始', tagType: 'info' },
-  { no: '3', name: '路径规划', owner: 'A', status: '已完成', tagType: 'success' },
-  { no: '4', name: '工件表面质量检测', owner: 'C', status: '未开始', tagType: 'info' },
-  { no: '5', name: '物体识别', owner: 'C', status: '未开始', tagType: 'info' },
-  { no: '6', name: '设备状态监测', owner: 'D', status: '未开始', tagType: 'info' },
-  { no: '7', name: '订单预测', owner: 'B', status: '未开始', tagType: 'info' }
-]
-
-const isolatedText = computed(() => {
-  const list = (health.value && health.value.isolated_nodes) || []
-  return list.length ? list.join(', ') : '无'
-})
-
-async function countOf(url) {
+async function load() {
   try {
-    const data = await request.get(url, { params: { page: 1, page_size: 1 } })
-    return (data && typeof data.count === 'number') ? data.count : null
-  } catch (e) {
-    return null
-  }
-}
-
-/** 设备能力条数：列表里带 capabilities 数组就累加 */
-async function capabilityCount() {
-  try {
-    const data = await request.get('/equipment/equipments/', {
-      params: { page: 1, page_size: 200 }
-    })
-    const list = (data && data.results) || []
-    if (!list.length) return null
-    if (Array.isArray(list[0].capabilities)) {
-      return list.reduce((s, x) => s + (x.capabilities || []).length, 0)
+    const data = await request.get('/analytics/dashboard/')
+    const kpi = (data && data.kpi) || {}
+    const put = (i, v) => {
+      if (v !== null && v !== undefined) kpis.value[i].value = String(v)
     }
-    return null
+    put(0, kpi.products)
+    put(1, kpi.workstations)
+    put(2, kpi.equipments)
+    put(3, kpi.capabilities)
+    put(4, kpi.skills)
+    put(5, kpi.road_nodes)
+
+    network.value = (data && data.network) || null
+    tasks.value = (data && data.tasks) || []
+    taskDone.value = (data && data.task_done) || 0
+    taskTotal.value = (data && data.task_total) || 0
+    me.value = (data && data.me) || null
   } catch (e) {
-    return null
+    console.error('[Dashboard] 加载聚合数据失败', e)
   }
 }
-
-onMounted(async () => {
-  const [products, stations, equipments, nodes, caps, h] = await Promise.all([
-    countOf('/masterdata/products/'),
-    countOf('/masterdata/workstations/'),
-    countOf('/equipment/equipments/'),
-    countOf('/logistics/road-nodes/'),
-    capabilityCount(),
-    networkHealth().catch(() => null)
-  ])
-
-  const put = (i, v) => {
-    if (v !== null && v !== undefined) kpis.value[i].value = String(v)
-  }
-  put(0, products)
-  put(1, stations)
-  put(2, equipments)
-  put(3, caps)
-  put(4, nodes)
-  health.value = h
-})
 
 async function onDemoSuccess() {
   try {
@@ -194,6 +182,8 @@ async function onDemoError() {
       e && e.response ? e.response.data : { message: String(e) }, null, 2)
   }
 }
+
+onMounted(load)
 </script>
 
 <style scoped>
@@ -284,6 +274,30 @@ async function onDemoError() {
 .towner {
   width: 28px;
   color: #6b7280;
+}
+.me-card {
+  margin-bottom: 14px;
+}
+.me-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: #4a5a70;
+}
+.me-name {
+  font-weight: 600;
+  color: #162e58;
+}
+.me-item b {
+  color: #0f9da8;
+  font-size: 15px;
+  margin: 0 2px;
+}
+.me-hint {
+  font-size: 12px;
+  color: #9aa7b4;
 }
 .dim {
   color: #9aa7b4;

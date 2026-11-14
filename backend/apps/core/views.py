@@ -12,6 +12,7 @@ from .filters import UserFilter
 from .models import (DataDict, Department, Menu, Notification, OperationLog,
                      Position, Role, User)
 from .pagination import StandardPagination
+from .permissions import ModulePermission
 from .serializers import (
     DataDictSerializer,
     DepartmentSerializer,
@@ -73,8 +74,10 @@ class MeView(APIView):
 
 
 class UserViewSet(viewsets.ModelViewSet):
-    """用户管理。Day 1 提供基础 CRUD，权限细化在 W6。"""
+    """用户管理。"""
 
+    required_perm = 'system:user'
+    permission_classes = (IsAuthenticated, ModulePermission)
     queryset = User.objects.all().order_by('id')
     serializer_class = UserSerializer
     pagination_class = StandardPagination
@@ -86,6 +89,8 @@ class UserViewSet(viewsets.ModelViewSet):
 class RoleViewSet(viewsets.ModelViewSet):
     """角色管理。额外提供「分配菜单」动作，让权限配置全程在页面上完成。"""
 
+    required_perm = 'system:role'
+    permission_classes = (IsAuthenticated, ModulePermission)
     queryset = Role.objects.all().order_by('code')
     serializer_class = RoleSerializer
     pagination_class = StandardPagination

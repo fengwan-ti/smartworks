@@ -10,14 +10,31 @@ def build_menu_tree(user):
     if not user or not user.is_authenticated:
         return [], []
 
+    from .models import Menu
+
     if user.is_superuser:
-        from .models import Menu
         menus = list(Menu.objects.filter(is_active=True))
     else:
-        from .models import Menu
         menus = list(
             Menu.objects.filter(is_active=True, roles__users=user).distinct()
         )
+        # 补齐祖先目录。
+        #
+        # 为什么必须补：角色通常只分配到「菜单」这一级（如产品、物料），
+        # 父目录（主数据）往往不勾。若只按已分配集合建树，所有节点都没有根，
+        # 侧边栏会整个空掉 —— 现象是「配了权限却什么都看不到」，非常难查。
+        by_id = {m.id: m for m in menus}
+        extra = []
+        for m in menus:
+            parent = m.parent
+            while parent is not None and parent.id not in by_id:
+                if not parent.is_active:
+                    break
+                by_id[parent.id] = parent
+                extra.append(parent)
+                parent = parent.parent
+        if extra:
+            menus = menus + extra
 
     permission_codes = sorted({m.permission_code for m in menus if m.permission_code})
 

@@ -7,9 +7,11 @@
 """
 from rest_framework import viewsets
 from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.core.pagination import StandardPagination
+from apps.core.permissions import ModulePermission
 
 from .models import (
     Customer,
@@ -33,9 +35,17 @@ from .serializers import (
 
 
 class BaseMasterDataViewSet(viewsets.ModelViewSet):
-    """主数据通用基类：统一分页、搜索、排序与 options 下拉。"""
+    """主数据通用基类：统一分页、搜索、排序、权限与 options 下拉。
+
+    权限口径（第一代刻意做粗）：
+      一个资源一个权限码，读与写共用同一个码。
+      原因：细到 read/write 两码会让 4 个人维护 30 多个码，漏配就出现"莫名 403"，
+      排查成本远高于收益。需要细分时把 required_perm 改成 dict{'GET': ...} 即可，
+      ModulePermission 已经支持按方法取值。
+    """
 
     pagination_class = StandardPagination
+    permission_classes = (IsAuthenticated, ModulePermission)
     option_fields = ('id', 'code', 'name')
 
     def get_serializer_class(self):
@@ -52,6 +62,7 @@ class BaseMasterDataViewSet(viewsets.ModelViewSet):
 
 
 class ProductFamilyViewSet(BaseMasterDataViewSet):
+    required_perm = 'masterdata:family'
     queryset = ProductFamily.objects.all()
     serializer_class = ProductFamilySerializer
     search_fields = ('code', 'name')
@@ -59,6 +70,7 @@ class ProductFamilyViewSet(BaseMasterDataViewSet):
 
 
 class MaterialViewSet(BaseMasterDataViewSet):
+    required_perm = 'masterdata:material'
     queryset = Material.objects.all()
     serializer_class = MaterialSerializer
     search_fields = ('code', 'name', 'spec')
@@ -66,6 +78,7 @@ class MaterialViewSet(BaseMasterDataViewSet):
 
 
 class ProductViewSet(BaseMasterDataViewSet):
+    required_perm = 'masterdata:product'
     queryset = Product.objects.select_related('family', 'material').all()
     serializer_class = ProductListSerializer
     detail_serializer_class = ProductDetailSerializer
@@ -75,6 +88,7 @@ class ProductViewSet(BaseMasterDataViewSet):
 
 
 class CustomerViewSet(BaseMasterDataViewSet):
+    required_perm = 'masterdata:customer'
     queryset = Customer.objects.all()
     serializer_class = CustomerSerializer
     search_fields = ('code', 'name', 'contact')
@@ -82,6 +96,7 @@ class CustomerViewSet(BaseMasterDataViewSet):
 
 
 class SupplierViewSet(BaseMasterDataViewSet):
+    required_perm = 'masterdata:supplier'
     queryset = Supplier.objects.all()
     serializer_class = SupplierSerializer
     search_fields = ('code', 'name', 'contact')
@@ -89,6 +104,7 @@ class SupplierViewSet(BaseMasterDataViewSet):
 
 
 class WorkshopViewSet(BaseMasterDataViewSet):
+    required_perm = 'masterdata:workshop'
     queryset = Workshop.objects.all()
     serializer_class = WorkshopSerializer
     search_fields = ('code', 'name')
@@ -96,6 +112,7 @@ class WorkshopViewSet(BaseMasterDataViewSet):
 
 
 class WorkstationViewSet(BaseMasterDataViewSet):
+    required_perm = 'masterdata:workstation'
     queryset = Workstation.objects.select_related('workshop').all()
     serializer_class = WorkstationSerializer
     search_fields = ('code', 'name', 'agv_load_point')
