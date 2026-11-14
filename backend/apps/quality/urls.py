@@ -11,9 +11,12 @@ router.register('inspections', views.InspectionViewSet, basename='inspection')
 router.register('measurements', views.MeasurementViewSet, basename='measurement')
 router.register('defects', views.DefectRecordViewSet, basename='defect')
 router.register('defect-codes', views.DefectCodeViewSet, basename='defect-code')
+router.register('algorithm-params', views.AlgorithmParamViewSet,
+                basename='algorithm-param')
 
 urlpatterns = [
     path('spc/', views.spc),
+    path('sampling/', views.sampling),
     path('vision/detect/', views.vision_detect),
     path('vision/recognize/', views.vision_recognize),
     path('', include(router.urls)),

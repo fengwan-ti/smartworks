@@ -2,6 +2,7 @@
 from rest_framework import serializers
 
 from apps.quality.models import (
+    AlgorithmParam,
     DefectCode,
     DefectRecord,
     Inspection,
@@ -85,3 +86,9 @@ class DefectRecordSerializer(serializers.ModelSerializer):
                   'defect_code_name', 'qty', 'description', 'image', 'reported_by',
                   'created_at')
         read_only_fields = ('created_at', 'reported_by')
+
+
+class AlgorithmParamSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AlgorithmParam
+        fields = ('name', 'params', 'remark', 'updated_at')

@@ -15,6 +15,7 @@ import numpy as np
 
 from apps.masterdata.models import Material, Product
 from apps.quality.models import (
+    AlgorithmParam,
     DefectCode,
     Inspection,
     Measurement,
@@ -145,3 +146,87 @@ class VisionTests(APITestCase):
         resp = self.client.post('/api/v1/quality/vision/detect/', {},
                                 format='multipart')
         self.assertEqual(resp.json()['code'], 13090)
+
+
+class SamplingTests(APITestCase):
+    """W4：抽样方案（简化版 GB/T 2828.1）。"""
+
+    def setUp(self):
+        self.client = auth_client(
+            get_user_model().objects.create_user('c_test', password='x'))
+
+    def test_lot_500_aql_1(self):
+        resp = self.client.get('/api/v1/quality/sampling/',
+                               {'lot_qty': 500, 'aql': 1.0})
+        self.assertEqual(resp.status_code, 200, resp.content)
+        d = resp.json()['data']
+        self.assertEqual(d['code_letter'], 'H')
+        self.assertEqual(d['sample_size'], 50)
+        self.assertEqual(d['accept_number'], 1)
+
+    def test_lot_50_aql_25(self):
+        d = self.client.get('/api/v1/quality/sampling/',
+                            {'lot_qty': 50, 'aql': 2.5}).json()['data']
+        self.assertEqual(d['code_letter'], 'D')
+        self.assertEqual(d['sample_size'], 8)
+
+    def test_invalid_lot(self):
+        resp = self.client.get('/api/v1/quality/sampling/', {'lot_qty': 0})
+        self.assertEqual(resp.json()['code'], 13091)
+
+
+class SpcCpkTests(APITestCase):
+    """W4：真 Cp/Cpk（规格限来自检验项 nominal±上下差）。"""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user('c_test', password='x')
+        self.client = auth_client(self.user)
+        self.std = Standard.objects.create(code='QS-T', name='t')
+        self.item = StandardItem.objects.create(
+            standard=self.std, seq=1, item_name='外径',
+            nominal=Decimal('50.000'), upper_limit=Decimal('0.05'),
+            lower_limit=Decimal('-0.05'))
+        import random
+        rnd = random.Random(1)
+        for i in range(30):
+            Measurement.objects.create(
+                standard_item=self.item,
+                value=Decimal(f'{50 + rnd.gauss(0, 0.01):.3f}'))
+
+    def test_cpk_from_spec_limits(self):
+        resp = self.client.get(f'/api/v1/quality/spc/?item_id={self.item.id}')
+        d = resp.json()['data']
+        self.assertAlmostEqual(float(d['usl']), 50.05, places=3)
+        self.assertAlmostEqual(float(d['lsl']), 49.95, places=3)
+        self.assertGreater(float(d['cp']), 1.0)
+        self.assertGreater(float(d['cpk']), 1.0)
+
+
+class AlgorithmParamTests(APITestCase):
+    """W4：算法参数读库优先，detect 用库参数。"""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user('c_test', password='x')
+        self.client = auth_client(self.user)
+
+    def test_fallback_without_db_row(self):
+        from apps.quality.services import get_algorithm_params
+        from algorithms.vision.preprocess import DEFAULT_PARAMS
+        self.assertEqual(get_algorithm_params('T4_SURFACE_DEFECT'),
+                         dict(DEFAULT_PARAMS))
+
+    def test_db_row_overrides(self):
+        from apps.quality.services import get_algorithm_params
+        AlgorithmParam.objects.create(
+            name='T4_SURFACE_DEFECT',
+            params={'area_threshold': 99.0})
+        p = get_algorithm_params('T4_SURFACE_DEFECT')
+        self.assertEqual(p['area_threshold'], 99.0)
+
+    def test_param_api_roundtrip(self):
+        AlgorithmParam.objects.create(name='T5_OBJECT_RECOGNIZE',
+                                      params={'clahe_clip': 3.0})
+        resp = self.client.get('/api/v1/quality/algorithm-params/'
+                               'T5_OBJECT_RECOGNIZE/')
+        self.assertEqual(resp.status_code, 200, resp.content)
+        self.assertEqual(resp.json()['data']['params']['clahe_clip'], 3.0)

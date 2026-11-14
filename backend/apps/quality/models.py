@@ -212,3 +212,23 @@ class DefectRecord(models.Model):
 
     def __str__(self):
         return f'{self.id}-{self.defect_code_id}'
+
+
+class AlgorithmParam(models.Model):
+    """视觉/算法参数落库（W4：可调参数不再硬编码在 DEFAULT_PARAMS）。
+
+    name 固定取值：T4_SURFACE_DEFECT（缺陷检测）/ T5_OBJECT_RECOGNIZE（识别）。
+    detect/recognize 读库优先，查不到回退 preprocess.DEFAULT_PARAMS。
+    """
+    name = models.CharField(max_length=64, unique=True, verbose_name='参数组名')
+    params = models.JSONField(default=dict, verbose_name='参数')
+    remark = models.CharField(max_length=255, blank=True, default='', verbose_name='备注')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+
+    class Meta:
+        db_table = 'qc_algorithm_param'
+        verbose_name = '算法参数'
+        verbose_name_plural = verbose_name
+
+    def __str__(self):
+        return self.name

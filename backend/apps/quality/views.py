@@ -30,6 +30,7 @@ from .filters import (
     StandardItemFilterSet,
 )
 from .models import (
+    AlgorithmParam,
     DefectCode,
     DefectRecord,
     Inspection,
@@ -38,6 +39,7 @@ from .models import (
     StandardItem,
 )
 from .serializers import (
+    AlgorithmParamSerializer,
     DefectCodeSerializer,
     DefectRecordSerializer,
     InspectionSerializer,
@@ -134,17 +136,19 @@ def _decode_image(file):
     return image
 
 
-def _parse_params(request):
+def _parse_params(request, group):
+    """参数解析：表单 params(JSON) 覆盖，缺省读库（qc_algorithm_param），
+    库里也没有回退 DEFAULT_PARAMS。group: T4_SURFACE_DEFECT / T5_OBJECT_RECOGNIZE"""
+    merged = services.get_algorithm_params(group)
     raw = request.data.get('params')
     if not raw:
-        return dict(DEFAULT_PARAMS)
+        return merged
     try:
         p = json.loads(raw)
         if not isinstance(p, dict):
             raise ValueError
     except (ValueError, TypeError):
         raise BizError(E.VISION_PARAM_INVALID, 'params 必须是 JSON 对象')
-    merged = dict(DEFAULT_PARAMS)
     merged.update(p)
     return merged
 
@@ -157,7 +161,7 @@ def vision_detect(request):
     if file is None:
         raise BizError(E.VISION_IMAGE_INVALID, '缺少 image 文件')
     image = _decode_image(file)
-    result = detect_defect(image, _parse_params(request))
+    result = detect_defect(image, _parse_params(request, 'T4_SURFACE_DEFECT'))
     marked = result.pop('marked_image', None)
     payload = {
         'result_label': result.get('result_label'),
@@ -181,5 +185,31 @@ def vision_recognize(request):
     if file is None:
         raise BizError(E.VISION_IMAGE_INVALID, '缺少 image 文件')
     image = _decode_image(file)
-    result = recognize_parts(image, _parse_params(request))
+    result = recognize_parts(image, _parse_params(request, 'T5_OBJECT_RECOGNIZE'))
     return Response(result)
+
+
+# ============ W4 补齐：抽样方案 / 算法参数管理 ============
+
+@api_view(['GET'])
+def sampling(request):
+    """抽样方案 ?lot_qty=500&aql=1.0&level=II（简化版 GB/T 2828.1）。"""
+    lot_qty = request.query_params.get('lot_qty')
+    if not lot_qty:
+        raise BizError(E.VISION_PARAM_INVALID, '缺少 lot_qty 参数')
+    return Response(services.sampling_plan(
+        lot_qty,
+        aql=request.query_params.get('aql', 1.0),
+        level=request.query_params.get('level', 'II')))
+
+
+class AlgorithmParamViewSet(viewsets.ModelViewSet):
+    """算法参数（W4）：GET 列表 / PUT 改参数，detect/recognize 读库优先。
+
+    http_method_names 禁 POST/DELETE：参数组只允许更新与查看，
+    种子由 init_demo 命令给（T4_SURFACE_DEFECT / T5_OBJECT_RECOGNIZE）。
+    """
+    queryset = AlgorithmParam.objects.all()
+    serializer_class = AlgorithmParamSerializer
+    http_method_names = ('get', 'put', 'patch', 'head', 'options')
+    lookup_field = 'name'
