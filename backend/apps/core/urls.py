@@ -11,6 +11,7 @@ router.register('positions', views.PositionViewSet, basename='position')
 router.register('roles', views.RoleViewSet, basename='role')
 router.register('menus', views.MenuViewSet, basename='menu')
 router.register('dicts', views.DataDictViewSet, basename='dict')
+router.register('logs', views.OperationLogViewSet, basename='operation-log')
 
 urlpatterns = [
     # 认证

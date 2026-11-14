@@ -33,6 +33,7 @@ MENUS = [
     ('system_role', '角色管理', 'menu', '/system/roles', 'Avatar', 92, 'system'),
     ('system_menu', '菜单管理', 'menu', '/system/menus', 'Menu', 93, 'system'),
     ('system_dict', '数据字典', 'menu', '/system/dicts', 'Collection', 94, 'system'),
+    ('system_log', '操作日志', 'menu', '/system/logs', 'Tickets', 95, 'system'),
     ('md', '主数据', 'dir', '/masterdata', 'Files', 10, None),
     ('md_product', '产品', 'menu', '/masterdata/products', 'Box', 11, 'md'),
     ('md_material', '物料', 'menu', '/masterdata/materials', 'Goods', 12, 'md'),

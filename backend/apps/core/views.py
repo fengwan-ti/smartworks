@@ -9,13 +9,15 @@ from rest_framework.views import APIView
 
 from .exceptions import BizError
 from .filters import UserFilter
-from .models import DataDict, Department, Menu, Position, Role, User
+from .models import (DataDict, Department, Menu, OperationLog, Position,
+                     Role, User)
 from .pagination import StandardPagination
 from .serializers import (
     DataDictSerializer,
     DepartmentSerializer,
     LoginSerializer,
     MenuSerializer,
+    OperationLogSerializer,
     PositionSerializer,
     RoleSerializer,
     UserSerializer,
@@ -162,6 +164,20 @@ class DataDictViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 # ---------------------------------------------------------------- Day 1 验证用
+class OperationLogViewSet(viewsets.ReadOnlyModelViewSet):
+    """操作日志。只读，按时间倒序，供追溯使用。
+
+    为什么只读：日志一旦允许修改就失去追溯意义，任何人都不能改历史记录。
+    """
+
+    queryset = OperationLog.objects.select_related('user').all()
+    serializer_class = OperationLogSerializer
+    pagination_class = StandardPagination
+    search_fields = ('action', 'target_model', 'target_id', 'user__username')
+    filterset_fields = ('action', 'target_model', 'user')
+    ordering_fields = ('created_at', 'id')
+
+
 class DemoSuccessView(APIView):
     """验证成功响应：应返回 {"code":0,"message":"ok","data":{...}}"""
 

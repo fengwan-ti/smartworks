@@ -65,6 +65,7 @@
         default-expand-all
         :props="{ label: 'label', children: 'children' }"
         class="assign-tree"
+        @check="onTreeCheck"
       />
       <template #footer>
         <el-button @click="assignVisible = false">取消</el-button>
@@ -97,6 +98,7 @@ import {
   deleteRole,
   getRoleMenus,
   listRoles,
+  setRoleMenus,
   updateRole
 } from '@/api/core'
 
@@ -287,6 +289,10 @@ async function openAssign(row) {
   }
 }
 
+function onTreeCheck() {
+  if (treeRef.value) checkedIds.value = treeRef.value.getCheckedKeys()
+}
+
 function toggleAll() {
   if (!treeRef.value) return
   if (allChecked.value) {
@@ -300,6 +306,7 @@ function toggleAll() {
     walk(menuTree.value)
     treeRef.value.setCheckedKeys(flat, false)
   }
+  onTreeCheck()
 }
 
 async function onAssignSave() {
@@ -310,7 +317,7 @@ async function onAssignSave() {
     const checked = treeRef.value.getCheckedKeys()
     const half = treeRef.value.getHalfCheckedKeys()
     const ids = [...new Set([...checked, ...half])]
-    await setRoleMenusSafe(assignRole.value.id, ids)
+    await setRoleMenus(assignRole.value.id, ids)
     ElMessage.success(`已保存，共 ${ids.length} 条菜单`)
     assignVisible.value = false
     load()
@@ -319,11 +326,6 @@ async function onAssignSave() {
   } finally {
     assigning.value = false
   }
-}
-
-async function setRoleMenusSafe(id, ids) {
-  const { setRoleMenus } = await import('@/api/core')
-  return setRoleMenus(id, ids)
 }
 
 onMounted(() => {

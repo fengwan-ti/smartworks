@@ -1,7 +1,8 @@
 """core 应用的序列化器。"""
 from rest_framework import serializers
 
-from .models import DataDict, Department, Menu, Position, Role, User
+from .models import (DataDict, Department, Menu, OperationLog, Position,
+                     Role, User)
 
 
 class DepartmentSerializer(serializers.ModelSerializer):
@@ -99,6 +100,18 @@ class UserSerializer(serializers.ModelSerializer):
 class UserDetailSerializer(UserSerializer):
     class Meta(UserSerializer.Meta):
         fields = UserSerializer.Meta.fields + ('email', 'last_login', 'date_joined')
+
+
+class OperationLogSerializer(serializers.ModelSerializer):
+    """操作日志。只读，用于「谁在什么时候改了什么」的追溯展示。"""
+
+    user_name = serializers.CharField(source='user.display_name', read_only=True, default='')
+    username = serializers.CharField(source='user.username', read_only=True, default='')
+
+    class Meta:
+        model = OperationLog
+        fields = ('id', 'user', 'user_name', 'username', 'action', 'target_model',
+                  'target_id', 'detail', 'ip', 'created_at')
 
 
 class LoginSerializer(serializers.Serializer):

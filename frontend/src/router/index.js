@@ -40,6 +40,12 @@ const routes = [
       },
       // ---- 主数据 ----
       {
+        path: 'system/logs',
+        name: 'system-logs',
+        component: () => import('@/views/system/LogList.vue'),
+        meta: { title: '操作日志' }
+      },
+      {
         path: 'masterdata/products',
         name: 'masterdata-products',
         component: () => import('@/views/masterdata/ProductList.vue'),
