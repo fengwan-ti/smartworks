@@ -50,14 +50,53 @@
 
     <div class="sw-card">
       <div class="sw-toolbar">
+        <el-select
+          v-model="selectedAgvs"
+          multiple
+          collapse-tags
+          collapse-tags-tooltip
+          clearable
+          placeholder="参与调度的车（留空=全部可用）"
+          style="width: 300px"
+        >
+          <el-option
+            v-for="a in agvOptions"
+            :key="a.code"
+            :label="`${a.code} ${a.name}（${a.battery}% ${a.status_label}）`"
+            :value="a.code"
+            :disabled="!a.is_active"
+          />
+        </el-select>
+
+        <el-select
+          v-model="selectedTasks"
+          multiple
+          collapse-tags
+          collapse-tags-tooltip
+          filterable
+          clearable
+          placeholder="指定任务（留空=全部待派车）"
+          style="width: 280px"
+        >
+          <el-option
+            v-for="t in taskOptions"
+            :key="t.code"
+            :label="`${t.code} ${t.from_node_code}→${t.to_node_code} P${t.priority}`"
+            :value="t.code"
+          />
+        </el-select>
+
+        <el-input-number v-model="limit" :min="1" :max="200" :step="5" style="width: 130px" />
+
         <el-button type="primary" :loading="computing" @click="onCompute(false)">算一套方案</el-button>
         <el-button type="success" :loading="applying" :disabled="!hasPlan" @click="onCompute(true)">
           算并下发
         </el-button>
         <el-button :loading="loadingHistory" @click="loadHistory">刷新历史</el-button>
-        <span class="sw-sub" style="margin-left: auto; align-self: center">
-          「算一套方案」只算并留档（draft），不改任务状态；「算并下发」才真正派车
-        </span>
+      </div>
+      <div class="sw-sub" style="margin-bottom: 12px">
+        三个条件都可留空：「算一套方案」只算并留档（draft），不改任务状态；「算并下发」才真正派车。
+        留空时会把全部待派车任务和全部可用车排进去。
       </div>
 
       <el-alert
@@ -192,7 +231,12 @@
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import BaseTable from '@/components/BaseTable.vue'
-import { buildSchedule, fetchSchedulePlans } from '@/api/logistics'
+import {
+  buildSchedule,
+  fetchAgvs,
+  fetchSchedulePlans,
+  fetchTransportTasks
+} from '@/api/logistics'
 
 const computing = ref(false)
 const applying = ref(false)
@@ -202,6 +246,13 @@ const historyTotal = ref(0)
 const historyPage = ref(1)
 const historyLoading = ref(false)
 const loadingHistory = computed(() => historyLoading.value)
+
+// 三个筛选条件：都留空 = 全部可用车 + 全部待派任务
+const selectedAgvs = ref([])
+const selectedTasks = ref([])
+const limit = ref(50)
+const agvOptions = ref([])
+const taskOptions = ref([])
 
 const historyVisible = ref(false)
 const historyCurrent = ref(null)
@@ -254,7 +305,13 @@ async function onCompute(apply) {
   }
 
   try {
-    const data = await buildSchedule({ apply })
+    const payload = {
+      apply,
+      limit: limit.value,
+      agv_codes: selectedAgvs.value,
+      task_codes: selectedTasks.value
+    }
+    const data = await buildSchedule(payload)
     if (apply) {
       result.value = data.plan || {}
       ElMessage.success(`已下发 ${data.apply?.applied_count || 0} 条任务`)
@@ -262,7 +319,7 @@ async function onCompute(apply) {
       result.value = data || {}
       ElMessage.success('方案已算好（仅预览，未派车）')
     }
-    await loadHistory()
+    await Promise.all([loadHistory(), loadOptions()])
   } catch (e) {
     // request.js 已提示；14505/14506 这类业务错误会直接显示后端原文
   } finally {
@@ -294,7 +351,24 @@ function openHistory(row) {
   historyVisible.value = true
 }
 
-onMounted(loadHistory)
+/** 下拉数据：车全部拉（一般就 3 台），任务只拉待派车的。 */
+async function loadOptions() {
+  try {
+    const [agvData, taskData] = await Promise.all([
+      fetchAgvs({ page_size: 50 }),
+      fetchTransportTasks({ status: 'pending', page_size: 200 })
+    ])
+    agvOptions.value = (agvData && agvData.results) || []
+    taskOptions.value = (taskData && taskData.results) || []
+  } catch (e) {
+    console.error('[SchedulePlan] 下拉数据加载失败', e)
+  }
+}
+
+onMounted(() => {
+  loadOptions()
+  loadHistory()
+})
 </script>
 
 <style scoped>

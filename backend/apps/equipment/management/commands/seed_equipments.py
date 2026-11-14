@@ -129,7 +129,7 @@ class Command(BaseCommand):
         no_equipment = payload.get('_没有设备的工序') or {}
         if no_equipment:
             self.stdout.write(self.style.WARNING(
-                f'ℹ️ 这 {len(no_equipment)} 道工序不占设备（B-1 已定案）：'
+                f'[提示] 这 {len(no_equipment)} 道工序不占设备（B-1 已定案）：'
                 f'{"、".join(no_equipment)}。排产遇到 is_equipment_free 的模板直接跳过设备匹配。',
             ))
             for step_type, reason in no_equipment.items():
@@ -138,7 +138,7 @@ class Command(BaseCommand):
         single_point = payload.get('_单点风险工序') or {}
         if single_point:
             self.stdout.write(self.style.WARNING(
-                f'⚠️ 这 {len(single_point)} 道工序只有一台设备（瓶颈）：'
+                f'[注意] 这 {len(single_point)} 道工序只有一台设备（瓶颈）：'
                 f'{"、".join(single_point)}。排产时要盯住。',
             ))
             for step_type, reason in single_point.items():

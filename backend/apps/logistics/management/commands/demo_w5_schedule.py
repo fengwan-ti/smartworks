@@ -45,6 +45,7 @@ class Command(BaseCommand):
 
         count = int(options['tasks'])
         created = 0
+        codes = []
         with transaction.atomic():
             for index in range(count):
                 from_code, to_code = DEMO_PAIRS[index % len(DEMO_PAIRS)]
@@ -53,7 +54,7 @@ class Command(BaseCommand):
                 if from_node is None or to_node is None:
                     self.stderr.write(f'路网缺少节点 {from_code} 或 {to_code}，跳过')
                     continue
-                services.create_task(
+                task, _ = services.create_task(
                     task_type='feed',
                     from_node=from_node, to_node=to_node,
                     ref_type=TransportSourceType.MANUAL,
@@ -61,11 +62,14 @@ class Command(BaseCommand):
                     priority=1 + index % 3,
                     remark='demo_w5_schedule 生成',
                 )
+                codes.append(task.code)
                 created += 1
 
         self.stdout.write(self.style.SUCCESS(f'造了 {created} 条待派车任务'))
 
-        result = services.build_schedule(limit=max(count, 10))
+        # 只排这次造出来的任务：库里可能还躺着别人留下的待派任务，
+        # 一起排进去数字就不可复现了，答辩现场也没法解释"为什么是 11 条"。
+        result = services.build_schedule(task_codes=codes, limit=max(count, 10))
         self._print_result(result)
 
         if options['apply']:

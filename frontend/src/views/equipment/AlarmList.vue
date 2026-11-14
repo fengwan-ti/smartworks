@@ -30,7 +30,8 @@
         <el-button @click="reportVisible = true">人工上报</el-button>
         <el-button :loading="loading" @click="load">刷新</el-button>
         <span class="sw-sub" style="margin-left: auto; align-self: center">
-          规则：振动 &gt; 4.5 mm/s、温度 &gt; 78 ℃、电流 &gt; 12 A，触发后同类 60 分钟内不重复报
+          阈值来源 services.ALARM_RULES：振动 1.8/2.4、温度 55/65、电流 11/13（左警告右严重），
+          同类 60 分钟内不重复报
         </span>
       </div>
 

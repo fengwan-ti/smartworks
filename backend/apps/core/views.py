@@ -9,12 +9,18 @@ from rest_framework.views import APIView
 
 from .exceptions import BizError
 from .filters import UserFilter
-from .models import DataDict, Menu, Role, User
+from .models import (DataDict, Department, Menu, Notification, OperationLog,
+                     Position, Role, User)
 from .pagination import StandardPagination
+from .permissions import ModulePermission
 from .serializers import (
     DataDictSerializer,
+    DepartmentSerializer,
     LoginSerializer,
     MenuSerializer,
+    NotificationSerializer,
+    OperationLogSerializer,
+    PositionSerializer,
     RoleSerializer,
     UserSerializer,
 )
@@ -68,8 +74,10 @@ class MeView(APIView):
 
 
 class UserViewSet(viewsets.ModelViewSet):
-    """用户管理。Day 1 提供基础 CRUD，权限细化在 W6。"""
+    """用户管理。"""
 
+    required_perm = 'system:user'
+    permission_classes = (IsAuthenticated, ModulePermission)
     queryset = User.objects.all().order_by('id')
     serializer_class = UserSerializer
     pagination_class = StandardPagination
@@ -81,9 +89,14 @@ class UserViewSet(viewsets.ModelViewSet):
 class RoleViewSet(viewsets.ModelViewSet):
     """角色管理。额外提供「分配菜单」动作，让权限配置全程在页面上完成。"""
 
+    required_perm = 'system:role'
+    permission_classes = (IsAuthenticated, ModulePermission)
     queryset = Role.objects.all().order_by('code')
     serializer_class = RoleSerializer
     pagination_class = StandardPagination
+    search_fields = ('code', 'name', 'description')
+    filterset_fields = ('is_active',)
+    ordering_fields = ('code', 'name')
 
     @action(detail=True, methods=['get', 'post'], url_path='menus')
     def menus_of_role(self, request, pk=None):
@@ -110,17 +123,43 @@ class RoleViewSet(viewsets.ModelViewSet):
         return Response({'role_id': role.id, 'menu_ids': ids})
 
 
+class DepartmentViewSet(viewsets.ModelViewSet):
+    """部门。用户管理页的部门下拉来源于此。"""
+
+    queryset = Department.objects.all().order_by('code')
+    serializer_class = DepartmentSerializer
+    pagination_class = StandardPagination
+    search_fields = ('code', 'name')
+    filterset_fields = ('is_active',)
+
+
+class PositionViewSet(viewsets.ModelViewSet):
+    """岗位。13 个岗位在 init_core 里建，前端只读为主。"""
+
+    queryset = Position.objects.all().order_by('code')
+    serializer_class = PositionSerializer
+    pagination_class = StandardPagination
+    search_fields = ('code', 'name')
+    filterset_fields = ('is_active',)
+
+
 class MenuViewSet(viewsets.ModelViewSet):
     queryset = Menu.objects.all().order_by('sort', 'code')
     serializer_class = MenuSerializer
     pagination_class = StandardPagination
+    search_fields = ('code', 'name', 'permission_code')
+    filterset_fields = ('menu_type', 'is_active', 'parent')
+    ordering_fields = ('sort', 'code')
 
 
 class DataDictViewSet(viewsets.ReadOnlyModelViewSet):
-    """数据字典：前端下拉选项来源。"""
+    """数据字典：前端下拉选项来源，也给「数据字典」页做只读查询。"""
 
     serializer_class = DataDictSerializer
     pagination_class = StandardPagination
+    search_fields = ('dict_type', 'dict_code', 'dict_name')
+    filterset_fields = ('dict_type', 'is_active')
+    ordering_fields = ('dict_type', 'sort')
 
     def get_queryset(self):
         qs = DataDict.objects.filter(is_active=True).order_by('dict_type', 'sort')
@@ -131,6 +170,57 @@ class DataDictViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 # ---------------------------------------------------------------- Day 1 验证用
+class OperationLogViewSet(viewsets.ReadOnlyModelViewSet):
+    """操作日志。只读，按时间倒序，供追溯使用。
+
+    为什么只读：日志一旦允许修改就失去追溯意义，任何人都不能改历史记录。
+    """
+
+    queryset = OperationLog.objects.select_related('user').all()
+    serializer_class = OperationLogSerializer
+    pagination_class = StandardPagination
+    search_fields = ('action', 'target_model', 'target_id', 'user__username')
+    filterset_fields = ('action', 'target_model', 'user')
+    ordering_fields = ('created_at', 'id')
+
+
+class NotificationViewSet(viewsets.ModelViewSet):
+    """站内通知。
+
+    数据范围：**只能看到自己的通知**（超管也一样，通知是私人消息，
+    不是业务数据，不需要"超管看全部"）。
+    写操作只允许标记已读，不允许新建（由业务侧 write_notification 产生）。
+    """
+
+    serializer_class = NotificationSerializer
+    pagination_class = StandardPagination
+    http_method_names = ['get', 'post', 'head', 'options']
+    search_fields = ('title', 'content', 'biz_type')
+    filterset_fields = ('is_read', 'biz_type')
+    ordering_fields = ('created_at', 'id')
+
+    def get_queryset(self):
+        return Notification.objects.filter(user=self.request.user).order_by('-created_at')
+
+    @action(detail=True, methods=['post'], url_path='read')
+    def mark_read(self, request, pk=None):
+        """标记单条已读。重复标记直接返回成功（幂等）。"""
+        obj = self.get_object()
+        if not obj.is_read:
+            obj.is_read = True
+            obj.save(update_fields=['is_read'])
+        return Response({'id': obj.id, 'is_read': True})
+
+    @action(detail=False, methods=['post'], url_path='read-all')
+    def mark_all_read(self, request):
+        n = self.get_queryset().filter(is_read=False).update(is_read=True)
+        return Response({'updated': n})
+
+    @action(detail=False, methods=['get'], url_path='unread-count')
+    def unread_count(self, request):
+        return Response({'unread': self.get_queryset().filter(is_read=False).count()})
+
+
 class DemoSuccessView(APIView):
     """验证成功响应：应返回 {"code":0,"message":"ok","data":{...}}"""
 

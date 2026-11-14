@@ -26,7 +26,7 @@ class RoadNode(models.Model):
     """路网节点。AGV 只能沿边在节点之间走，不能走任意两点之间的直线。
 
     code 规则：N + 3 位序号（N001…N029）。
-    ⚠️ 为什么不沿用旧的 N01：仓库里曾有两套编号并存（agv_network.json 用 N01，
+    [注意] 为什么不沿用旧的 N01：仓库里曾有两套编号并存（agv_network.json 用 N01，
     road-network-v1.json 用 N001），W5 调度一跑就会「找不到节点」。
     全项目只认 N001 这一套（见 W2 要料清单）。
     """
@@ -57,6 +57,10 @@ class RoadNode(models.Model):
 
 
 class RoadEdge(models.Model):
+    # 规范例外（A 补，2026-11-13）：边是两点之间的连线，
+    # 没有业务编码与名称；唯一标识由 (from_node, to_node) 承担。
+    schema_exempt = ('code', 'name')
+
     """路网边：两个节点之间的一段通道。
 
     distance 存的是**两点间实际路径长度（毫米）**，不是两端坐标的欧氏距离
