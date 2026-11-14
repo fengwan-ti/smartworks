@@ -5,7 +5,7 @@
         <div>
           <div class="pp-title">车间路网与路径规划</div>
           <div class="pp-sub">
-            任务 3 · 给定起终点计算最短路径　｜　数据来源：路网 29 节点 / 48 边，距离单位毫米
+            任务 3 · 给定起终点计算最短路径　｜　路网 29 节点 / 48 边，距离单位毫米
           </div>
         </div>
         <div class="pp-health" v-if="health">
@@ -19,14 +19,20 @@
 
       <div class="pp-toolbar">
         <span class="pp-label">起点</span>
-        <el-select v-model="from" filterable style="width: 240px" placeholder="选择起点">
-          <el-option v-for="n in nodeOptions" :key="n.code" :label="`${n.code} ${n.name}`" :value="n.code" />
-        </el-select>
+        <NodePicker
+          v-model="from"
+          :options="nodeOptions"
+          placeholder="点图上的节点，或在这里选"
+          @hover="onPickerHover"
+        />
 
         <span class="pp-label">终点</span>
-        <el-select v-model="to" filterable style="width: 240px" placeholder="选择终点">
-          <el-option v-for="n in nodeOptions" :key="n.code" :label="`${n.code} ${n.name}`" :value="n.code" />
-        </el-select>
+        <NodePicker
+          v-model="to"
+          :options="nodeOptions"
+          placeholder="点图上的节点，或在这里选"
+          @hover="onPickerHover"
+        />
 
         <el-button type="primary" :loading="loading" @click="onPlan">计算最短路径</el-button>
         <el-button @click="onReset">清除</el-button>
@@ -35,6 +41,11 @@
           <span class="ok">最短距离 <b>{{ (result.distance / 1000).toFixed(2) }}</b> 米</span>
           <span class="dim">经过 {{ result.path.length }} 个节点 · {{ result.path.length - 1 }} 段</span>
         </div>
+      </div>
+
+      <div class="pp-hint">
+        <span class="dot-mark"></span>
+        {{ pickHint }}
       </div>
 
       <div class="pp-canvas" v-loading="loading">
@@ -47,10 +58,11 @@
             :y1="px(e.from_code).y"
             :x2="px(e.to_code).x"
             :y2="px(e.to_code).y"
-            :stroke="isPathEdge(e) ? '#E17B2A' : '#C9D2DC'"
-            :stroke-width="isPathEdge(e) ? 5 : 2"
+            :stroke="isPathEdge(e) ? '#E17B2A' : (isHoverEdge(e) ? '#9FD4DA' : '#C9D2DC')"
+            :stroke-width="isPathEdge(e) ? 5 : (isHoverEdge(e) ? 3 : 2)"
             :stroke-dasharray="e.is_bidirectional ? '' : '8 6'"
           />
+
           <!-- 路径高亮 -->
           <polyline
             v-if="pathPoints"
@@ -62,24 +74,85 @@
             stroke-linecap="round"
             opacity="0.85"
           />
+
+          <!-- 起终点外圈（画在节点下面，避免遮挡） -->
+          <circle
+            v-if="from"
+            :cx="px(from).x"
+            :cy="px(from).y"
+            :r="radiusOf(from) + 10"
+            fill="none"
+            stroke="#27AE60"
+            stroke-width="3"
+          />
+          <circle
+            v-if="to"
+            :cx="px(to).x"
+            :cy="px(to).y"
+            :r="radiusOf(to) + 10"
+            fill="none"
+            stroke="#C0392B"
+            stroke-width="3"
+          />
+
           <!-- 节点 -->
-          <g v-for="n in nodes" :key="n.code">
+          <g v-for="n in nodes" :key="n.code" class="node-g">
+            <!-- 透明命中区：半径放大，鼠标容易点中 -->
             <circle
               :cx="px(n.code).x"
               :cy="px(n.code).y"
-              :r="radius(n)"
+              :r="radiusOf(n.code) + 12"
+              fill="transparent"
+              class="hit"
+              @mouseenter="hoverCode = n.code"
+              @mouseleave="hoverCode = ''"
+              @click="onNodeClick(n.code)"
+            />
+            <circle
+              :cx="px(n.code).x"
+              :cy="px(n.code).y"
+              :r="radiusOf(n.code)"
               :fill="fillOf(n)"
               :stroke="isOnPath(n.code) ? '#162E58' : '#fff'"
-              stroke-width="2"
+              :stroke-width="isHovered(n.code) ? 3 : 2"
+              pointer-events="none"
             />
-            <title>{{ n.code }} {{ n.name }}</title>
+            <text
+              v-if="n.code === from"
+              :x="px(n.code).x"
+              :y="px(n.code).y - radiusOf(n.code) - 8"
+              text-anchor="middle"
+              class="badge-txt"
+              fill="#27AE60"
+            >起</text>
+            <text
+              v-if="n.code === to"
+              :x="px(n.code).x"
+              :y="px(n.code).y - radiusOf(n.code) - 8"
+              text-anchor="middle"
+              class="badge-txt"
+              fill="#C0392B"
+            >终</text>
           </g>
-          <!-- 起终点标签 -->
-          <g v-if="from">
-            <circle :cx="px(from).x" :cy="px(from).y" r="13" fill="none" stroke="#27AE60" stroke-width="3" />
-          </g>
-          <g v-if="to">
-            <circle :cx="px(to).x" :cy="px(to).y" r="13" fill="none" stroke="#C0392B" stroke-width="3" />
+
+          <!-- 悬停标签（最后画，保证在最上层）。靠右的节点自动左翻，避免被画布裁掉 -->
+          <g v-if="hoveredNode" class="hover-label" pointer-events="none">
+            <rect
+              :x="labelPos.rectX"
+              :y="labelPos.rectY"
+              :width="hoverLabelWidth"
+              height="26"
+              rx="5"
+              fill="#162E58"
+              opacity="0.94"
+            />
+            <text
+              :x="labelPos.textX"
+              :y="labelPos.textY"
+              :text-anchor="labelPos.anchor"
+              class="hover-txt"
+              fill="#fff"
+            >{{ hoveredNode.code }}　{{ hoveredNode.name }}</text>
           </g>
         </svg>
 
@@ -89,8 +162,8 @@
           <span><i class="dot charger"></i>充电位</span>
           <span><i class="line-solid"></i>双向</span>
           <span><i class="line-dash"></i>单向</span>
-          <span><i class="ring green"></i>起点</span>
-          <span><i class="ring red"></i>终点</span>
+          <span><i class="ring green"></i>起点（标「起」）</span>
+          <span><i class="ring red"></i>终点（标「终」）</span>
         </div>
       </div>
 
@@ -100,7 +173,7 @@
           <span class="pp-codes">{{ result.path.join(' → ') }}</span>
         </div>
         <div class="pp-note">
-          算法：Dijkstra（单源最短路）。距离为**沿路长度**，不是两点直线距离。
+          算法：Dijkstra（单源最短路）。距离为沿路长度，不是两点直线距离。
           不可达时后端返回空路径，前端不做兜底推断。
         </div>
       </div>
@@ -112,14 +185,19 @@
 /**
  * 任务 3 路径规划演示页。
  *
- * 分工说明（答辩时会被问）：
- *   路网数据、导入、距离矩阵接口  → D（apps/logistics）
- *   最短路算法、可视化、交互       → A（apps/algorithms/scheduling/path + 本页）
- * 本页只调用后端接口，不在前端算最短路。
+ * 三条交互（都是为了答辩时不用解释就能懂）：
+ *   1. 鼠标移到节点：节点放大 1.6 倍 + 右侧弹出「编号 名称」标签 + 相邻边变亮
+ *   2. 直接点图上的节点：按「先起点、再终点、然后重来」自动填，提示条实时告诉你下次点击会设成什么
+ *   3. 起点/终点选择器里悬停某一行，图上对应节点同样放大 —— 选择器与图双向联动
+ *
+ * 分工（答辩会问）：
+ *   路网数据、导入、距离矩阵接口 → D（apps/logistics）
+ *   最短路算法、可视化、交互      → A（apps/algorithms/scheduling/path + 本页）
+ *   本页只调接口，不在前端算最短路。
  */
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import BaseTable from '@/components/BaseTable.vue'
+import NodePicker from '@/components/NodePicker.vue'
 import { listRoadEdges, listRoadNodes, networkHealth, shortestPath } from '@/api/logistics'
 
 const nodes = ref([])
@@ -130,10 +208,77 @@ const to = ref('')
 const result = ref(null)
 const loading = ref(false)
 
+/** 图上悬停的节点 */
+const hoverCode = ref('')
+/** 选择器里悬停的节点（手在下拉里时鼠标不在图上，所以要单独记） */
+const pickerHoverCode = ref('')
+
+function onPickerHover(code) {
+  pickerHoverCode.value = code || ''
+}
+
+const effectiveHover = computed(() => pickerHoverCode.value || hoverCode.value)
+
+const hoveredNode = computed(() =>
+  effectiveHover.value ? nodes.value.find((n) => n.code === effectiveHover.value) : null)
+
+const canvasW = computed(() => {
+  const { s: sc, b } = scaleInfo.value
+  return (b.x1 - b.x0) * sc + PAD * 2
+})
+
+const canvasH = computed(() => {
+  const { s: sc, b } = scaleInfo.value
+  return (b.y1 - b.y0) * sc + PAD * 2
+})
+
+/** 标签位置：默认画在节点右侧；右侧放不下就翻到左侧 */
+const labelPos = computed(() => {
+  const n = hoveredNode.value
+  if (!n) return { rectX: 0, rectY: 0, textX: 0, textY: 0, anchor: 'start' }
+  const p = px(n.code)
+  const r = radiusOf(n.code)
+  const w = hoverLabelWidth.value
+  const gap = 8
+  const padding = 10
+  const rectY = Math.min(Math.max(p.y - 13, 4), canvasH.value - 30)
+
+  if (p.x + r + gap + w > canvasW.value - 4) {
+    // 右翻左
+    const rectX = Math.max(4, p.x - r - gap - w)
+    return {
+      rectX,
+      rectY,
+      textX: rectX + padding,
+      textY: p.y + 4,
+      anchor: 'start'
+    }
+  }
+  const rectX = p.x + r + gap
+  return {
+    rectX,
+    rectY,
+    textX: rectX + padding,
+    textY: p.y + 4,
+    anchor: 'start'
+  }
+})
+
+const hoverLabelWidth = computed(() => {
+  const n = hoveredNode.value
+  if (!n) return 0
+  const text = `${n.code}　${n.name}`
+  let w = 22
+  for (const ch of text) {
+    w += /[\u4e00-\u9fa5]/.test(ch) ? 13 : 8
+  }
+  return w
+})
+
 // ---------------- 坐标换算 ----------------
-const PAD = 60
-const SPAN_W = 1080
-const SPAN_H = 520
+const PAD = 70
+const SPAN_W = 1120
+const SPAN_H = 540
 
 const bounds = computed(() => {
   if (!nodes.value.length) return { x0: 0, x1: 1, y0: 0, y1: 1 }
@@ -147,23 +292,19 @@ const bounds = computed(() => {
   }
 })
 
-const viewBox = computed(() => {
-  const b = bounds.value
-  const w = b.x1 - b.x0 || 1
-  const h = b.y1 - b.y0 || 1
-  // 保持等比，避免路网被拉扁
-  const scale = Math.min((SPAN_W - PAD * 2) / w, (SPAN_H - PAD * 2) / h)
-  const usedW = w * scale + PAD * 2
-  const usedH = h * scale + PAD * 2
-  return `${0} ${0} ${usedW} ${usedH}`
-})
-
 const scaleInfo = computed(() => {
   const b = bounds.value
   const w = b.x1 - b.x0 || 1
   const h = b.y1 - b.y0 || 1
   const s = Math.min((SPAN_W - PAD * 2) / w, (SPAN_H - PAD * 2) / h)
   return { s, b }
+})
+
+const viewBox = computed(() => {
+  const { s, b } = scaleInfo.value
+  const usedW = (b.x1 - b.x0) * s + PAD * 2
+  const usedH = (b.y1 - b.y0) * s + PAD * 2
+  return `0 0 ${usedW} ${usedH}`
 })
 
 const nodeMap = computed(() => {
@@ -188,7 +329,6 @@ function px(code) {
 // ---------------- 渲染辅助 ----------------
 const nodeOptions = computed(() =>
   [...nodes.value].sort((a, b) => {
-    // 装卸点排前面，演示时好找
     const rank = (n) => (n.node_type === 'dock' ? 0 : n.node_type === 'charger' ? 1 : 2)
     return rank(a) - rank(b) || a.code.localeCompare(b.code)
   })
@@ -214,14 +354,30 @@ function isPathEdge(e) {
   return pathPairs.value.has(e.from_code + '|' + e.to_code)
 }
 
-function radius(n) {
-  if (n.node_type === 'dock') return 9
-  if (n.node_type === 'charger') return 8
-  return 5.5
+/** 悬停时把它相邻的边也提亮，帮助看清这个点连哪几条路 */
+function isHoverEdge(e) {
+  const h = effectiveHover.value
+  if (!h) return false
+  return e.from_code === h || e.to_code === h
+}
+
+function isHovered(code) {
+  return effectiveHover.value === code
+}
+
+/** 半径：基准 + 悬停放大 1.6 倍 + 起终点略大 */
+function radiusOf(code) {
+  const n = nodeMap.value[code]
+  const base = !n ? 5 : n.node_type === 'dock' ? 9 : n.node_type === 'charger' ? 8 : 5.5
+  let r = base
+  if (code === from.value || code === to.value) r = base * 1.25
+  if (isHovered(code)) r = base * 1.6 + 2
+  return r
 }
 
 function fillOf(n) {
   if (isOnPath(n.code)) return '#E17B2A'
+  if (isHovered(n.code)) return '#0F9DA8'
   if (n.node_type === 'dock') return '#0F9DA8'
   if (n.node_type === 'charger') return '#27AE60'
   return '#9AA7B4'
@@ -236,6 +392,39 @@ const pathPoints = computed(() => {
     })
     .join(' ')
 })
+
+// ---------------- 点图选点 ----------------
+const pickHint = computed(() => {
+  if (!from.value && !to.value) {
+    return '点击图上的任意节点设为起点（也可以在右上两个选择器里选）'
+  }
+  if (from.value && !to.value) {
+    return `起点已设为 ${from.value}，再点击一个节点设为终点（会自动计算）`
+  }
+  return `当前 ${from.value} → ${to.value}，再点任意节点将重新从起点开始选`
+})
+
+function onNodeClick(code) {
+  if (!from.value) {
+    from.value = code
+    result.value = null
+    return
+  }
+  if (!to.value) {
+    if (code === from.value) {
+      ElMessage.warning('终点不能与起点相同')
+      return
+    }
+    to.value = code
+    result.value = null
+    onPlan()
+    return
+  }
+  // 已有一组，重新开始
+  from.value = code
+  to.value = ''
+  result.value = null
+}
 
 // ---------------- 数据与操作 ----------------
 async function load() {
@@ -285,15 +474,18 @@ function onReset() {
   from.value = ''
   to.value = ''
   result.value = null
+  hoverCode.value = ''
+  pickerHoverCode.value = ''
 }
 
 onMounted(async () => {
   await load()
-  // 默认给一组有演示意义的起终点：原料仓 → 成品仓
+  // 默认给一组有演示意义的起终点：原料收发料口 → 成品仓发货口
   const codes = new Set(nodes.value.map((n) => n.code))
   if (codes.has('N004')) from.value = 'N004'
   else if (codes.has('N001')) from.value = 'N001'
   if (codes.has('N029')) to.value = 'N029'
+  if (from.value && to.value) onPlan()
 })
 </script>
 
@@ -332,7 +524,7 @@ onMounted(async () => {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
-  padding: 14px 0 10px;
+  padding: 14px 0 8px;
 }
 .pp-label {
   font-size: 13px;
@@ -357,6 +549,25 @@ onMounted(async () => {
   font-size: 12px;
   color: #6b7280;
 }
+.pp-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: #0b7b84;
+  background: #f0f8f9;
+  border: 1px solid #d8ecee;
+  border-radius: 6px;
+  padding: 7px 12px;
+  margin-bottom: 10px;
+}
+.dot-mark {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #0f9da8;
+  flex: 0 0 auto;
+}
 .pp-canvas {
   position: relative;
   border: 1px solid #eef1f5;
@@ -366,8 +577,19 @@ onMounted(async () => {
 }
 .pp-svg {
   width: 100%;
-  height: 520px;
+  height: 540px;
   display: block;
+}
+.node-g .hit {
+  cursor: pointer;
+}
+.badge-txt {
+  font-size: 12px;
+  font-weight: 700;
+}
+.hover-txt {
+  font-size: 12px;
+  font-weight: 600;
 }
 .pp-legend {
   display: flex;
