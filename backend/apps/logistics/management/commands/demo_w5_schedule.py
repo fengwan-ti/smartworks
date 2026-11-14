@@ -67,6 +67,12 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS(f'造了 {created} 条待派车任务'))
 
+        # --tasks 0（只用来 --reset 清场）没有任务可排，到此为止。
+        # 不特判的话 build_schedule 会抛 14505，看起来像命令坏了。
+        if not codes:
+            self.stdout.write('没有任务可排，跳过调度（--reset 之后就是这样）')
+            return
+
         # 只排这次造出来的任务：库里可能还躺着别人留下的待派任务，
         # 一起排进去数字就不可复现了，答辩现场也没法解释"为什么是 11 条"。
         result = services.build_schedule(task_codes=codes, limit=max(count, 10))
