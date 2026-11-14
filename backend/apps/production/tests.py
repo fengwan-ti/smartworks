@@ -136,3 +136,37 @@ class AnomalyTests(APITestCase):
         self.assertEqual(resp.json()['data']['status'], 'closed')
         resp = self.client.post(f'/api/v1/production/anomalies/{anomaly_id}/close/')
         self.assertEqual(resp.json()['code'], 13060)
+
+
+class ReportSummaryTests(APITestCase):
+    """契约 I-08：GET /production/reports/summary/?work_order_id=（B 联调用）。"""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user('c_test', password='x')
+        self.client = auth_client(self.user)
+        now = timezone.now()
+        self.client.post('/api/v1/production/reports/', {
+            'work_order_id': 1, 'operation_seq': 1, 'step_type': 'cutting',
+            'good_qty': '90.000', 'defect_qty': '10.000',
+            'start_time': (now - timedelta(hours=1)).isoformat(),
+            'end_time': now.isoformat()}, format='json')
+        self.client.post('/api/v1/production/reports/', {
+            'work_order_id': 1, 'operation_seq': 2, 'step_type': 'milling',
+            'good_qty': '95.000', 'defect_qty': '5.000',
+            'start_time': (now - timedelta(hours=1)).isoformat(),
+            'end_time': now.isoformat()}, format='json')
+
+    def test_summary_by_work_order(self):
+        resp = self.client.get('/api/v1/production/reports/summary/',
+                               {'work_order_id': 1})
+        self.assertEqual(resp.status_code, 200, resp.content)
+        data = resp.json()['data']
+        self.assertEqual(data['work_order_id'], 1)
+        self.assertEqual(len(data['operations']), 2)
+        self.assertAlmostEqual(float(data['totals']['good_qty']), 185.0, places=1)
+        self.assertAlmostEqual(float(data['totals']['defect_qty']), 15.0, places=1)
+
+    def test_summary_all_grouped(self):
+        resp = self.client.get('/api/v1/production/reports/summary/')
+        data = resp.json()['data']
+        self.assertEqual(data['results'][0]['work_order_id'], 1)

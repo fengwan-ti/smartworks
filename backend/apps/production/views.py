@@ -24,6 +24,34 @@ class WorkReportViewSet(viewsets.ModelViewSet):
     filterset_class = WorkReportFilterSet
     search_fields = ('code', 'step_type')
 
+    @action(detail=False, methods=['get'], url_path='summary')
+    def summary(self, request):
+        """契约 I-08：报工进度汇总（B 重排看实际进度用）。
+
+        GET /production/reports/summary/?work_order_id=3
+        返回 data：{work_order_id, operations:[{operation_seq, step_type,
+        good_qty, defect_qty, last_end_time}], totals:{good_qty, defect_qty}}
+        不分页（汇总数据小）。work_order_id 不传则返回全工单分组的列表。
+        """
+        raw = request.query_params.get('work_order_id')
+        work_order_id = int(raw) if raw else None
+        rows = services.wip_summary(work_order_id)
+        if work_order_id is None:
+            grouped = {}
+            for r in rows:
+                grouped.setdefault(r['work_order_id'], []).append(r)
+            data = [{'work_order_id': wid, 'operations': ops,
+                     'totals': {
+                         'good_qty': sum(o['good_qty'] for o in ops),
+                         'defect_qty': sum(o['defect_qty'] for o in ops),
+                     }}
+                    for wid, ops in grouped.items()]
+            return Response({'results': data})
+        totals = {'good_qty': sum(r['good_qty'] for r in rows),
+                  'defect_qty': sum(r['defect_qty'] for r in rows)}
+        return Response({'work_order_id': work_order_id,
+                         'operations': rows, 'totals': totals})
+
     def create(self, request, *args, **kwargs):
         """创建走 services（校验数量、算工时、生成单号、写追溯）。"""
         report = services.create_report(request.data, user=request.user)

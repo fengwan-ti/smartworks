@@ -196,3 +196,16 @@ class StockLedgerViewSet(viewsets.ViewSet):
         page.pageSize = int(request.query_params.get('page_size', 20))
         result = page.paginate_queryset(rows, request)
         return page.get_paginated_response(result)
+
+    @action(detail=False, methods=['get'], url_path='available')
+    def available(self, request):
+        """契约 I-09：按物料汇总可用量（B 齐套检查 / D 搬运量判断）。
+
+        GET /inventory/stock/available/?material_ids=1,2,3[&warehouse_id=1]
+        也可 ?material=1 查单个。返回 data.results：
+        [{material_id, material_code, material_name, available_qty}]
+        available_qty 为该物料全部批次流水的代数和（正入负出），
+        可为负（账面异常），齐套检查自行判断 >0。
+        """
+        rows = services.material_available(request.query_params)
+        return Response({'results': rows})

@@ -241,6 +241,38 @@ def confirm_taking(taking, user=None):
     return taking
 
 
+def material_available(params):
+    """契约 I-09：按物料汇总可用量。
+
+    params 支持 material_ids=1,2,3（逗号分隔，齐套检查批量查）、
+    material=1（单个）、warehouse=1（可选限定仓库）。
+    available_qty = 该物料全部批次流水代数和（正入负出）。
+    """
+    txs = StockTransaction.objects.all()
+    ids = params.get('material_ids')
+    material_id = params.get('material')
+    if ids:
+        id_list = [int(x) for x in ids.split(',') if x.strip()]
+        txs = txs.filter(batch__material_id__in=id_list)
+    elif material_id:
+        txs = txs.filter(batch__material_id=material_id)
+    warehouse_id = params.get('warehouse')
+    if warehouse_id:
+        txs = txs.filter(warehouse_id=warehouse_id)
+    rows = (txs.values('batch__material_id', 'batch__material__code',
+                       'batch__material__name')
+            .annotate(available_qty=Sum('qty')))
+    return [
+        {
+            'material_id': r['batch__material_id'],
+            'material_code': r['batch__material__code'],
+            'material_name': r['batch__material__name'],
+            'available_qty': r['available_qty'],
+        }
+        for r in rows
+    ]
+
+
 def stock_ledger(params):
     """库存台账：按批次汇总全部流水。支持 material / warehouse / search。"""
     txs = StockTransaction.objects.select_related(
