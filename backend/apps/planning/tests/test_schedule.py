@@ -7,7 +7,7 @@ from rest_framework.test import APITestCase
 
 from apps.core.models import User
 from apps.equipment.models import Equipment, EquipmentCapability
-from apps.masterdata.models import Material, Product, ProductFamily
+from apps.masterdata.models import Material, Product, ProductFamily, Workstation
 from apps.order.models import Mps, MpsDetail
 from apps.planning.models import SchedulePlan, WorkOrder
 from apps.process.models import ProcessRoute, RouteStatus, RouteStep
@@ -26,7 +26,12 @@ class ScheduleFixture(APITestCase):
         self.material = Material.objects.create(code='MT-45', name='45号钢')
         self.product = Product.objects.create(code='PF-PL-001', name='法兰盘 A',
                                               family=self.family, material=self.material)
-        self.eq = Equipment.objects.create(code='EQ-CNC-01', name='1# 数控车床')
+        self.ws_cut = Workstation.objects.create(code='ST-CUT-01', name='下料区',
+                                                 agv_load_point='N001')
+        self.ws_cnc = Workstation.objects.create(code='ST-CNC-01', name='数控车床 1',
+                                                 agv_load_point='N003')
+        self.eq = Equipment.objects.create(code='EQ-CNC-01', name='1# 数控车床',
+                                           workstation=self.ws_cnc)
         EquipmentCapability.objects.create(equipment=self.eq, step_type='rough_turning',
                                            capacity_per_hour=Decimal('2'))
         self.route = ProcessRoute.objects.create(
@@ -80,3 +85,42 @@ class ScheduleApiTests(ScheduleFixture):
         resp = self.client.post(f'{WOS}{wo.id}/release/')
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.data['status'], 'released')
+
+
+class TransportAndCloseTests(ScheduleFixture):
+    def _plan(self):
+        resp = self.client.post(RUN, {'mps_id': self.mps.id}, format='json')
+        self.assertEqual(resp.status_code, 201, resp.data)
+        return resp.data
+
+    def test_transport_legs(self):
+        plan = self._plan()
+        resp = self.client.get(f'{PLANS}{plan["id"]}/transport-tasks/')
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertEqual(len(resp.data['legs']), 1)
+        leg = resp.data['legs'][0]
+        self.assertEqual(leg['work_order_code'], 'WO' + WorkOrder.objects.first().code[-11:])
+        self.assertIn('operation_id', leg)
+        self.assertEqual(leg['from_workstation'], 'ST-CUT-01')
+        self.assertEqual(leg['to_workstation'], 'ST-CNC-01')
+        self.assertEqual(leg['from_node'], 'N001')
+        self.assertEqual(leg['to_node'], 'N003')
+        self.assertEqual(leg['qty'], '4.000')
+        self.assertEqual(resp.data['warnings'], [])
+
+    def test_released_work_order_blocks_rerun_12020(self):
+        self._plan()
+        wo = WorkOrder.objects.get(mps=self.mps)
+        self.client.post(f'{WOS}{wo.id}/release/')
+        resp = self.client.post(RUN, {'mps_id': self.mps.id}, format='json')
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(resp.data['code'], 12020)
+
+    def test_complete_work_order(self):
+        self._plan()
+        wo = WorkOrder.objects.get(mps=self.mps)
+        self.client.post(f'{WOS}{wo.id}/release/')
+        resp = self.client.post(f'{WOS}{wo.id}/complete/')
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertEqual(resp.data['status'], 'completed')
+        self.assertFalse(resp.data['transport_cancel_notified'])

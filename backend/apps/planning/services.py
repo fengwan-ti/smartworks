@@ -104,6 +104,13 @@ def run_schedule(mps_id, start_at=None, name=None, frozen_until=None):
         start_at = timezone.make_aware(start_at)
     start_at = _next_shift(start_at)
 
+    # 已下达/生产中的工单不允许重排：否则工单号会变，D 的搬运任务会重复派生
+    if WorkOrder.objects.filter(
+            mps=mps,
+            status__in=[WorkOrderStatus.RELEASED, WorkOrderStatus.IN_PRODUCTION,
+                        WorkOrderStatus.COMPLETED]).exists():
+        raise BizError(12020, '该 MPS 已有下达/生产中的工单，不能重排；请新建 MPS 版本')
+
     # 重跑同一 MPS：清掉旧方案与旧工单（仅未下达的）
     SchedulePlan.objects.filter(mps=mps).delete()
     WorkOrder.objects.filter(mps=mps).exclude(
@@ -144,6 +151,7 @@ def run_schedule(mps_id, start_at=None, name=None, frozen_until=None):
         wo = WorkOrder.objects.create(
             code=generate_wo_code(), product=item.product, mps=mps, order=order,
             qty=item.qty, due_date=due, frozen_until=frozen_until,
+            priority=order.priority if order else 5,
             remark=f'由 {mps.code} 生成',
         )
         created_orders.append(wo)
@@ -224,21 +232,95 @@ def run_schedule(mps_id, start_at=None, name=None, frozen_until=None):
 
 
 def plan_gantt(plan):
-    details = plan.details.select_related(
-        'operation__work_order__product', 'equipment').order_by('plan_start')
-    return [
-        {
+    details = (plan.details
+               .select_related('operation__work_order__product', 'operation__work_order',
+                               'equipment__workstation')
+               .order_by('plan_start'))
+    rows = []
+    for d in details:
+        op = d.operation
+        ws = d.equipment.workstation if d.equipment else None
+        rows.append({
             'id': d.id,
-            'work_order': d.operation.work_order.code,
-            'product': d.operation.work_order.product.code,
-            'product_name': d.operation.work_order.product.name,
-            'seq': d.operation.seq,
-            'step_type': d.operation.step_type,
-            'step_label': d.operation.template.name if d.operation.template else d.operation.step_type,
+            'operation_id': op.id,
+            'work_order': op.work_order.code,
+            'product': op.work_order.product.code,
+            'product_name': op.work_order.product.name,
+            'priority': op.work_order.priority,
+            'seq': op.seq,
+            'step_type': op.step_type,
+            'step_label': op.template.name if op.template else op.step_type,
             'equipment': d.equipment.code if d.equipment else '',
+            'workstation_code': ws.code if ws else '',
+            'agv_load_point': ws.agv_load_point if ws else '',
             'start': d.plan_start.isoformat(),
             'end': d.plan_end.isoformat(),
             'changeover_minutes': d.changeover_minutes,
-        }
-        for d in details
-    ]
+        })
+    return rows
+
+
+# 免设备工序的默认物流工位；D 的 masterdata 没有对应工位时返回空并给出告警
+FREE_STEP_STATION = {
+    'cutting': 'ST-CUT-01',
+    'inspection': 'ST-QC-01',
+}
+
+
+def _operation_station(operation):
+    # 工序 -> (工位编码, 装卸点, 设备编码)
+    from apps.masterdata.models import Workstation
+
+    eq = operation.equipment
+    if eq is not None:
+        ws = eq.workstation
+        if ws:
+            return ws.code, ws.agv_load_point, eq.code
+        return '', '', eq.code
+    ws_code = FREE_STEP_STATION.get(operation.step_type, '')
+    ws = Workstation.objects.filter(code=ws_code).first() if ws_code else None
+    if ws:
+        return ws.code, ws.agv_load_point, ''
+    return '', '', ''
+
+
+def plan_transport_tasks(plan):
+    """排产结果 -> 工序间转序 leg，给 D 的 from-operation 批量派生用。
+
+    只派生同一工单内相邻工序之间；第一道工序的领料归 C 的领料单 / D 的 from-outbound。
+    """
+    details = (plan.details
+               .select_related('operation__work_order', 'operation__work_order__product',
+                               'equipment__workstation')
+               .order_by('operation__work_order_id', 'operation__seq'))
+    groups = {}
+    for d in details:
+        groups.setdefault(d.operation.work_order_id, []).append(d)
+
+    legs, warnings = [], []
+    for ds in groups.values():
+        ds.sort(key=lambda x: x.operation.seq)
+        wo = ds[0].operation.work_order
+        for prev, cur in zip(ds, ds[1:]):
+            from_ws, from_node, from_eq = _operation_station(prev.operation)
+            to_ws, to_node, to_eq = _operation_station(cur.operation)
+            if not from_ws or not to_ws:
+                which = '前' if not from_ws else '后'
+                warnings.append(f'{wo.code} seq {prev.operation.seq}->{cur.operation.seq} 缺{which}道工位绑定')
+            legs.append({
+                'work_order_code': wo.code,
+                'operation_id': cur.operation.id,
+                'seq': cur.operation.seq,
+                'prev_seq': prev.operation.seq,
+                'from_workstation': from_ws,
+                'from_node': from_node,
+                'from_equipment': from_eq,
+                'to_workstation': to_ws,
+                'to_node': to_node,
+                'to_equipment': to_eq,
+                'qty': str(wo.qty),
+                'priority': wo.priority,
+                'plan_start': cur.plan_start.isoformat() if cur.plan_start else None,
+                'plan_end': cur.plan_end.isoformat() if cur.plan_end else None,
+            })
+    return {'plan': plan.code, 'legs': legs, 'warnings': warnings}

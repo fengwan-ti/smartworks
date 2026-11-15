@@ -14,6 +14,7 @@ class WorkOrderStatus(models.TextChoices):
     IN_PRODUCTION = 'in_production', '生产中'
     COMPLETED = 'completed', '已完工'
     CLOSED = 'closed', '已关闭'
+    CANCELLED = 'cancelled', '已取消'
 
 
 class PlanStatus(models.TextChoices):
