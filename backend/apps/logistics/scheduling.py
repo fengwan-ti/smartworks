@@ -296,8 +296,14 @@ def plan_multi_agv(*, agvs, tasks, dist,
             if metrics is None:
                 continue
             # 载重与电量约束：违反就不许放（宁可放不下，也不给一个现场干不了的方案）
-            weight = sum(float(t.get('weight') or 0) for t in cand)
-            if weight > float(agv.get('capacity_kg') or 500):
+            #
+            # 载重按**单趟**判定：一条任务就是一趟，货装不上车才是"派不出去"。
+            # 2026-11-15 用 16 条 legs 演示时踩到的坑：原来写的是整条路线重量求和，
+            # 那是"所有货同时装在车上"的算法 —— 4 条 600 kg 累成 2400 kg，
+            # 连 1000 kg 的 AGV-02 都一条接不了，而现场实际是跑 4 趟。
+            # 分批（同一趟捎几单）由 _split_by_capacity 负责，这里不重复做。
+            capacity = float(agv.get('capacity_kg') or 500)
+            if any(float(t.get('weight') or 0) > capacity for t in cand):
                 continue
             cost_pct = (metrics['empty_mm'] + metrics['loaded_mm']) / full_range_mm * 100
             if float(agv.get('battery') or 100) - cost_pct < battery_reserve:
@@ -338,9 +344,9 @@ def plan_multi_agv(*, agvs, tasks, dist,
                                                handling_seconds)
                     trial_dst = (routes[dst['code']][:index] + [task]
                                  + routes[dst['code']][index:])
-                    # 约束复核（搬过去可能超载/超电量）
-                    weight = sum(float(t.get('weight') or 0) for t in trial_dst)
-                    if weight > float(dst.get('capacity_kg') or 500):
+                    # 约束复核（搬过去可能超载/超电量）；载重口径同上：单趟判定
+                    capacity = float(dst.get('capacity_kg') or 500)
+                    if any(float(t.get('weight') or 0) > capacity for t in trial_dst):
                         continue
                     m_dst = _route_metrics(trial_dst, dst['node'], dist,
                                            dst['speed'], handling_seconds)

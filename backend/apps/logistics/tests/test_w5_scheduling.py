@@ -167,7 +167,13 @@ def test_multi_agv_skips_agv_without_enough_battery():
     assert sum(p['task_count'] for p in result['plans']) == 4
 
 
-def test_multi_agv_respects_capacity():
+def test_multi_agv_capacity_is_judged_per_trip():
+    """载重按**单趟**判定：两条 60 kg 的任务是两趟，100 kg 的车都接得住。
+
+    2026-11-15 修的口径：原来这里算的是"整条路线重量求和"，
+    两条 60 kg 累成 120 kg 就把第二条挡在外面 —— 那是"所有货同时装上车"的算法，
+    现场实际是跑两趟。用 16 条 legs 演示时，4 条 600 kg 因此一条都派不出去。
+    """
     agvs = _two_agvs()
     for agv in agvs:
         agv['capacity_kg'] = 100
@@ -179,11 +185,29 @@ def test_multi_agv_respects_capacity():
         agvs=agvs, tasks=tasks, dist=DIST,
         handling_seconds=HANDLING, full_range_mm=5_000_000,
     )
+    assert result['unassigned'] == []
     for plan in result['plans']:
-        total_weight = sum(
-            float(t['weight']) for t in tasks if t['code'] in plan['seq']
-        )
-        assert total_weight <= 100
+        for code in plan['seq']:
+            weight = next(float(t['weight']) for t in tasks if t['code'] == code)
+            assert weight <= 100
+
+
+def test_multi_agv_leaves_out_task_heavier_than_any_agv():
+    """一趟都装不下的货，宁可标"未派出"，也不能给一个现场干不了的方案。"""
+    agvs = _two_agvs()
+    for agv in agvs:
+        agv['capacity_kg'] = 100
+    tasks = [
+        {'code': 'T-LIGHT', 'from': 'N001', 'to': 'N002', 'priority': 3, 'weight': 60},
+        {'code': 'T-HEAVY', 'from': 'N001', 'to': 'N003', 'priority': 3, 'weight': 200},
+    ]
+    result = scheduling.plan_multi_agv(
+        agvs=agvs, tasks=tasks, dist=DIST,
+        handling_seconds=HANDLING, full_range_mm=5_000_000,
+    )
+    assert result['unassigned'] == ['T-HEAVY']
+    assigned = [code for plan in result['plans'] for code in plan['seq']]
+    assert assigned == ['T-LIGHT']
 
 
 # ══════════════════════════════════════════════════════════════════════════
