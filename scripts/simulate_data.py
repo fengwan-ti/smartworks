@@ -241,7 +241,7 @@ def transport_tasks(path, network, seed=20260303):
     return data
 
 
-def summarize(orders, sensor, network, tasks):
+def summarize(orders, sensor):
     """打印统计，方便直接写进报告。"""
     print()
     print('=' * 58)
@@ -274,17 +274,6 @@ def summarize(orders, sensor, network, tasks):
             print('    振动均值 %-9s %.3f（最小 %.3f 最大 %.3f）'
                   % (state, sum(vs) / len(vs), min(vs), max(vs)))
 
-    print()
-    print('  路网 agv_network.json')
-    print('    节点 %d 个（装卸点 %d、充电位 %d），边 %d 条'
-          % (len(network['nodes']),
-             len(LOAD_POINTS),
-             len(CHARGE_POINTS),
-             len(network['edges'])))
-
-    print()
-    print('  搬运任务 agv_tasks.json')
-    print('    %d 个任务，AGV %d 台' % (len(tasks['tasks']), tasks['agv_count']))
     print('=' * 58)
 
 
@@ -306,14 +295,8 @@ def main():
                            seed=args.seed + 1)
     print('  已生成 equipment_sensor.csv')
 
-    network = road_network(os.path.join(args.out, 'agv_network.json'))
-    print('  已生成 agv_network.json')
-
-    tasks = transport_tasks(os.path.join(args.out, 'agv_tasks.json'),
-                            network, seed=args.seed + 2)
-    print('  已生成 agv_tasks.json')
-
-    summarize(orders, sensor, network, tasks)
+    # 路网与搬运任务不再由本脚本生成：统一使用 D 的 data/road-network-v1.json
+    summarize(orders, sensor)
     print()
     print('  提示：固定种子 ' + str(args.seed) + '，任何人重跑结果完全一致')
     print()

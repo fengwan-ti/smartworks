@@ -6,9 +6,13 @@ from . import views
 
 router = DefaultRouter()
 router.register('users', views.UserViewSet, basename='user')
+router.register('departments', views.DepartmentViewSet, basename='department')
+router.register('positions', views.PositionViewSet, basename='position')
 router.register('roles', views.RoleViewSet, basename='role')
 router.register('menus', views.MenuViewSet, basename='menu')
 router.register('dicts', views.DataDictViewSet, basename='dict')
+router.register('logs', views.OperationLogViewSet, basename='operation-log')
+router.register('notifications', views.NotificationViewSet, basename='notification')
 
 urlpatterns = [
     # 认证

@@ -10,10 +10,13 @@
 用法：
     python manage.py init_demo
 """
+import json
+import os
 from decimal import Decimal
 
+from django.conf import settings
 from django.core.management.base import BaseCommand
-from django.db import transaction
+from django.db import models, transaction
 
 from apps.core.models import Menu, Role, User
 from apps.masterdata.models import (
@@ -47,6 +50,7 @@ class Command(BaseCommand):
         self._workshop_and_stations()
         self._products()
         self._partners()
+        self._demo_accounts()
         self._summary()
 
     # ------------------------------------------------------------------
@@ -128,24 +132,59 @@ class Command(BaseCommand):
             self.stdout.write('  物料   %-10s %-8s %s' % (code, name, '已创建' if created else '已存在'))
 
     def _workshop_and_stations(self):
+        """建工位，装卸点编号必须与 D 的路网 dock 节点、设备台账完全一致。
+
+        [注意] 这里曾经出过一次真实冲突：最初随手填了 N003/N005/N008，与 D 的
+        equipments-v1.json 里 N013~N020 对不上，导致"设备挂在哪个装卸点"
+        两边说法不同。工位装卸点是 A（主数据）与 D（路网/设备）的共用字段，
+        必须与 data/equipments-v1.json 和 data/road-network-v1.json 对齐。
+        """
         ws, created = Workshop.objects.get_or_create(
-            code='WS-MAIN', defaults={'name': '主车间'})
+            code='WS-MAIN', defaults={'name': '机加工车间'})
         self.stdout.write('  车间   %-8s %s' % ('WS-MAIN', '已创建' if created else '已存在'))
 
-        # 工位编号与 D 的路网节点对应（agv_load_point 必须是路网里的节点 code）
+        # 与 data/road-network-v1.json 的 12 个 dock 节点一一对应
         stations = [
-            ('ST-CNC-01', '数控车床 1', 'N003'),
-            ('ST-CNC-02', '数控车床 2', 'N005'),
-            ('ST-MC-01', '加工中心 1', 'N008'),
-            ('ST-GR-01', '磨床', 'N017'),
-            ('ST-QC-01', '检验区', 'N020'),
+            ('ST-RCV-01', '原料收发料口 1', 'N004'),
+            ('ST-RCV-02', '原料收发料口 2', 'N006'),
+            ('ST-CNC-01', '1#数控车床', 'N013'),
+            ('ST-CNC-02', '2#数控车床', 'N014'),
+            ('ST-MC-01', '3#加工中心', 'N015'),
+            ('ST-MC-02', '4#加工中心', 'N016'),
+            ('ST-DR-01', '5#钻床', 'N017'),
+            ('ST-GR-01', '6#磨床', 'N018'),
+            ('ST-CL-01', '7#清洗机', 'N019'),
+            ('ST-DB-01', '8#去毛刺台', 'N020'),
+            ('ST-QC-01', '三坐标/影像仪工位', 'N026'),
+            ('ST-SHP-01', '成品仓发货口', 'N029'),
         ]
         for code, name, point in stations:
-            obj, created = Workstation.objects.get_or_create(
+            obj, created = Workstation.objects.update_or_create(
                 code=code,
                 defaults={'name': name, 'workshop': ws, 'agv_load_point': point})
-            self.stdout.write('  工位   %-10s %-12s 装卸点 %-5s %s'
-                              % (code, name, point, '已创建' if created else '已存在'))
+            self.stdout.write('  工位   %-10s %-18s 装卸点 %-5s %s'
+                              % (code, name, point, '已创建' if created else '已对齐'))
+
+        self._check_nodes_against_network()
+
+    def _check_nodes_against_network(self):
+        """核对工位装卸点是否都存在于 D 的路网里。"""
+        path = os.path.join(settings.PROJECT_ROOT, 'data', 'road-network-v1.json')
+        if not os.path.exists(path):
+            self.stdout.write('  [提示] 找不到 data/road-network-v1.json，跳过装卸点核对')
+            return
+
+        with open(path, encoding='utf-8') as f:
+            net = json.load(f)
+        dock_nodes = {n['code'] for n in net['nodes'] if n.get('type') == 'dock'}
+
+        used = {w.agv_load_point for w in Workstation.objects.all() if w.agv_load_point}
+        missing = sorted(used - dock_nodes)
+        if missing:
+            self.stdout.write(self.style.ERROR(
+                '  [警告] 以下装卸点不在路网 dock 节点里：%s' % ', '.join(missing)))
+        else:
+            self.stdout.write('  装卸点核对：全部 %d 个都在路网 dock 节点内' % len(used))
 
     def _products(self):
         rows = [
@@ -178,6 +217,51 @@ class Command(BaseCommand):
                 code=code, defaults={'name': name})
             self.stdout.write('  供应商 %-8s %-8s %s' % (code, name, '已创建' if created else '已存在'))
 
+    def _demo_accounts(self):
+        """建一个「计划员」对照账号，用于演示权限真的生效。
+
+        计划员拿到：主数据（产品/物料/车间工位）+ 计划管理（员工技能）
+        计划员拿不到：用户管理、角色管理、设备管理、物流管理、仓储管理
+
+        现场演示方式：
+          admin 登录 → 能看到 7 个目录
+          planner 登录 → 只能看到 3 个目录，且直接访问 /system/users 的接口返回 403
+        """
+        from apps.core.models import Menu, Role, User
+
+        planner_role = Role.objects.filter(code='PLANNER').first()
+        if planner_role is None:
+            self.stdout.write('  [提示] 找不到 PLANNER 角色，跳过演示账号')
+            return
+
+        # 把主数据与计划管理的菜单给计划员（按权限码前缀匹配，不靠人工点）
+        # 工作台是公共首页，任何角色都该有，所以单独带上
+        wanted = Menu.objects.filter(is_active=True).filter(
+            models.Q(permission_code__startswith='masterdata:')
+            | models.Q(permission_code__startswith='planning:')
+            | models.Q(code='dashboard')
+        )
+        planner_role.menus.set(wanted)
+        self.stdout.write('  计划员角色已分配 %d 条菜单（主数据 + 计划管理）' % wanted.count())
+
+        user, created = User.objects.get_or_create(
+            username='planner',
+            defaults={
+                'name': '演示计划员',
+                'employee_no': 'DEMO002',
+                'is_staff': False,
+                'is_superuser': False,
+                'is_active': True,
+            },
+        )
+        if created:
+            user.set_password('planner123')
+            user.save()
+            self.stdout.write('  对照账号 planner / planner123 已创建（无用户/角色/设备权限）')
+        else:
+            self.stdout.write('  对照账号 planner 已存在')
+        user.roles.add(planner_role)
+
     def _summary(self):
         self.stdout.write('')
         self.stdout.write('=' * 56)
@@ -189,5 +273,6 @@ class Command(BaseCommand):
                              Product.objects.count(), Workshop.objects.count(),
                              Workstation.objects.count()))
         self.stdout.write('')
-        self.stdout.write('  这个账号是超管，会看到全部菜单与全部接口权限')
+        self.stdout.write('  超管 demo / demo123      → 全部菜单与全部接口权限')
+        self.stdout.write('  对照 planner / planner123 → 只有主数据与计划管理（用于演示权限生效）')
         self.stdout.write('')

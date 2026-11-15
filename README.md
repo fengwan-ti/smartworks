@@ -24,7 +24,7 @@ SmartWorks/
 ├── frontend/         Vue 3 前端
 │   └── src/          api / views / components / charts / layouts / router / store / utils
 ├── docs/             项目文档（接口契约、ER 图、AI 使用记录、非目标清单）
-└── scripts/          0/1/2/3/4 五个双击式 .bat（纯批处理，不用 PowerShell）
+└── scripts/          0/1/2/3/4/5 六个双击式 .bat（纯批处理，不用 PowerShell）
 ```
 
 ## 三、快速开始（Windows · 不用打命令）
@@ -68,6 +68,12 @@ Python 已装（3.13.7），不用再装。
 首次使用会问你要仓库地址，从浏览器仓库页面复制粘贴进去即可。
 
 ### 关闭系统
+
+双击 5-停止系统.bat 会按端口把前后端进程结束掉，比手工找窗口可靠。
+
+再关掉那两个黑窗口即可。
+
+### 关闭系统（旧做法）
 
 第 3 步会弹出**两个黑窗口**，都关掉就等于关闭系统。
 

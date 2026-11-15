@@ -13,11 +13,11 @@
 | process | B | 16 | ⬜ 未开始 | 工序模板、工艺路线、BOM、换型矩阵 |
 | order | B | 10 | ⬜ 未开始 | 销售订单 |
 | planning | A / B | 22 | ⬜ 未开始 | 人员技能（A）与排产（B） |
-| inventory | C / D | 18 | 🟡 开发中 | 表已建 4 张（A 建的骨架），接口未开始 |
+| inventory | C / D | 18 | 🟡 部分上线 | D 的成品仓已上线（入库/发货/库龄/周转）；C 的原料仓未开始 |
 | production | C | 14 | ⬜ 未开始 | 工单执行、报工、追溯 |
 | quality | C | 12 | ⬜ 未开始 | 检验单、视觉检测结果 |
-| equipment | D | 16 | ⬜ 未开始 | 台账、能力、点检、状态、告警、维修 |
-| logistics | D | 20 | ⬜ 未开始 | 路网、AGV、搬运任务、调度、路径 |
+| equipment | D | 16 | ✅ 已上线 | 台账 CRUD、能力矩阵、available 按工序找设备、step-types 字典 |
+| logistics | D | 20 | ✅ 已上线 | 路网导入/矩阵/体检/最短路、节点边 CRUD、AGV 台账、成品仓 |
 | analytics | A | 6 | ⬜ 未开始 | 看板聚合 |
 | algorithms | 共用 | 8 | 🟡 开发中 | 任务 3 算法层已完成，接口待 D 提供壳子 |
 

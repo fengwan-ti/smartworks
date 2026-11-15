@@ -89,7 +89,7 @@ class StockTransaction(models.Model):
 > ⚠️ 必须写在**模型类上**，不能写进 `class Meta`——Django 会拒绝未知的 Meta 属性
 > （报 `'class Meta' got invalid attribute(s)`）。
 
-### 当前已登记的例外（共 6 处）
+### 当前已登记的例外（共 11 处）
 
 | 模型 | 豁免 | 理由 |
 |---|---|---|
@@ -99,6 +99,11 @@ class StockTransaction(models.Model):
 | `core.Notification` | code, name, is_active | 消息流水，标题即名称 |
 | `inventory.Batch` | code, name | `batch_no` 就是业务编码，批次不需要名称 |
 | `inventory.StockTransaction` | code, name, is_active | 追加型流水 |
+| `equipment.EquipmentCapability` | code, name | 设备下挂明细，唯一约束 (equipment, step_type) 已足够 |
+| `logistics.RoadEdge` | code, name | 边无编码名称，(from_node, to_node) 即标识 |
+| `inventory.FinishedInbound` | name, is_active | 单据用 code 标识、状态由 status 承担 |
+| `inventory.Shipment` | name, is_active | 同上 |
+| `inventory.ShipmentItem` | code, name, is_active, created_at | 主表下挂子表 |
 
 ---
 

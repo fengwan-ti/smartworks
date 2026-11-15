@@ -50,15 +50,150 @@
 |---|---|---|
 | 0 | 通用 | 成功 |
 | 10000-10099 | A | 通用参数、分页、序列化校验 |
-| 10100-10199 | A | 认证与登录 |
-| 10200-10299 | A | 权限与数据范围 |
-| 10300-10399 | A | 资源不存在 |
+| 10100-10199 | A | 登录与账号（如账号密码错误 10101） |
+| 10200-10299 | A | 令牌与权限（**10201 未认证、10202 无权限**） |
+| 10300-10399 | A | 资源不存在（**10301**） |
 | 10900 | A | 服务器内部错误 |
 | 11000-11999 | A | 组织、人员、技能、排班、主数据、看板 |
 | 12000-12999 | B | 工艺、BOM、换型、订单、MPS、排产 |
 | 13000-13999 | C | 仓储、批次、生产执行、追溯、质量、视觉 |
 | 14000-14999 | D | 成品仓、设备、状态监测、告警、AGV、路径 |
 | 19000-19999 | 全员 | 算法执行异常（视觉 1910x、AGV 1920x、监测 1930x、预测 1940x） |
+
+---
+
+## 一·五、共享字典与路网口径
+
+> **全组必须用同一套取值。** 这节原来是缺口：`step_type` 在模板、设备能力、
+> 人员技能、排产四处都在用，但契约里查不到定义，B 写中文、D 写下划线，
+> 联调时工序匹配会全部对不上。
+> 来源：`docs/role-d-w1/D契约补丁-20261026.md` §1 §2（D 起草，B 采纳，A 并入契约）。
+
+### 1.5.1 `step_type` 工序类型（11 个取值，冻结）
+
+| step_type | 中文 | 主要设备类型 | 标准工时(h) 参考 |
+|---|---|---|---|
+| `cutting` | 下料 | 锯床 / 剪板 | 0.20 |
+| `rough_turning` | 粗车 | 数控车床 | 0.50 |
+| `finish_turning` | 精车 | 数控车床 | 0.60 |
+| `milling` | 铣削 / 铣面 | 加工中心 | 0.45 |
+| `slot_milling` | 铣槽 | 加工中心 | 0.35 |
+| `gear_milling` | 铣齿 | 滚齿机 / 加工中心 | 1.20 |
+| `drilling` | 钻孔 | 钻床 / 加工中心 | 0.30 |
+| `grinding` | 磨外圆 | 磨床 | 0.70 |
+| `deburring` | 去毛刺 | 去毛刺台 | 0.15 |
+| `cleaning` | 清洗 | 清洗机 | 0.10 |
+| `inspection` | 检验 | 三坐标 / 影像仪 | 0.25 |
+
+**唯一来源（权威定义）**
+
+| 项 | 内容 |
+|---|---|
+| 代码常量 | `apps/equipment/constants.py` 的 `StepType`（D 维护） |
+| 字典接口 | `GET /api/v1/equipment/step-types/`（11 个值，B 可直接取材校对） |
+| 数据字典 | `core_data_dict` 中 `dict_type='step_type'` 的 11 条 |
+
+> **B 的 `process` 应用请 `from apps.equipment.constants import StepType`，不要另定义枚举。**
+> 两处枚举一旦分叉，W3 排产时「B 写粗车、库里是 rough_turning」就查不到设备。
+
+**三条约定**
+
+1. 全小写、下划线分隔、**不复数不缩写**（写 `turning`，不写 `turn`）。
+2. 一个 `step_type` 可以要求**多种**设备类型。设备能力匹配口径是：
+   **设备的 `step_type` 列表包含工序要求的 `step_type` 即可，不要求 1:1。**
+3. 新增一个 `step_type` 不写代码，只加数据字典 + 一条工序模板。
+
+**已知缺口（W1 收尾时确认，W2 处理）**
+
+| step_type | 现状 |
+|---|---|
+| `cutting` | 8 台设备里没有锯床。W1 决定**不补设备**，下料按委外/车间外工序处理，不占设备能力 |
+| `inspection` | 不占加工设备，按 `masterdata.workstation`（N026）处理，不建能力记录 |
+| `gear_milling` | 只有 4# 加工中心（EQ-MC-02）具备。若排产占满，齿轮轴会卡——W3 排产联调注意 |
+
+### 1.5.2 路网与距离矩阵口径
+
+| 项 | 约定 |
+|---|---|
+| 单位 | 毫米（mm），整数 |
+| 原点 | 车间西南角，x 向东、y 向北 |
+| 节点编号 | `N` + 3 位数字（`N001`），按 y 再 x 扫描顺序，**不带业务含义** |
+| 节点类型 | 放 `type` 字段：`lane` 通道 / `dock` 装卸点 / `charger` 充电位 |
+| 边距离 | **沿路长度**，不是两点直线距离 |
+| 重复边 | `(from_node, to_node)` 唯一。反向通行用 `is_bidirectional`，不建两条边 |
+| 矩阵形状 | N×N，行列按 `code` 升序，对角线 0 |
+| **不可达** | **`null`**（不用 `-1`、不用 `999999`） |
+| 矩阵不对称 | 存在单行道时**不对称是正确的**，不是 bug |
+
+**为什么不可达必须是 `null`**：填大数会让 AGV 调度把"到不了"当成"绕得远但能做"，
+排出来的方案到现场执行不了。这个差别在单测里看不出来，要到真跑起来才暴露。
+
+**编号与单位（2026-11-13 补，D 提出）**
+
+- 节点编号 `N001`–`N029`，**三位数字补零**；旧格式 `N01`–`N25` **已作废**（对应文件已删）
+- 坐标与距离单位统一 **毫米**；不可达用 `null`，不用 `-1`、不用 `0`
+- 双向通道**只存一条边** + `is_bidirectional=true`，不建反向边
+
+**距离矩阵唯一实现（三处约束）**
+
+| 层 | 位置 | 谁用 |
+|---|---|---|
+| 算法层（唯一实现） | `apps/algorithms/scheduling/path/graph.py::build_distance_matrix` | 任务 1/2/3 |
+| 数据适配层 | `apps/logistics/services.py::get_distance_matrix` | 接口与联调 |
+| 接口 | `GET /logistics/road-network/distance-matrix/` | 前端 |
+
+> **任何模块要距离，调适配层，不许写第三份实现。**
+
+**设备能力的唯一写入口（A-6 确认，2026-11-13）**
+
+| 项 | 结论 |
+|---|---|
+| 表 | `eq_equipment_capability`，**只有 D 一个应用建、一个应用写** |
+| 写接口 | `GET/POST /equipment/equipments/{id}/capabilities/`、`DELETE .../capabilities/{cid}/` |
+| B 侧 | `/process/equipment-capabilities/` 是**只读视图**，底层同一张表，**不许再建一张** |
+| 理由 | 两张表存同一件事，W4 排产一定对不上 |
+
+> **任何模块要距离，调适配层，不许写第三份实现。**
+> A 的任务 3 继续用算法层的纯函数，D 的接口调适配层，两者底层是同一个函数。
+
+**数据与实现位置**
+
+| 内容 | 位置 |
+|---|---|
+| 路网数据 | `data/road-network-v1.json`（29 节点 / 48 边 / 1 条单行道） |
+| 距离矩阵（对答案用） | `data/road-network-v1-matrix.json` |
+| 车间平面图 | `data/road-network-v1.svg` |
+| 生成脚本 | `scripts/gen_road_network.py`（D） |
+| 矩阵与最短路实现 | `apps/algorithms/scheduling/path/`（A，任务 3） |
+| 一致性测试 | `manage.py test apps.algorithms.scheduling.path`（841 格逐格比对） |
+
+### 1.5.3 设备与工位的对应关系
+
+设备的 `workstation_id` 指向 `masterdata.workstation`，而工位的 `agv_load_point`
+就是路网里的 dock 节点编号。**三者必须串成一条线**：
+
+```
+eq_equipment.workstation_id → md_workstation.code
+md_workstation.agv_load_point → lg_road_node.code（必须是 type=dock）
+```
+
+种子对照（`data/equipments-v1.json` 与 `manage.py init_demo` 已对齐）：
+
+| 设备 | 工位 | 装卸点 |
+|---|---|---|
+| EQ-CNC-01 1#数控车床 | ST-CNC-01 | N013 |
+| EQ-CNC-02 2#数控车床 | ST-CNC-02 | N014 |
+| EQ-MC-01 3#加工中心 | ST-MC-01 | N015 |
+| EQ-MC-02 4#加工中心 | ST-MC-02 | N016 |
+| EQ-DR-01 5#钻床 | ST-DR-01 | N017 |
+| EQ-GR-01 6#磨床 | ST-GR-01 | N018 |
+| EQ-CL-01 7#清洗机 | ST-CL-01 | N019 |
+| EQ-DB-01 8#去毛刺台 | ST-DB-01 | N020 |
+
+> ⚠️ **这是 A（主数据）与 D（路网/设备）的共用字段，改动必须双方确认。**
+> 2026-11-04 曾出现过一次冲突：A 建工位时随手填了 N003/N005/N008，
+> 与 D 设备台账的 N013~N020 对不上。已按 D 的数据修正，
+> 并在 `init_demo` 里加了自动核对（装卸点不在路网 dock 节点内会报警）。
 
 ---
 
@@ -126,17 +261,31 @@
 
 | # | 路径 | 方法 | 说明 | 状态 |
 |---|---|---|---|---|
-| 32 | `/process/templates/` | GET POST | 工序模板库（支持 step_type 筛选） | 未开始 |
-| 33 | `/process/templates/{id}/` | GET PUT PATCH DELETE | 工序模板维护 | 未开始 |
-| 34 | `/process/boms/` | GET POST | BOM 主表（按产品查询，含版本） | 未开始 |
+| 32 | `/process/templates/` | GET POST | 工序模板库（支持 step_type 筛选） | ✅ 已上线（B，11 条种子） |
+| 33 | `/process/templates/{id}/` | GET PUT PATCH DELETE | 工序模板维护 | ✅ 已上线（B） |
+| 34 | `/process/boms/` | GET POST | BOM 主表（按产品查询，含版本） | 🟡 B 开发中 |
 | 35 | `/process/boms/{id}/items/` | GET POST | BOM 明细 | 未开始 |
-| 36 | `/process/routes/` | GET POST | 工艺路线 | 未开始 |
+| 36 | `/process/routes/` | GET POST | 工艺路线 | 🟡 B 开发中 |
 | 37 | `/process/routes/{id}/` | GET PUT PATCH DELETE | 工艺路线维护 | 未开始 |
 | 38 | `/process/routes/{id}/copy/` | POST | **复制路线**（新产品继承同族模板，入参 new_product_id） | 未开始 |
 | 39 | `/process/routes/{id}/steps/` | GET POST | 路线工序（按 seq 排序，可增删调序） | 未开始 |
-| 40 | `/process/changeovers/` | GET POST | 换型时间矩阵 | 未开始 |
-| 41 | `/process/changeovers/import/` | POST | 换型矩阵 Excel 批量导入 | 未开始 |
+| 40 | `/process/changeovers/` | GET POST | 换型时间矩阵 | 🟡 B 开发中 |
+| 41 | `/process/changeovers/import/` | POST | 换型矩阵 Excel 批量导入（依赖 openpyxl） | 🟡 B 开发中 |
 | 42 | `/process/equipment-capabilities/` | GET | **只读**，数据由 D 写入 | 未开始 |
+
+### 2.3.1 Excel 导入导出的约定（B 的工序模板 / 换型矩阵共用）
+
+| 项 | 约定 |
+|---|---|
+| 依赖 | `openpyxl==3.1.5`（已写入 `backend/requirements.txt`） |
+| 实现方式 | Django management command（`import_templates` / `export_templates` / `import_changeovers`），**不另开 HTTP 接口** |
+| 为什么走命令不走接口 | Excel 导入是低频运维动作，做接口要处理文件上传、临时存储、进度反馈，成本远高于收益；命令在服务器上跑一次即可 |
+| 编码 | 导出用 `xlsx`（不是 csv），避免中文与多 sheet 问题 |
+| 校验 | 导入先整表校验，任一行不合法则**整批回滚**，不做"部分成功" |
+| 返回 | 打印"成功 N 条 / 跳过 M 条（已存在）/ 失败 K 条（含行号与原因）" |
+
+> 契约原表里的 `/process/changeovers/import/` 保留为**预留接口**，第一代不实现，
+> 实际导入走 `manage.py import_changeovers --file xxx.xlsx`。
 
 ### 2.4 order（负责人 B）
 

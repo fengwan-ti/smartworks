@@ -1,6 +1,6 @@
 """物流应用的业务逻辑。核心是路网与距离矩阵。
 
-⚠️ **距离矩阵不是 D 写的，是 A 的任务 3 实现**，这里只做「数据库 → 纯函数」的适配：
+[注意] **距离矩阵不是 D 写的，是 A 的任务 3 实现**，这里只做「数据库 → 纯函数」的适配：
    · A：apps/algorithms/scheduling/path/graph.py  build_distance_matrix(nodes, edges)
    · D：本文件把它包一层，节点与边从 lg_road_node / lg_road_edge 读出来
    工作包「保护规则」写着「距离矩阵不写两遍」，A 在他的 graph.py 里也写明了
@@ -132,7 +132,7 @@ def distance_between(from_code, to_code):
 def shortest_path(from_code, to_code):
     """一条最短路径的节点序列。
 
-    ⚠️ 这是**自检与演示**用；正式的路径规划接口是 A 的 /logistics/agv-paths/plan/。
+    [注意] 这是**自检与演示**用；正式的路径规划接口是 A 的 /logistics/agv-paths/plan/。
     D 用它验证「距离矩阵与路径一致」（同一份 graph.py，必然一致，是个便宜的自检）。
     """
     nodes, edges = load_graph()

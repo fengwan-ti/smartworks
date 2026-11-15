@@ -17,6 +17,10 @@ from simple_history.models import HistoricalRecords
 
 
 class FinishedInbound(models.Model):
+    # 规范例外（A 补，2026-11-13）：单据用 code 标识，没有名称；
+    # 单据不做软删除，状态由 status 字段承担（draft/confirmed/cancelled）。
+    schema_exempt = ('name', 'is_active')
+
     """成品入库单。
 
     前置校验（在 services_finished.confirm_finished_inbound 里）：
@@ -85,6 +89,9 @@ class FinishedInbound(models.Model):
 
 
 class Shipment(models.Model):
+    # 规范例外（A 补，2026-11-13）：同入库单，单据无名称、不做软删除。
+    schema_exempt = ('name', 'is_active')
+
     """发货出库单。明细在 in_shipment_item。"""
     STATUS_CHOICES = (
         ('draft', '草稿'),
@@ -130,6 +137,10 @@ class Shipment(models.Model):
 
 
 class ShipmentItem(models.Model):
+    # 规范例外（A 补，2026-11-13）：发货明细是下挂子表，
+    # 没有编码名称、不单独软删除、跟随主表时间。
+    schema_exempt = ('code', 'name', 'is_active', 'created_at')
+
     """发货明细。一张发货单可以发多个批次。"""
     shipment = models.ForeignKey(
         Shipment, on_delete=models.CASCADE,
