@@ -261,6 +261,56 @@ class TransportTaskViewSet(viewsets.ModelViewSet):
         task.refresh_from_db()
         return Response(TransportTaskSerializer(task).data)
 
+    @action(detail=False, methods=['post'], url_path='from-legs')
+    def from_legs(self, request):
+        """POST /api/v1/logistics/transport-tasks/from-legs/
+
+        一次性把一个排产方案里的所有 legs 派生成搬运任务。
+        body 直接可以用 B 的 `GET /planning/schedule-plans/{id}/transport-tasks/`
+        返回的 `legs` 数组，字段名不用改：
+
+            {"plan": "SP20261113-001",
+             "legs": [{"work_order_code": "...", "operation_id": 123, "seq": 20, ...}]}
+
+        **一条坏不影响其它条**：B 的排产里可能有工位没填满的 leg，
+        这里逐条收集错误，返回 failed 明细，而不是整批 500。
+        """
+        legs = request.data.get('legs')
+        if not isinstance(legs, list) or not legs:
+            raise BizError(10001, 'legs 必须是非空数组（B 的 transport-tasks 接口返回的 legs 可直接传）')
+
+        results, created_n, existed_n = [], 0, 0
+        for index, leg in enumerate(legs):
+            if not isinstance(leg, dict):
+                results.append({'index': index, 'ok': False, 'error': 'leg 不是对象'})
+                continue
+            try:
+                task, created = services.derive_from_operation(leg, operator=request.user)
+            except BizError as exc:
+                results.append({
+                    'index': index, 'ok': False,
+                    'seq': leg.get('seq'), 'error': exc.message, 'code': exc.code,
+                })
+                continue
+            created_n += 1 if created else 0
+            existed_n += 0 if created else 1
+            results.append({
+                'index': index, 'ok': True, 'created': created,
+                'task_code': task.code, 'seq': task.ref_seq,
+                'from_node': task.from_node.code, 'to_node': task.to_node.code,
+                'distance_mm': task.distance_mm,
+            })
+
+        failed = [row for row in results if not row['ok']]
+        return Response({
+            'plan': request.data.get('plan') or '',
+            'total': len(legs),
+            'created': created_n,
+            'existed': existed_n,
+            'failed': len(failed),
+            'results': results,
+        })
+
     @action(detail=False, methods=['post'], url_path='cancel-by-work-order')
     def cancel_by_work_order(self, request):
         """POST /api/v1/logistics/transport-tasks/cancel-by-work-order/

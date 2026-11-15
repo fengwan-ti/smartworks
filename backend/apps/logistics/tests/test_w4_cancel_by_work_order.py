@@ -158,6 +158,48 @@ def test_workstation_fields_accepted_by_api(client, network, db):
     assert resp.data['task']['to_node_code'] == 'N004'
 
 
+def test_from_legs_batch_derives_whole_plan(client, network, db):
+    """B 的 legs 数组可以整段丢进来，一条坏不影响其它条。"""
+    from apps.masterdata.models import Workstation
+
+    Workstation.objects.create(code='ST-CNC-01', name='1#数控车床', agv_load_point='N003')
+    Workstation.objects.create(code='ST-MC-01', name='3#加工中心', agv_load_point='N004')
+
+    resp = client.post('/api/v1/logistics/transport-tasks/from-legs/', {
+        'plan': 'SP-TEST-001',
+        'legs': [
+            {'work_order_code': 'WO-600', 'seq': 20, 'operation_id': 9101,
+             'from_workstation': 'ST-CNC-01', 'to_workstation': 'ST-MC-01', 'priority': 1},
+            # 工位不存在的一条：必须单独失败，不能把上面那条带走
+            {'work_order_code': 'WO-600', 'seq': 30, 'operation_id': 9102,
+             'from_workstation': 'ST-NOT-EXIST', 'to_workstation': 'ST-MC-01'},
+        ],
+    }, format='json')
+
+    assert resp.status_code == 200
+    assert resp.data['total'] == 2
+    assert resp.data['created'] == 1
+    assert resp.data['failed'] == 1
+    assert resp.data['results'][0]['ok'] is True
+    assert resp.data['results'][1]['ok'] is False
+    assert TransportTask.objects.filter(ref_doc='WO-600').count() == 1
+
+    # 整段再打一次：全部命中已有任务，不新建
+    again = client.post('/api/v1/logistics/transport-tasks/from-legs/', {
+        'plan': 'SP-TEST-001',
+        'legs': [{'work_order_code': 'WO-600', 'seq': 20, 'operation_id': 9101,
+                  'from_workstation': 'ST-CNC-01', 'to_workstation': 'ST-MC-01'}],
+    }, format='json')
+    assert again.data['created'] == 0
+    assert again.data['existed'] == 1
+
+
+def test_from_legs_requires_array(client, network):
+    resp = client.post('/api/v1/logistics/transport-tasks/from-legs/',
+                       {'legs': []}, format='json')
+    assert resp.status_code == 400 or resp.data.get('code') == 10001
+
+
 # ── 按工单批量撤销 ─────────────────────────────────────────────────────────
 
 def test_cancel_by_work_order_only_touches_not_started(network):
