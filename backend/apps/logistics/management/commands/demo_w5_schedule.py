@@ -15,9 +15,11 @@ from decimal import Decimal
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from apps.equipment.constants import RoadNodeType, TransportSourceType
+from apps.equipment.constants import (
+    AgvStatus, RoadNodeType, TransportSourceType, TransportTaskStatus,
+)
 from apps.logistics import services
-from apps.logistics.models import RoadNode, TransportTask
+from apps.logistics.models import Agv, RoadNode, TransportTask
 
 # 演示用的取送对：原料收发料口 → 各工位装卸点（就是真实的领料方向）
 DEMO_PAIRS = [
@@ -34,14 +36,43 @@ class Command(BaseCommand):
         parser.add_argument('--tasks', type=int, default=6, help='造几条任务，默认 6')
         parser.add_argument('--apply', action='store_true', help='算完直接派车')
         parser.add_argument('--reset', action='store_true',
-                            help='先删掉 demo 造的任务（只删 ref_type=manual 且待派车的）')
+                            help='先清场：删掉 demo 造的手工任务（任何状态）并释放卡住的车')
+
+    def _reset(self):
+        """清场：删掉本命令造的手工任务，并把卡在「运行中」的车放回空闲。
+
+        为什么不能只删「待派车」的：
+            演示跑一遍（或点过页面上的「派车→开始」）之后，任务会变成
+            已派车 / 执行中 / 已完成，车也跟着变成 running。
+            这些任务不清，车就一直占着 —— 再跑本命令直接报 14506
+            「没有可参与调度的 AGV」，看着像命令坏了，其实是脏数据。
+        只动 ref_type=manual 的：B 的工单转序、C 的领料派生出来的任务不能删。
+        """
+        qs = TransportTask.objects.filter(ref_type=TransportSourceType.MANUAL)
+        total = qs.count()
+        by_status = {}
+        for row in qs.values('status'):
+            by_status[row['status']] = by_status.get(row['status'], 0) + 1
+        qs.delete()
+        detail = '、'.join(f'{k} {v}' for k, v in sorted(by_status.items())) or '无'
+        self.stdout.write(f'清掉 {total} 条手工任务（{detail}）')
+
+        # 车还挂在已删任务上的话，把状态放回空闲；电量不动（那是另一回事）
+        released = []
+        for agv in Agv.objects.filter(status=AgvStatus.RUNNING):
+            busy = agv.tasks.filter(
+                status__in=[TransportTaskStatus.ASSIGNED, TransportTaskStatus.RUNNING],
+            ).exists()
+            if not busy:
+                agv.status = AgvStatus.IDLE
+                agv.save(update_fields=['status', 'updated_at'])
+                released.append(agv.code)
+        if released:
+            self.stdout.write(f'释放卡住的车：{"、".join(released)}（运行中 → 空闲）')
 
     def handle(self, *args, **options):
         if options['reset']:
-            deleted, _ = TransportTask.objects.filter(
-                ref_type=TransportSourceType.MANUAL, status='pending',
-            ).delete()
-            self.stdout.write(f'清掉 {deleted} 条待派车的手工任务')
+            self._reset()
 
         count = int(options['tasks'])
         created = 0
