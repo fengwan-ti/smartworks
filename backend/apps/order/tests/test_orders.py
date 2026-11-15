@@ -7,6 +7,7 @@ from rest_framework.test import APITestCase
 from apps.core.models import User
 from apps.masterdata.models import Customer, Material, Product, ProductFamily
 from apps.order.models import Mps, MpsDetail
+from apps.order.services import get_available_qty
 from apps.process.models import Bom, BomItem, BomStatus
 
 ORDERS = '/api/v1/order/sales-orders/'
@@ -111,3 +112,19 @@ class MpsApiTests(OrderFixture):
         resp = self.client.post(f'{MPS}{mps.id}/check-kit/')
         self.assertEqual(resp.status_code, 400)
         self.assertEqual(resp.data['code'], 12019)
+
+
+class InventoryAvailabilityTests(OrderFixture):
+    def test_available_qty_from_inventory_service(self):
+        # C 的库存台账没有流水时返回 0；有异常也不应让齐套 500
+        self.assertEqual(get_available_qty(self.material), Decimal('0'))
+
+    def test_kit_source_is_inventory(self):
+        bom = Bom.objects.create(code='BM-TEST-V1', product=self.product,
+                                 version=1, status=BomStatus.ACTIVE)
+        BomItem.objects.create(bom=bom, material=self.material, qty_per=Decimal('1'))
+        mps = Mps.objects.create(code='MPS-TEST-01', period='2026-11-16')
+        MpsDetail.objects.create(mps=mps, product=self.product, qty=Decimal('2'))
+        resp = self.client.post(f'{MPS}{mps.id}/check-kit/')
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertIn('inventory', resp.data['availability_source'])

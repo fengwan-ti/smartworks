@@ -17,6 +17,7 @@ from apps.order.models import Mps
 from apps.process.models import ChangeoverMatrix, ProcessRoute, RouteStatus
 
 from .models import (
+    EmployeeSkill,
     OperationStatus,
     SchedulePlan,
     SchedulePlanDetail,
@@ -86,13 +87,20 @@ def _changeover_minutes(from_product, to_product):
 
 
 @transaction.atomic
-def run_schedule(mps_id, start_at=None, name=None, frozen_until=None):
+def run_schedule(mps_id, start_at=None, name=None, frozen_until=None,
+                 changeover_scale=1.0):
     try:
         mps = Mps.objects.prefetch_related('items__product').get(pk=mps_id)
     except Mps.DoesNotExist as exc:
         raise BizError(12018, 'MPS 不存在') from exc
     if not mps.items.exists():
         raise BizError(12018, 'MPS 至少需要一条明细才能排产')
+    try:
+        changeover_scale = float(changeover_scale)
+    except (TypeError, ValueError):
+        raise BizError(12004, 'changeover_scale 必须是数字') from None
+    if not 0 < changeover_scale <= 5:
+        raise BizError(12004, 'changeover_scale 必须在 (0, 5] 之间')
 
     if isinstance(start_at, str):
         from django.utils.dateparse import parse_datetime
@@ -181,7 +189,8 @@ def run_schedule(mps_id, start_at=None, name=None, frozen_until=None):
                     best = min(pool, key=lambda c: equipment_available.get(c.equipment_id, start_at))
                     eq = best.equipment
                     ready = equipment_available.get(eq.id, start_at)
-                    co = _changeover_minutes(last_product.get(eq.id), item.product)
+                    co = int(round(_changeover_minutes(
+                        last_product.get(eq.id), item.product) * changeover_scale))
                     if co:
                         changeover_count += 1
                         ready = ready + timedelta(minutes=co)
@@ -253,6 +262,7 @@ def plan_gantt(plan):
             'equipment': d.equipment.code if d.equipment else '',
             'workstation_code': ws.code if ws else '',
             'agv_load_point': ws.agv_load_point if ws else '',
+            'operator': op.operator or '',
             'start': d.plan_start.isoformat(),
             'end': d.plan_end.isoformat(),
             'changeover_minutes': d.changeover_minutes,
@@ -324,3 +334,166 @@ def plan_transport_tasks(plan):
                 'plan_end': cur.plan_end.isoformat() if cur.plan_end else None,
             })
     return {'plan': plan.code, 'legs': legs, 'warnings': warnings}
+
+
+# ==================== C 的 production 回调（报工 → 工序/工单状态） ====================
+def qualified_users_for(step_type):
+    """按工序类型找合格人员（A 的 EmployeeSkill）。"""
+    return EmployeeSkill.objects.select_related('user').filter(
+        step_type=step_type, is_active=True, user__is_active=True).order_by(
+        '-level', 'user_id')
+
+
+def _assert_has_skill(user, step_type):
+    skill = EmployeeSkill.objects.filter(
+        user=user, step_type=step_type, is_active=True).first()
+    if not skill:
+        raise BizError(12025, f'{user.display_name} 没有「{step_type}」工序的合格技能，不能派工')
+    return skill
+
+
+def assign_operation(work_order_id, seq, user_id):
+    """把一道工单工序派给指定操作工（校验技能）。"""
+    from apps.core.models import User
+
+    wo, op = _get_operation(work_order_id, seq)
+    if op.status == OperationStatus.COMPLETED:
+        raise BizError(12017, f'工序 {seq} 已完工，不能再派工')
+    try:
+        target = User.objects.get(pk=user_id, is_active=True)
+    except User.DoesNotExist as exc:
+        raise BizError(12025, f'操作工不存在或已停用：{user_id}') from exc
+    _assert_has_skill(target, op.step_type)
+    op.operator_user = target
+    op.operator = target.display_name
+    if op.status == OperationStatus.PENDING:
+        op.status = OperationStatus.DISPATCHED
+    op.save(update_fields=['operator_user', 'operator', 'status'])
+    return op
+
+
+def auto_assign_operations(work_order_id):
+    """整张工单自动派工：每道工序按技能找合格人员，优先派给当前任务最少的人。"""
+    from django.db.models import Count
+
+    from apps.core.models import User
+
+    try:
+        wo = WorkOrder.objects.get(pk=work_order_id)
+    except WorkOrder.DoesNotExist as exc:
+        raise BizError(12018, f'工单不存在：{work_order_id}') from exc
+
+    ops = list(wo.operations.exclude(status=OperationStatus.COMPLETED).order_by('seq'))
+    if not ops:
+        raise BizError(12017, '工单没有可派工的工序')
+    load = dict(User.objects.filter(is_active=True).annotate(
+        load=Count('assigned_pl_operations')).values_list('id', 'load'))
+    assigned, skipped = [], []
+    for op in ops:
+        candidates = list(qualified_users_for(op.step_type))
+        if not candidates:
+            skipped.append({'seq': op.seq, 'step_type': op.step_type,
+                            'reason': '没有合格操作工'})
+            continue
+        candidates.sort(key=lambda s: (load.get(s.user_id, 0), -_level_order(s.level), s.user_id))
+        chosen = candidates[0]
+        op.operator_user = chosen.user
+        op.operator = chosen.user.display_name
+        if op.status == OperationStatus.PENDING:
+            op.status = OperationStatus.DISPATCHED
+        op.save(update_fields=['operator_user', 'operator', 'status'])
+        load[chosen.user_id] = load.get(chosen.user_id, 0) + 1
+        assigned.append({'seq': op.seq, 'step_type': op.step_type,
+                         'operator_user_id': chosen.user_id,
+                         'operator': chosen.user.display_name,
+                         'level': chosen.level})
+    return {'work_order_id': wo.id, 'work_order_code': wo.code,
+            'assigned': assigned, 'skipped': skipped}
+
+
+def _level_order(level):
+    from .models import LEVEL_ORDER
+    return LEVEL_ORDER.get(level, 0)
+
+
+def dispatch_candidates(work_order_id):
+    """每道工序的候选操作工（派工弹窗用）。"""
+    try:
+        wo = WorkOrder.objects.get(pk=work_order_id)
+    except WorkOrder.DoesNotExist as exc:
+        raise BizError(12018, f'工单不存在：{work_order_id}') from exc
+    rows = []
+    for op in wo.operations.select_related('equipment', 'operator_user').order_by('seq'):
+        rows.append({
+            'seq': op.seq, 'step_type': op.step_type,
+            'equipment': op.equipment.code if op.equipment else '',
+            'status': op.status,
+            'operator_user_id': op.operator_user_id,
+            'operator': op.operator,
+            'candidates': [
+                {'user_id': s.user_id, 'username': s.user.username,
+                 'name': s.user.display_name, 'level': s.level,
+                 'is_certified': s.is_certified}
+                for s in qualified_users_for(op.step_type)
+            ],
+        })
+    return {'work_order_id': wo.id, 'work_order_code': wo.code, 'operations': rows}
+
+
+def _get_operation(work_order_id, seq):
+    try:
+        wo = WorkOrder.objects.get(pk=work_order_id)
+    except WorkOrder.DoesNotExist as exc:
+        raise BizError(12018, f'工单不存在：{work_order_id}') from exc
+    try:
+        op = wo.operations.get(seq=int(seq))
+    except WorkOrderOperation.DoesNotExist as exc:
+        raise BizError(12004, f'工单 {wo.code} 没有序号 {seq} 的工序') from exc
+    return wo, op
+
+
+def operation_start(work_order_id, seq, user=None):
+    """工序开工（C 的 production 报工入口调用）。"""
+    wo, op = _get_operation(work_order_id, seq)
+    if op.status == OperationStatus.COMPLETED:
+        raise BizError(12017, f'工序 {seq} 已完工，不能重复开工')
+    op.status = OperationStatus.IN_PRODUCTION
+    op.save(update_fields=['status'])
+    if wo.status in (WorkOrderStatus.DRAFT, WorkOrderStatus.PLANNED,
+                     WorkOrderStatus.RELEASED):
+        wo.status = WorkOrderStatus.IN_PRODUCTION
+        wo.save(update_fields=['status', 'updated_at'])
+    return {'work_order_id': wo.id, 'seq': op.seq, 'operation_status': op.status,
+            'work_order_status': wo.status}
+
+
+def operation_complete(work_order_id, seq, user=None):
+    """工序完工（C 的 production 报工入口调用）；全部工序完工 → 工单完工。"""
+    wo, op = _get_operation(work_order_id, seq)
+    if op.status == OperationStatus.COMPLETED:
+        raise BizError(12017, f'工序 {seq} 已完工，不能重复提交')
+    op.status = OperationStatus.COMPLETED
+    op.save(update_fields=['status'])
+    pending = wo.operations.exclude(status=OperationStatus.COMPLETED).exists()
+    if pending:
+        wo.status = WorkOrderStatus.IN_PRODUCTION
+        wo.save(update_fields=['status', 'updated_at'])
+    else:
+        wo.status = WorkOrderStatus.COMPLETED
+        wo.save(update_fields=['status', 'updated_at'])
+        _notify_d_work_order_closed(wo, '工序全部完工')
+    return {'work_order_id': wo.id, 'seq': op.seq, 'operation_status': op.status,
+            'work_order_status': wo.status}
+
+
+def _notify_d_work_order_closed(work_order, reason):
+    """工序全部完工时通知 D 取消未开始的搬运任务（best-effort，跨应用直调 D 的 service）。"""
+    try:
+        from apps.logistics import services as logistics_services
+    except ImportError:
+        return False
+    try:
+        logistics_services.cancel_tasks_by_work_order(work_order.code, reason=reason)
+        return True
+    except Exception:  # noqa: BLE001 - 物流不可用时不能把报工拖失败
+        return False

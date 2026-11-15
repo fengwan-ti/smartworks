@@ -9,7 +9,7 @@ from apps.core.models import User
 from apps.equipment.models import Equipment, EquipmentCapability
 from apps.masterdata.models import Material, Product, ProductFamily, Workstation
 from apps.order.models import Mps, MpsDetail
-from apps.planning.models import SchedulePlan, WorkOrder
+from apps.planning.models import EmployeeSkill, SchedulePlan, WorkOrder
 from apps.process.models import ProcessRoute, RouteStatus, RouteStep
 
 RUN = '/api/v1/planning/schedule-plans/run/'
@@ -124,3 +124,62 @@ class TransportAndCloseTests(ScheduleFixture):
         self.assertEqual(resp.status_code, 200, resp.data)
         self.assertEqual(resp.data['status'], 'completed')
         self.assertFalse(resp.data['transport_cancel_notified'])
+
+
+class ProductionCallbackTests(ScheduleFixture):
+    def test_operation_start_and_complete(self):
+        resp = self.client.post(RUN, {'mps_id': self.mps.id}, format='json')
+        self.assertEqual(resp.status_code, 201)
+        wo = WorkOrder.objects.get(mps=self.mps)
+
+        start = self.client.post(
+            f'/api/v1/production/work-orders/{wo.id}/operations/10/start/')
+        self.assertEqual(start.status_code, 200, start.data)
+        wo.refresh_from_db()
+        self.assertEqual(wo.status, 'in_production')
+        self.assertEqual(wo.operations.get(seq=10).status, 'in_production')
+
+        done1 = self.client.post(
+            f'/api/v1/production/work-orders/{wo.id}/operations/10/complete/')
+        self.assertEqual(done1.status_code, 200, done1.data)
+        done2 = self.client.post(
+            f'/api/v1/production/work-orders/{wo.id}/operations/20/complete/')
+        self.assertEqual(done2.status_code, 200, done2.data)
+        wo.refresh_from_db()
+        self.assertEqual(wo.status, 'completed')
+
+
+class DispatchTests(ScheduleFixture):
+    def setUp(self):
+        super().setUp()
+        self.op1 = User.objects.create_user(username='op1', password='test123456')
+        self.op1.name = '张师傅'
+        self.op1.save(update_fields=['name'])
+        self.op2 = User.objects.create_user(username='op2', password='test123456')
+        EmployeeSkill.objects.create(user=self.op1, step_type='rough_turning',
+                                     level='senior', is_certified=True)
+        self.client.post(RUN, {'mps_id': self.mps.id}, format='json')
+        self.wo = WorkOrder.objects.get(mps=self.mps)
+
+    def test_auto_assign(self):
+        resp = self.client.post(f'{WOS}{self.wo.id}/auto-assign/')
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertEqual(len(resp.data['assigned']), 1)
+        self.assertEqual(resp.data['assigned'][0]['seq'], 20)
+        self.assertEqual(len(resp.data['skipped']), 1)  # cutting 没有操作工技能
+        self.wo.operations.get(seq=20)
+        self.assertEqual(self.wo.operations.get(seq=20).operator_user_id, self.op1.id)
+
+    def test_assign_unqualified_12025(self):
+        resp = self.client.post(
+            f'{WOS}{self.wo.id}/operations/20/assign/',
+            {'user_id': self.op2.id}, format='json')
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(resp.data['code'], 12025)
+
+    def test_dispatch_candidates(self):
+        resp = self.client.get(f'{WOS}{self.wo.id}/dispatch/')
+        self.assertEqual(resp.status_code, 200, resp.data)
+        rough = [r for r in resp.data['operations'] if r['seq'] == 20][0]
+        self.assertEqual(len(rough['candidates']), 1)
+        self.assertEqual(rough['candidates'][0]['username'], 'op1')

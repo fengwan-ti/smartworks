@@ -228,6 +228,15 @@
 - **验证方式**：全仓库 pytest 235 条全过（含 A/C/D 的测试）；ruff B 范围通过；真实请求：legs 16/warnings 0、from-legs created=16、重复调用 existed=16、工单完工后 cancelled=4；前端 build 通过
 - **结论**：采用（B 的 W3 排产与 D 的 W3-W5 物流已端到端打通；等 D 演示 AGV 派车、C 的库存/报工联调）
 
+### 记录 017
+- **日期 / 使用人**：2026-11-15 / 成员 B
+- **角色与模块**：B / planning + order —— 报工回调、齐套真实库存、派工、W6 换型敏感性分析
+- **提示词**：见附录 P-017（"ok啊你按顺序都做了"）
+- **AI 产出**：①实现 `planning.services.operation_start/operation_complete`（C 的 production 报工入口会调）；全部工序完工时工单 completed 并通知 D 撤销搬运；②`order.get_available_qty` 改调 C 的 `inventory.material_available`（I-09），齐套 source 改为 inventory；③派工：工序加 `operator_user` FK、`assign/auto-assign/dispatch` 三个接口、`seed_demo_skills` 命令（3 操作工 × 11 技能）、前端甘特页工单表加“操作工 + 自动派工”；④`run_schedule` 加 `changeover_scale` 参数 + `changeover_sensitivity` 命令，跑 0.5/1/1.5 倍实验并写结论
+- **人工修改**：①C 的 production 契约里已经写死要调 B 的 `operation_start/complete`，按它的入参补齐，不另造接口；②齐套可用量直接调 C 的 service，不复制库存 SQL；③派工不把 `operator` 文本改成 FK 破坏旧数据，而是新增 `operator_user` 并保留姓名快照；④自动派工按“已分配任务最少 + 技能等级”选人，避免全压给高级工；⑤换型敏感性实验全部事务回滚，不污染演示库；⑥A 的 init_demo 没种技能，B 临时加 planning 命令种演示操作工，文档标注等 A 收编
+- **验证方式**：全仓库 pytest 全过（B 新增 7 条）；ruff 通过；实测：齐套 source=inventory、WO202611-0002 自动派工 5 道全成功（张/李/王）、C 的 production 开工/完工接口 200；换型敏感性 0.5x/1x/1.5x makespan 170.5/171.0/171.5h（±0.3%）
+- **结论**：采用（B 与 C 的报工链闭环、齐套去掉 mock、派工完成；W6 敏感性结论：换型不是瓶颈，磨削/滚齿才是）
+
 ---
 
 ## 附录：长提示词原文
@@ -387,3 +396,8 @@ SmartWorks 课程项目，我负责 D（设备与物流调度）。仓库 E:\sma
 
 > D回了。
 >（要求：按 D 给的命令拉取并合并 main/dw3，解决迁移与应用同名冲突；执行设备/工位/路网/AGV 种子；用真实数据重跑排产、验证 legs 无 warning、批量派生搬运任务、验证工单完工撤销；把结果和集成缺口写进文档；前端补一个可演示的入口。）
+
+### P-017（B / 回调+齐套+派工+敏感性，2026-11-15）
+
+> ok啊你按顺序都做了。
+>（要求：按推荐顺序做——先补 C 的 production 回调、齐套接真实库存；再做派工（A 的员工技能）；最后做 W6 换型敏感性分析。每步都要有测试与真实请求验证，最后统一文档与提交。）

@@ -51,8 +51,18 @@
               <el-table-column prop="qty" label="数量" width="90" align="right" />
               <el-table-column prop="due_date" label="交期" width="110" />
               <el-table-column prop="status" label="状态" width="90" />
+              <el-table-column label="操作工" min-width="120">
+                <template #default="{ row }">
+                  {{ (row.operations || []).map((o) => o.operator || '—').join(' / ') }}
+                </template>
+              </el-table-column>
               <el-table-column label="计划" min-width="180">
                 <template #default="{ row }">{{ fmt(row.plan_start) }} → {{ fmt(row.plan_end) }}</template>
+              </el-table-column>
+              <el-table-column label="派工" width="100" fixed="right">
+                <template #default="{ row }">
+                  <el-button link type="primary" @click="doAutoAssign(row)">自动派工</el-button>
+                </template>
               </el-table-column>
             </el-table>
           </div>
@@ -78,8 +88,8 @@ import * as echarts from 'echarts'
 import { ElMessage } from 'element-plus'
 import { fetchMpsList } from '@/api/order'
 import {
-  confirmPlan, deriveTransportTasks, fetchEquipments, fetchPlanGantt,
-  fetchPlans, fetchTransportLegs, fetchWorkOrders, runSchedule,
+  autoAssignWorkOrder, confirmPlan, deriveTransportTasks, fetchEquipments,
+  fetchPlanGantt, fetchPlans, fetchTransportLegs, fetchWorkOrders, runSchedule,
 } from '@/api/planning'
 
 const COLORS = {
@@ -195,6 +205,15 @@ function renderChart() {
       data,
     }],
   })
+}
+
+async function doAutoAssign(row) {
+  const data = await autoAssignWorkOrder(row.id)
+  ElMessage.success(`派工：成功 ${data.assigned.length} 道，跳过 ${data.skipped.length} 道`)
+  if (data.skipped.length) {
+    ElMessage.warning(data.skipped.map((s) => `工序${s.seq} ${s.reason}`).join('；'))
+  }
+  await showPlan(plan.value)
 }
 
 async function deriveTransport() {

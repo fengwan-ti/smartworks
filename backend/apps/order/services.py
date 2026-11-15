@@ -146,12 +146,22 @@ def mps_from_orders(period, order_ids=None):
 
 
 def get_available_qty(material):
-    """物料可用量（I-09，C 的库存接口）。
+    """物料可用量（C 的 I-09 库存台账，positive=入库、negative=领料）。
 
-    当前 C 的库存模块未上线，按 0 计算并在响应里标 source='mock'。
-    接口上线后只改这一个函数，调用方不动。
+    直接调用 C 的 inventory.services.material_available()，不复制库存逻辑；
+    C 的模块未就绪时退回 0，并在 check_kit 的 availability_source 里说明。
     """
-    return Decimal('0')
+    try:
+        from apps.inventory import services as inv_services
+    except ImportError:
+        return Decimal('0')
+    try:
+        rows = inv_services.material_available({'material': material.id})
+    except Exception:  # noqa: BLE001 - 库存表未迁移等环境问题不应让齐套 500
+        return Decimal('0')
+    if not rows:
+        return Decimal('0')
+    return Decimal(str(rows[0]['available_qty'] or 0))
 
 
 def check_kit(mps):
@@ -180,7 +190,7 @@ def check_kit(mps):
     ready = all(s <= 0 for _, _, _, s in results)
     return {
         'ready': ready,
-        'availability_source': 'mock（C 的库存接口未上线，按 0 计算）',
+        'availability_source': 'inventory（C 的 I-09 库存台账流水）',
         'items': [
             {'material_id': m.id, 'material_code': m.code, 'material_name': m.name,
              'required_qty': str(n), 'available_qty': str(a), 'shortage_qty': str(s)}

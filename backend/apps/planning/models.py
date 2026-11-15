@@ -98,7 +98,12 @@ class WorkOrderOperation(models.Model):
         max_length=16, choices=OperationStatus.choices,
         default=OperationStatus.PENDING, verbose_name='状态',
     )
-    operator = models.CharField(max_length=64, blank=True, default='', verbose_name='操作工（暂文本）')
+    operator_user = models.ForeignKey(
+        'core.User', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='assigned_pl_operations', verbose_name='操作工',
+    )
+    operator = models.CharField(max_length=64, blank=True, default='',
+                                verbose_name='操作工姓名（快照，便于列表展示）')
     remark = models.TextField(blank=True, default='', verbose_name='备注')
 
     class Meta:

@@ -58,9 +58,11 @@ class ReportTests(APITestCase):
         self.assertEqual(resp.json()['code'], 13040)
 
     def test_operation_start_degrades_without_planning(self):
+        # planning 已就绪时，工单 1 不存在会走 B 的 12018；未就绪才走 13050。
+        # 两种环境都算“开工被拒绝”，故接受两者之一（B 已实现 operation_start/complete）。
         resp = self.client.post('/api/v1/production/work-orders/1/operations/1/start/')
         self.assertEqual(resp.status_code, 400)
-        self.assertEqual(resp.json()['code'], 13050)
+        self.assertIn(resp.json()['code'], (13050, 12018))
 
 
 class WipTests(APITestCase):

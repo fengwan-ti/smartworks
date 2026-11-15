@@ -4,7 +4,8 @@ from rest_framework import serializers
 from apps.equipment.constants import StepType
 
 from .models import (
-    EmployeeSkill, Level,
+    EmployeeSkill,
+    Level,
     SchedulePlan,
     SchedulePlanDetail,
     WorkOrder,
@@ -16,13 +17,18 @@ class WorkOrderOperationSerializer(serializers.ModelSerializer):
     template_name = serializers.CharField(source='template.name', read_only=True, default='')
     equipment_code = serializers.CharField(source='equipment.code', read_only=True, default='')
     equipment_name = serializers.CharField(source='equipment.name', read_only=True, default='')
+    operator_user_name = serializers.CharField(source='operator_user.display_name',
+                                               read_only=True, default='')
+    operator_user_username = serializers.CharField(source='operator_user.username',
+                                                   read_only=True, default='')
 
     class Meta:
         model = WorkOrderOperation
         fields = ('id', 'seq', 'template', 'template_name', 'step_type',
                   'equipment', 'equipment_code', 'equipment_name',
                   'is_equipment_free', 'duration_minutes', 'plan_start', 'plan_end',
-                  'status', 'operator', 'remark')
+                  'status', 'operator', 'operator_user', 'operator_user_name',
+                  'operator_user_username', 'remark')
         read_only_fields = fields
 
 

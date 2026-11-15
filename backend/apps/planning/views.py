@@ -15,12 +15,17 @@ from apps.equipment.constants import StepType
 from . import services
 from .filters import SchedulePlanFilter, WorkOrderFilter
 from .models import (
-    LEVEL_ORDER, EmployeeSkill, Level, SchedulePlan, WorkOrder, WorkOrderStatus,
+    LEVEL_ORDER,
+    EmployeeSkill,
+    Level,
+    SchedulePlan,
+    WorkOrder,
+    WorkOrderStatus,
 )
 from .serializers import (
     EmployeeSkillSerializer,
     SchedulePlanSerializer,
-    StepTypeOptionSerializer,
+    WorkOrderOperationSerializer,
     WorkOrderSerializer,
 )
 
@@ -89,6 +94,25 @@ class WorkOrderViewSet(viewsets.ModelViewSet):
     def cancel(self, request, pk=None):
         return self._close_work_order(request, WorkOrderStatus.CANCELLED)
 
+    @action(detail=True, methods=['get'], url_path='dispatch')
+    def dispatch_candidates(self, request, pk=None):
+        """派工候选：每道工序的合格操作工（A 的员工技能）。"""
+        return Response(services.dispatch_candidates(self.get_object().id))
+
+    @action(detail=True, methods=['post'], url_path='auto-assign')
+    def auto_assign(self, request, pk=None):
+        """整张工单自动派工。"""
+        return Response(services.auto_assign_operations(self.get_object().id))
+
+    @action(detail=True, methods=['post'],
+            url_path=r'operations/(?P<seq>[^/.]+)/assign')
+    def assign_operation(self, request, pk=None, seq=None):
+        user_id = request.data.get('user_id')
+        if not user_id:
+            raise BizError(12004, '请提供 user_id')
+        op = services.assign_operation(self.get_object().id, seq, user_id)
+        return Response(WorkOrderOperationSerializer(op).data)
+
     def _close_work_order(self, request, target):
         wo = self.get_object()
         if wo.status not in (WorkOrderStatus.PLANNED, WorkOrderStatus.RELEASED,
@@ -119,7 +143,8 @@ class SchedulePlanViewSet(viewsets.ModelViewSet):
         start_at = request.data.get('start_at')
         plan = services.run_schedule(
             mps_id, start_at=start_at, name=request.data.get('name'),
-            frozen_until=request.data.get('frozen_until'))
+            frozen_until=request.data.get('frozen_until'),
+            changeover_scale=request.data.get('changeover_scale', 1.0))
         return Response(SchedulePlanSerializer(plan).data, status=201)
 
     @action(detail=True, methods=['get'])

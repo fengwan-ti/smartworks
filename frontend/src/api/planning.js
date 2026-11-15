@@ -53,3 +53,14 @@ export function fetchTransportLegs(planId) {
 export function deriveTransportTasks(data) {
   return request.post('/logistics/transport-tasks/from-legs/', data)
 }
+
+// 派工（A 的员工技能）
+export function fetchDispatchCandidates(workOrderId) {
+  return request.get(`/planning/work-orders/${workOrderId}/dispatch/`)
+}
+export function autoAssignWorkOrder(workOrderId) {
+  return request.post(`/planning/work-orders/${workOrderId}/auto-assign/`)
+}
+export function assignOperation(workOrderId, seq, userId) {
+  return request.post(`/planning/work-orders/${workOrderId}/operations/${seq}/assign/`, { user_id: userId })
+}
