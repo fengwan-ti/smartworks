@@ -42,6 +42,49 @@
           </div>
         </div>
 
+        <el-row :gutter="16" class="mini-row">
+          <el-col :span="8">
+            <el-card shadow="never" class="mini-card">
+              <div class="card-sub-title">延迟工单</div>
+              <template v-if="data.delayed_work_orders.length">
+                <div v-for="w in data.delayed_work_orders.slice(0, 5)" :key="w.code" class="mini-line">
+                  <el-tag size="small" type="danger">延迟</el-tag>
+                  <span>{{ w.code }} · {{ w.product_code }}</span>
+                  <span class="mini-sub">交期 {{ w.due_date }}</span>
+                </div>
+              </template>
+              <el-empty v-else description="没有延迟工单" :image-size="46" />
+            </el-card>
+          </el-col>
+          <el-col :span="8">
+            <el-card shadow="never" class="mini-card">
+              <div class="card-sub-title">瓶颈设备（单台覆盖工序）</div>
+              <el-table :data="data.bottlenecks" border size="small" v-if="data.bottlenecks.length">
+                <el-table-column prop="label" label="工序" width="80" />
+                <el-table-column prop="equipment" label="设备" width="110" />
+                <el-table-column prop="capacity_per_hour" label="件/h" width="70" align="right" />
+                <el-table-column label="负荷" width="70" align="right">
+                  <template #default="{ row }">{{ row.load == null ? '—' : row.load + '%' }}</template>
+                </el-table-column>
+              </el-table>
+              <el-empty v-else description="没有单台瓶颈" :image-size="46" />
+            </el-card>
+          </el-col>
+          <el-col :span="8">
+            <el-card shadow="never" class="mini-card">
+              <div class="card-sub-title">齐套状态（最近一次检查）</div>
+              <template v-if="data.kit">
+                <div class="mini-line"><b>{{ data.kit.mps_code }}</b></div>
+                <el-tag :type="data.kit.ready ? 'success' : 'danger'" size="small">
+                  {{ data.kit.ready ? '齐套' : '缺料 ' + data.kit.shortage_count + ' 项' }}
+                </el-tag>
+                <span class="mini-sub" v-if="data.kit.checked_at">{{ data.kit.checked_at.slice(0, 19) }}</span>
+              </template>
+              <el-empty v-else description="还没有做过齐套检查" :image-size="46" />
+            </el-card>
+          </el-col>
+        </el-row>
+
         <el-row :gutter="16">
           <el-col :span="16">
             <div class="card-sub-title">工单工序进度</div>
@@ -147,6 +190,10 @@ onBeforeUnmount(() => {
 .title { font-size: 16px; font-weight: 600; color: var(--sw-primary); }
 .sub { font-size: 12px; color: #8a8f99; margin-top: 4px; }
 .kpi-row { display: flex; gap: 12px; flex-wrap: wrap; margin: 6px 0 14px; }
+.mini-row { margin-bottom: 8px; }
+.mini-card { min-height: 150px; }
+.mini-line { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; font-size: 13px; }
+.mini-sub { margin-left: auto; font-size: 12px; color: #8a8f99; }
 .kpi { flex: 1; min-width: 110px; background: #f5f7fa; border-radius: 6px; padding: 8px 12px; }
 .kpi.warn { background: #fef0f0; }
 .kpi-num { font-size: 20px; font-weight: 600; color: var(--sw-primary); }

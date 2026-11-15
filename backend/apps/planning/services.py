@@ -549,6 +549,57 @@ def dashboard_summary():
         status_count[wo.status] = status_count.get(wo.status, 0) + 1
 
     kpi = dict(plan.kpi) if plan else {}
+
+    # 瓶颈设备：只被 1 台设备覆盖的工序（D 的能力台账）
+    bottlenecks = []
+    try:
+        from apps.equipment.constants import StepType
+        from apps.equipment.models import EquipmentCapability
+        caps = (EquipmentCapability.objects
+                .filter(is_active=True, equipment__is_active=True)
+                .values('step_type', 'equipment_id', 'capacity_per_hour',
+                        'equipment__code', 'equipment__name'))
+        by_step = {}
+        for c in caps:
+            by_step.setdefault(c['step_type'], []).append(c)
+        load_map = kpi.get('equipment_load', {}) or {}
+        for step, items in by_step.items():
+            if len(items) != 1:
+                continue
+            row = items[0]
+            load = load_map.get(str(row['equipment_id']), load_map.get(row['equipment_id']))
+            bottlenecks.append({
+                'step_type': step,
+                'label': dict(StepType.choices).get(step, step),
+                'equipment': row['equipment__code'],
+                'equipment_name': row['equipment__name'],
+                'capacity_per_hour': float(row['capacity_per_hour'] or 0),
+                'load': load,
+            })
+        bottlenecks.sort(key=lambda x: x['capacity_per_hour'])
+    except Exception:  # noqa: BLE001
+        bottlenecks = []
+
+    # 齐套状态：取最近一个做过齐套检查的 MPS
+    kit = None
+    try:
+        from apps.order.models import Mps
+        latest = (Mps.objects.filter(requirements__isnull=False)
+                  .distinct().order_by('-id').first())
+        if latest:
+            reqs = list(latest.requirements.all())
+            kit = {
+                'mps_code': latest.code,
+                'ready': all(float(r.shortage_qty) <= 0 for r in reqs),
+                'shortage_count': sum(1 for r in reqs if float(r.shortage_qty) > 0),
+                'checked_at': max((r.checked_at for r in reqs), default=None),
+            }
+            if kit['checked_at']:
+                kit['checked_at'] = kit['checked_at'].isoformat()
+    except Exception:  # noqa: BLE001
+        kit = None
+
+    delayed_rows = [r for r in rows if r['delayed']]
     return {
         'plan': {
             'code': plan.code, 'name': plan.name, 'status': plan.status,
@@ -565,5 +616,12 @@ def dashboard_summary():
             'good_qty': round(sum(r['good_qty'] for r in rows), 1),
             'defect_qty': round(sum(r['defect_qty'] for r in rows), 1),
         },
+        'delayed_work_orders': [
+            {'code': r['code'], 'product_code': r['product_code'],
+             'due_date': r['due_date'], 'status_label': r['status_label']}
+            for r in delayed_rows
+        ],
+        'bottlenecks': bottlenecks,
+        'kit': kit,
         'work_orders': rows,
     }
