@@ -6,16 +6,24 @@ preprocess.DEFAULT_PARAMS，可用表单里的 params(JSON) 覆盖。
 import base64
 import json
 
-import cv2
-import numpy as np
+try:  # 视觉依赖（opencv）只影响视觉接口，不能让整个应用起不来
+    import cv2
+    import numpy as np
+    from algorithms.vision.defect import detect_defect
+    from algorithms.vision.preprocess import DEFAULT_PARAMS
+    from algorithms.vision.recognize import recognize_parts
+except ImportError:  # pragma: no cover - 环境未装 cv2 时的降级
+    cv2 = None
+    np = None
+    detect_defect = None
+    recognize_parts = None
+    DEFAULT_PARAMS = {}
+
 from rest_framework import viewsets
 from rest_framework.decorators import action, api_view, parser_classes
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 
-from algorithms.vision.defect import detect_defect
-from algorithms.vision.preprocess import DEFAULT_PARAMS
-from algorithms.vision.recognize import recognize_parts
 from apps.core.exceptions import BizError
 from apps.core.pagination import StandardPagination
 
@@ -128,6 +136,8 @@ class DefectRecordViewSet(BaseQcViewSet):
 
 
 def _decode_image(file):
+    if cv2 is None or np is None:
+        raise BizError(E.VISION_PARAM_INVALID, '视觉依赖未安装（需要 opencv-python）')
     data = file.read()
     arr = np.frombuffer(data, dtype=np.uint8)
     image = cv2.imdecode(arr, cv2.IMREAD_COLOR)
@@ -160,6 +170,8 @@ def vision_detect(request):
     file = request.FILES.get('image')
     if file is None:
         raise BizError(E.VISION_IMAGE_INVALID, '缺少 image 文件')
+    if detect_defect is None:
+        raise BizError(E.VISION_PARAM_INVALID, '视觉依赖未安装（需要 opencv-python）')
     image = _decode_image(file)
     result = detect_defect(image, _parse_params(request, 'T4_SURFACE_DEFECT'))
     marked = result.pop('marked_image', None)
@@ -184,6 +196,8 @@ def vision_recognize(request):
     file = request.FILES.get('image')
     if file is None:
         raise BizError(E.VISION_IMAGE_INVALID, '缺少 image 文件')
+    if recognize_parts is None:
+        raise BizError(E.VISION_PARAM_INVALID, '视觉依赖未安装（需要 opencv-python）')
     image = _decode_image(file)
     result = recognize_parts(image, _parse_params(request, 'T5_OBJECT_RECOGNIZE'))
     return Response(result)

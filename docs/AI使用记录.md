@@ -219,6 +219,15 @@
 - **验证方式**：全仓库 pytest 95 条全过；ruff 通过；实测新方案 SP20261115-001：legs=16、priority 1/2/3 正确、检验 leg 到 `ST-QC-01`；其余 16 条 warning 全部是「设备未绑工位」（等 D 的 dw3 数据合并）
 - **结论**：采用（D 的 10 个口径全部回复；等 D 推 dw3 + 加 cancel 接口后开箱验证）
 
+### 记录 016
+- **日期 / 使用人**：2026-11-15 / 成员 B
+- **角色与模块**：B / planning + 跨分支合并 —— 合并 A 的 main 与 D 的 dw3，跑通排产→转序→搬运→完工撤销
+- **提示词**：见附录 P-016（"D回了" + D 的三条口径截图）
+- **AI 产出**：合并 `origin/main`（A 的权限/员工技能）与 `origin/dw3`（D 的 W3/W4/W5 + C 联调包）；解决 planning 应用同名冲突（B 工单 + A 员工技能，迁移 0001/0002/0003）、config/urls、router、AI 记录 4 处冲突；按 D 的清单执行 migrate/init_demo/seed_equipments/seed_d_workstations/import_road_network/seed_agvs；重跑排产并验证 `transport-tasks` legs=16 零告警；用 D 的 `from-legs` 批量派生 16 条任务；验证工单 release→complete 触发 `cancel-by-work-order` 撤掉 4 条 pending；前端排产页加「派生搬运任务」按钮
+- **人工修改**：①A 的 planning 应用只有员工技能、B 的是工单/排产，选择合并而不是二选一（两边都保留）；②A 与 B 的 `planning/0001_initial` 内容不同，保留 B 的迁移树并新增 0003，文档提醒 A 重建迁移状态；③C 的 quality 顶层 `import cv2` 导致无 cv2 时 Django 起不来，改成 try/except 懒加载并在测试里 skip 视觉用例，避免为了一个可选依赖阻塞全项目；④D 的 from-legs 幂等键含 operation_id，B 的 leg 已带；⑤前端加了「派生搬运任务」按钮，演示时一键把排产变成搬运任务
+- **验证方式**：全仓库 pytest 235 条全过（含 A/C/D 的测试）；ruff B 范围通过；真实请求：legs 16/warnings 0、from-legs created=16、重复调用 existed=16、工单完工后 cancelled=4；前端 build 通过
+- **结论**：采用（B 的 W3 排产与 D 的 W3-W5 物流已端到端打通；等 D 演示 AGV 派车、C 的库存/报工联调）
+
 ---
 
 ## 附录：长提示词原文
@@ -374,3 +383,7 @@ SmartWorks 课程项目，我负责 D（设备与物流调度）。仓库 E:\sma
 然后C已经把她的部分上传上去了，你可以直接阅读
 ```
 
+### P-016（B / 合并 D 的 dw3 并端到端联调，2026-11-15）
+
+> D回了。
+>（要求：按 D 给的命令拉取并合并 main/dw3，解决迁移与应用同名冲突；执行设备/工位/路网/AGV 种子；用真实数据重跑排产、验证 legs 无 warning、批量派生搬运任务、验证工单完工撤销；把结果和集成缺口写进文档；前端补一个可演示的入口。）

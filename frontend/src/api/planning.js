@@ -14,7 +14,7 @@ export function confirmPlan(id) { return request.post(`/planning/schedule-plans/
 export function fetchEquipments(params) { return request.get('/equipment/equipments/', { params }) }
 
 /** 计划与人员接口封装（员工技能）。 */
-import request from '@/utils/request'
+
 
 export function listSkills(params) {
   return request.get('/planning/employee-skills/', { params })
@@ -46,3 +46,10 @@ export function stepTypeOptions() {
   return request.get('/planning/employee-skills/step-types/')
 }
 
+// 转序搬运：B 出 legs，D 的 from-legs 批量派生
+export function fetchTransportLegs(planId) {
+  return request.get(`/planning/schedule-plans/${planId}/transport-tasks/`)
+}
+export function deriveTransportTasks(data) {
+  return request.post('/logistics/transport-tasks/from-legs/', data)
+}

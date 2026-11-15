@@ -13,6 +13,7 @@
             </el-select>
             <el-date-picker v-model="startDate" type="date" value-format="YYYY-MM-DD" placeholder="计划起始" style="width: 140px" />
             <el-button type="primary" :loading="running" @click="run">运行排产</el-button>
+            <el-button type="success" :loading="deriving" :disabled="!plan" @click="deriveTransport">派生搬运任务</el-button>
             <el-button @click="loadLatest">刷新</el-button>
           </div>
         </div>
@@ -33,7 +34,11 @@
         <div class="plan-line">
           方案：<b>{{ plan.code }}</b> · {{ plan.name }} · 状态 {{ plan.status }} · 起始 {{ plan.start_at }}
           <el-button v-if="plan.status === 'draft'" link type="primary" @click="confirmPlanRow">确认方案</el-button>
+          <span v-if="legs.length" class="legs-tip">转序 leg：{{ legs.length }} 条（派生到 D 的搬运任务）</span>
         </div>
+        <el-alert v-if="legWarnings.length" type="warning" :closable="false" show-icon
+          :title="`有 ${legWarnings.length} 条 leg 缺工位绑定，派生会失败：` + legWarnings.slice(0, 2).join('；')"
+          style="margin-bottom: 8px" />
 
         <div ref="chartEl" class="gantt"></div>
 
@@ -73,8 +78,8 @@ import * as echarts from 'echarts'
 import { ElMessage } from 'element-plus'
 import { fetchMpsList } from '@/api/order'
 import {
-  confirmPlan, fetchEquipments, fetchPlanGantt, fetchPlans, runSchedule,
-  fetchWorkOrders,
+  confirmPlan, deriveTransportTasks, fetchEquipments, fetchPlanGantt,
+  fetchPlans, fetchTransportLegs, fetchWorkOrders, runSchedule,
 } from '@/api/planning'
 
 const COLORS = {
@@ -93,7 +98,10 @@ const mpsList = ref([])
 const mpsId = ref(null)
 const startDate = ref(new Date().toISOString().slice(0, 10))
 const running = ref(false)
+const deriving = ref(false)
 const plan = ref(null)
+const legs = ref([])
+const legWarnings = ref([])
 const bars = ref([])
 const workOrders = ref([])
 const loadRows = ref([])
@@ -128,12 +136,15 @@ async function loadLatest() {
 
 async function showPlan(p) {
   plan.value = p
-  const [gantt, wos, eqs] = await Promise.all([
+  const [gantt, wos, eqs, legData] = await Promise.all([
     fetchPlanGantt(p.id),
     fetchWorkOrders({ page: 1, page_size: 100, mps: p.mps }),
     fetchEquipments({ page: 1, page_size: 100 }),
+    fetchTransportLegs(p.id),
   ])
   bars.value = gantt.bars || []
+  legs.value = legData.legs || []
+  legWarnings.value = legData.warnings || []
   workOrders.value = wos.results || []
   const eqMap = {}
   for (const e of (eqs.results || eqs || [])) eqMap[e.id] = e.code
@@ -186,6 +197,17 @@ function renderChart() {
   })
 }
 
+async function deriveTransport() {
+  if (!plan.value || !legs.value.length) { ElMessage.warning('先运行排产'); return }
+  deriving.value = true
+  try {
+    const data = await deriveTransportTasks({ plan: plan.value.code, legs: legs.value })
+    const failed = (data.failed && data.failed.length) || 0
+    ElMessage.success(`搬运任务：新建 ${data.created}，已存在 ${data.existed}，失败 ${failed}`)
+    if (failed) ElMessage.warning('有失败 leg，检查工位/路网后重试')
+  } finally { deriving.value = false }
+}
+
 async function confirmPlanRow() {
   plan.value = await confirmPlan(plan.value.id)
   ElMessage.success('方案已确认')
@@ -215,6 +237,7 @@ onBeforeUnmount(() => {
 .kpi-num { font-size: 20px; font-weight: 600; color: var(--sw-primary); }
 .kpi-label { font-size: 12px; color: #8a8f99; }
 .plan-line { font-size: 13px; color: #606266; margin-bottom: 8px; }
+.legs-tip { margin-left: 12px; color: #67c23a; font-size: 12px; }
 .gantt { width: 100%; height: 420px; border: 1px solid #ebeef5; border-radius: 4px; }
 .bottom-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-top: 8px; }
 </style>

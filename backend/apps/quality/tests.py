@@ -10,8 +10,13 @@ from decimal import Decimal
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient, APITestCase
 
-import cv2
-import numpy as np
+import pytest
+
+try:
+    import cv2
+    import numpy as np
+except ImportError:  # 视觉依赖未装时只跳过本文件的视觉用例，不阻塞其它测试
+    pytest.skip('未安装 opencv-python / numpy，跳过视觉测试', allow_module_level=True)
 
 from apps.masterdata.models import Material, Product
 from apps.quality.models import (

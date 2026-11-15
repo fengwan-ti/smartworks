@@ -10,7 +10,6 @@ from decimal import Decimal
 
 from django.utils import timezone
 
-from algorithms.vision.preprocess import DEFAULT_PARAMS
 from apps.core.exceptions import BizError
 from apps.quality.errors import E
 from apps.quality.models import Inspection, Measurement, StandardItem
@@ -186,4 +185,8 @@ def get_algorithm_params(name):
     row = AlgorithmParam.objects.filter(name=name).first()
     if row and isinstance(row.params, dict) and row.params:
         return dict(row.params)
+    try:
+        from algorithms.vision.preprocess import DEFAULT_PARAMS
+    except ImportError:
+        raise BizError(E.VISION_PARAM_INVALID, '视觉依赖未安装（需要 opencv-python）') from None
     return dict(DEFAULT_PARAMS)
