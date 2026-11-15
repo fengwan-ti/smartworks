@@ -7,7 +7,7 @@ from rest_framework.test import APITestCase
 from apps.core.models import User
 from apps.masterdata.models import Customer, Material, Product, ProductFamily
 from apps.order.models import Mps, MpsDetail
-from apps.order.services import get_available_qty
+from apps.order.services import get_available_qty, get_available_qty_map
 from apps.process.models import Bom, BomItem, BomStatus
 
 ORDERS = '/api/v1/order/sales-orders/'
@@ -128,3 +128,8 @@ class InventoryAvailabilityTests(OrderFixture):
         resp = self.client.post(f'{MPS}{mps.id}/check-kit/')
         self.assertEqual(resp.status_code, 200, resp.data)
         self.assertIn('inventory', resp.data['availability_source'])
+
+
+class InventoryBatchTests(OrderFixture):
+    def test_batch_map_empty_without_stock(self):
+        self.assertEqual(get_available_qty_map([self.material]), {})

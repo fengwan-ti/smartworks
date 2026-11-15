@@ -164,6 +164,29 @@ def get_available_qty(material):
     return Decimal(str(rows[0]['available_qty'] or 0))
 
 
+def get_available_qty_map(materials):
+    """批量取物料可用量（C 的 I-09，material_ids 逗号分隔一次查完）。
+
+    返回 {material_id: Decimal}；C 的台账里没有流水的物料不在字典里，调用方按 0 处理。
+    """
+    ids = [m.id for m in materials]
+    if not ids:
+        return {}
+    try:
+        from apps.inventory import services as inv_services
+    except ImportError:
+        return {}
+    try:
+        rows = inv_services.material_available(
+            {'material_ids': ','.join(str(i) for i in ids)})
+    except Exception:  # noqa: BLE001 - 库存不可用时按 0 处理
+        return {}
+    return {
+        r['material_id']: Decimal(str(r['available_qty'] or 0))
+        for r in rows if r.get('material_id')
+    }
+
+
 def check_kit(mps):
     items = list(mps.items.select_related('product'))
     if not items:
@@ -179,9 +202,10 @@ def check_kit(mps):
             need = Decimal(item.qty) * Decimal(bi.qty_per) *                 (Decimal('1') + Decimal(bi.loss_rate) / Decimal('100'))
             required[bi.material] = required.get(bi.material, Decimal('0')) + need
     MaterialRequirement.objects.filter(mps=mps).delete()
+    available_map = get_available_qty_map(list(required.keys()))
     results = []
     for material, need in required.items():
-        available = get_available_qty(material)
+        available = available_map.get(material.id, Decimal('0'))
         shortage = max(need - available, Decimal('0'))
         MaterialRequirement.objects.create(
             mps=mps, material=material, required_qty=need,
