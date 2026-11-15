@@ -102,7 +102,10 @@
         <el-input-number v-model="limit" :min="1" :max="200" :step="5" style="width: 130px" />
 
         <el-button type="primary" :loading="computing" @click="onCompute(false)">算一套方案</el-button>
-        <el-button type="success" :loading="applying" :disabled="!hasPlan" @click="onCompute(true)">
+        <!-- 不加 :disabled="!hasPlan"：后端 /agv-schedule/ 收 apply=true 就是"算完直接下发"，
+             前端拦着反而让人点一下没反应（2026-11-15 无头验收时就卡在这 ——
+             按钮是灰的、点了没动静，现场会以为系统坏了）。 -->
+        <el-button type="success" :loading="applying" @click="onCompute(true)">
           算并下发
         </el-button>
         <el-button :loading="loadingHistory" @click="loadHistory">刷新历史</el-button>
@@ -118,7 +121,7 @@
         :closable="false"
         show-icon
         title="还没有方案"
-        description="调度对象是「待派车」的搬运任务。如果提示没有待派任务，先跑 manage.py demo_w5_schedule 造几条。"
+        description="调度对象是「待派车」的搬运任务。没有待派任务时，先跑 manage.py demo_w5_pipeline --reset --derive-only 造 B 的 16 条 legs（或 demo_w5_schedule 造 6 条手工任务）。"
       />
 
       <!-- 每台车一张卡：顺序就是现场执行的顺序，别用表格按列排 —— 看顺序时表格不直观 -->
@@ -307,7 +310,7 @@ function pct(value) {
 async function onCompute(apply) {
   if (apply) {
     const confirmed = await ElMessageBox.confirm(
-      '下发会把任务真的挂到车上、状态改成「已派车」。确定吗？',
+      '会先算一套方案，再把任务真的挂到车上、状态改成「已派车」。确定吗？',
       '算并下发',
       { confirmButtonText: '下发', cancelButtonText: '再想想', type: 'warning' }
     ).catch(() => false)
