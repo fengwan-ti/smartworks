@@ -194,15 +194,17 @@ const searchFields = ref([
 ])
 
 const columns = [
-  { prop: 'code', label: '告警编号', width: 150 },
-  { prop: 'equipment_code', label: '设备', width: 110 },
-  { prop: 'level', label: '等级', width: 90, slot: 'level' },
-  { prop: 'channel_label', label: '通道', width: 100 },
-  { prop: 'metric', label: '触发值/阈值', width: 130, slot: 'metric' },
-  { prop: 'message', label: '描述', minWidth: 200 },
-  { prop: 'occurred_at', label: '发生时间', width: 160, slot: 'occurred' },
-  { prop: 'status', label: '状态', width: 100, slot: 'status' },
-  { prop: 'actions', label: '操作', width: 170, slot: 'actions' }
+  // 告警编号固定 AL-YYYYMMDD-0001 共 16 位，150 宽在 1440 屏上会被压成省略号，
+  // 而编号是现场报修要念的那串字符，不能截断
+  { prop: 'code', label: '告警编号', width: 176, fixed: 'left' },
+  { prop: 'equipment_code', label: '设备', width: 112 },
+  { prop: 'level', label: '等级', width: 88, slot: 'level' },
+  { prop: 'channel_label', label: '通道', width: 122 },
+  { prop: 'metric', label: '触发值/阈值', width: 146, slot: 'metric' },
+  { prop: 'message', label: '描述', minWidth: 220 },
+  { prop: 'occurred_at', label: '发生时间', width: 168, slot: 'occurred' },
+  { prop: 'status', label: '状态', width: 96, slot: 'status' },
+  { prop: 'actions', label: '操作', width: 200, slot: 'actions', fixed: 'right' }
 ]
 
 const reportVisible = ref(false)

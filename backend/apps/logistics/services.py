@@ -992,7 +992,17 @@ def build_schedule(*, agv_codes=None, limit=50, task_codes=None):
 
     agvs = _schedulable_agvs(agv_codes)
     if not agvs:
-        raise BizError(14506, '没有可参与调度的 AGV（空闲且已定位）')
+        busy = list(
+            Agv.objects.filter(is_active=True)
+            .exclude(status=AgvStatus.IDLE)
+            .values_list('code', 'status')
+        )
+        hint = '；'.join(f'{code}={status}' for code, status in busy) or '车都没定位'
+        raise BizError(
+            14506,
+            f'没有可参与调度的 AGV（默认只排空闲且有位置的车，当前：{hint}）。'
+            f'要么等在用任务收工，要么在页面里显式勾选车辆做预览。',
+        )
 
     dist = matrix_as_dict()
     task_payload = [{

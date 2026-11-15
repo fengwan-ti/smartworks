@@ -213,10 +213,10 @@ class ScheduleRequestSerializer(serializers.Serializer):
     为什么不拆两个接口：两者的输入完全一样，拆开只会让前端多写一个函数。
     """
     agv_codes = serializers.ListField(
-        child=serializers.CharField(), required=False, default=list,
+        child=serializers.CharField(), required=False, default=list, allow_null=True,
     )
     task_codes = serializers.ListField(
-        child=serializers.CharField(), required=False, default=list,
+        child=serializers.CharField(), required=False, default=list, allow_null=True,
     )
     limit = serializers.IntegerField(required=False, default=50, min_value=1, max_value=200)
     apply = serializers.BooleanField(required=False, default=False)

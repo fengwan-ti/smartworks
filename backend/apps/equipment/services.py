@@ -70,7 +70,7 @@ def validate_step_type(step_type):
         raise BizError(
             14203,
             f'工序类型不在数据字典内：{step_type}。'
-            f'允许的值见 apps/equipment/constants.py',
+            f'允许的值：{" / ".join(StepType.values)}',
         )
 
 
@@ -391,23 +391,34 @@ def sensor_series(equipment_code, channel, start=None, end=None, limit=500):
 
 
 def simulate_readings(minutes=10, step_minutes=5, equipment_codes=None,
-                      state=None, base_time=None):
+                      state=None, base_time=None, faults=None, reset_baseline=False):
     """往库里追加一段模拟读数（"现在这一刻传感器在报数"）。
 
     从每台设备**最后一条读数的时间**往后接着写，而不是从当前时钟写：
         否则导入的历史数据（2026-03）和模拟数据（今天）之间会空出几个月，
         曲线上是一个断崖，看起来像数据丢了。
 
-    不做成守护进程/定时任务：中辩要的是"能生成、能进库、能画图"，
-    持续跑是 W6 的事（工作包 8.2 节明确写了）。
+    base_time 显式给定时以它为准 —— 演示要用 `--from-now` 让告警落在"今天"，
+        否则告警的时间会继承 3 月那批历史读数，页面上像穿越。
+
+    faults: {(设备编号, 通道): 目标值}，把指定通道的读数**直接压到某个值**。
+        为什么需要它：`state='abnormal'` 只改 `state` 标签，数值仍是 baseline±噪声，
+        根本不会越过阈值 —— 想演示"真的报警"，必须真造一条超限读数。
+
+    reset_baseline=True 时从 `SENSOR_BASELINE` 起算，而不是接着上一条读数漂移。
+        导入的历史数据里有已经超限的点（3 月那批），不重置基线的话，
+        "现在"生成的数据会一直挂在超限值附近，一扫描就是一片告警 + 一堆工单。
+        演示要的是"干净起点 + 我指定的那几条告警"。
     """
     from apps.equipment.models import SensorReading
 
+    faults = faults or {}
     equipment_qs = Equipment.objects.filter(is_active=True).order_by('code')
     if equipment_codes:
         equipment_qs = equipment_qs.filter(code__in=equipment_codes)
 
     rows = []
+    hit_faults = set()
     for equipment in equipment_qs:
         last = (
             SensorReading.objects
@@ -425,12 +436,20 @@ def simulate_readings(minutes=10, step_minutes=5, equipment_codes=None,
                 .first()
             )
             value = float(previous.value) if previous else SENSOR_BASELINE[channel]
+            if reset_baseline:
+                value = SENSOR_BASELINE[channel]
+            forced = faults.get((equipment.code, channel))
+            if forced is not None:
+                hit_faults.add((equipment.code, channel))
             steps = max(1, int(minutes) // max(1, int(step_minutes)))
             for index in range(steps):
                 cursor_channel = cursor + timedelta(minutes=step_minutes * (index + 1))
-                value = max(0.0, value + random.uniform(
-                    -SENSOR_NOISE[channel], SENSOR_NOISE[channel],
-                ))
+                if forced is not None:
+                    value = float(forced)
+                else:
+                    value = max(0.0, value + random.uniform(
+                        -SENSOR_NOISE[channel], SENSOR_NOISE[channel],
+                    ))
                 rows.append(SensorReading(
                     equipment=equipment, channel=channel,
                     value=Decimal(f'{value:.4f}'),
@@ -446,6 +465,10 @@ def simulate_readings(minutes=10, step_minutes=5, equipment_codes=None,
         'points': len(rows),
         'minutes': minutes,
         'step_minutes': step_minutes,
+        'faults_applied': len(hit_faults),
+        'faults_ignored': sorted(
+            f'{code}:{channel}' for code, channel in set(faults) - hit_faults
+        ),
     }
 
 

@@ -177,7 +177,8 @@ class TransportTaskViewSet(viewsets.ModelViewSet):
         .all()
     )
     serializer_class = TransportTaskSerializer
-    filterset_fields = ('status', 'task_type', 'ref_type', 'agv', 'from_node', 'to_node')
+    filterset_fields = ('status', 'task_type', 'ref_type', 'ref_doc', 'ref_operation_id',
+                        'agv', 'from_node', 'to_node')
     search_fields = ('code', 'ref_doc', 'from_location', 'to_location')
     ordering_fields = ('code', 'priority', 'created_at', 'plan_start')
 

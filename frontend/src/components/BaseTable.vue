@@ -8,6 +8,7 @@
         :label="col.label"
         :width="col.width"
         :min-width="col.minWidth || 120"
+        :fixed="col.fixed"
         :show-overflow-tooltip="!col.slot"
       >
         <!--
@@ -44,8 +45,10 @@ import { ref } from 'vue'
  * 通用分页表格。
  *
  * props：
- *   columns  列定义 [{ prop, label, width?, minWidth?, slot? }]
+ *   columns  列定义 [{ prop, label, width?, minWidth?, slot?, fixed? }]
  *            slot 填了就在页面里用同名具名插槽自定义单元格
+ *            fixed 填 'left' / 'right' 把该列钉住（列多到要横向滚动时，
+ *            编号和操作列不该跟着滚出屏幕）。不填就是原来的行为。
  *   rows / total  数据与总数（父组件负责取数）
  *
  * 事件：change -> { page, pageSize }

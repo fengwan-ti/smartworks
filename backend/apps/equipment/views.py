@@ -206,7 +206,9 @@ class SensorReadingViewSet(viewsets.ReadOnlyModelViewSet):
         一条曲线（一个设备一个通道）。四条曲线就调四次 ——
         合成一个接口返回四通道也行，但那样前端要先拆再拼，反而多一步。
         """
-        code = request.query_params.get('equipment_code')
+        # equipment 是顺手的别名：别的接口（monitor/overview）用 equipment，
+        # 这里原先只认 equipment_code，同一个人写前端会在两处写成两种拼法。
+        code = request.query_params.get('equipment_code') or request.query_params.get('equipment')
         channel = request.query_params.get('channel')
         if not code or not channel:
             raise BizError(10001, '缺少 equipment_code 或 channel 参数')

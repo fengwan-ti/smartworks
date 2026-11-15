@@ -26,7 +26,20 @@
             / 基线 {{ pct(result.baseline.empty_ratio) }}
           </span>
         </div>
-        <div class="sw-metric__foot">空驶里程 ÷ 总里程</div>
+        <div class="sw-metric__foot">
+          <!-- improvement.empty_ratio_delta = 基线 − 优化：正数是改善，负数是变差。
+               必须写出方向：55.4% / 基线 52.8% 单看数字像变好了，其实是为了压缩工期多跑空趟。 -->
+          <el-tag
+            v-if="improve.empty_ratio_delta !== undefined && improve.empty_ratio_delta !== null"
+            :type="improve.empty_ratio_delta >= 0 ? 'success' : 'warning'"
+            size="small"
+            effect="light"
+          >
+            {{ improve.empty_ratio_delta >= 0 ? '改善' : '变差' }}
+            {{ Math.abs(improve.empty_ratio_delta * 100).toFixed(1) }} 个百分点
+          </el-tag>
+          <span v-else>空驶里程 ÷ 总里程</span>
+        </div>
       </div>
       <div class="sw-metric">
         <div class="sw-metric__label">任务 / 用车</div>
