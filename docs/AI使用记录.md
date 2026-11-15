@@ -20,16 +20,412 @@
 ## 记录列表
 
 ### 记录 001
-- **日期 / 使用人**：
-- **角色与模块**：
-- **提示词**：
+- **日期 / 使用人**：2026-11-13 / 成员 D
+- **角色与模块**：D / equipment（设备台账与排产视图）、logistics（未改动，仅核对）
+- **提示词**：见附录 P-001（分两轮：①按 B 的 W3 回执改 `/equipments/available/` 的结构；②按 B-1 决策处理 `cutting` / `inspection` 不占设备与 8# 去毛刺台的 OEE 排除）
 - **AI 产出**：
+  - `backend/apps/equipment/serializers.py`：新增 `AvailableEquipmentSerializer`，把 `/available/` 的输出从"套一层 equipment"改成扁平一行一台设备，`changeover_minutes` 由 `setup_minutes` 出口换名
+  - `backend/apps/equipment/models.py` + `migrations/0003_equipment_oee_excluded.py`：`Equipment.oee_excluded` 字段
+  - `backend/apps/equipment/views.py`：`available` 动作换用新序列化器并补文档字符串
+  - `backend/apps/equipment/management/commands/seed_equipments.py`、`data/equipments-v1.json`：`oee_excluded` 入库；`_没有设备的工序` 两段说明按 B-1 定案重写
+  - `backend/apps/equipment/management/commands/set_equipment_status.py`：临时改设备状态的命令（演示"按状态选机"用，W7 有状态记录表后删）
+  - `backend/apps/equipment/tests/test_available_contract.py`：6 条契约测试，把 B 排产依赖的字段名钉死
+  - `docs/api-contract.md`（2.9.1 补登记 8 个自定义动作 + `/available/` 响应示例 + 变更记录）、`docs/api-status.md`
 - **人工修改**：
+  - 首轮生成的测试断言"5# 钻床种子状态应为 normal"与台账事实冲突（`data/equipments-v1.json` 里 5# 本来就记的 `wearing`，任务 6 的监测对象就是它）。改为"先把状态归零再演"，并补一条"磨损仍可排产、只有 abnormal 才被 `only_available` 排掉"的断言——原来的写法会把排产逻辑引导成"wearing 直接排除"，那是错的。
+  - 迁移文件按项目习惯从 `0003_equipment_oee_excluded_and_more.py` 改名为 `0003_equipment_oee_excluded.py`（一字段一迁移，文件名说清改了什么）。
+  - 种子命令的提示文案从 `⚠️ 没有任何设备能做` 改为 `ℹ️ 不占设备（B-1 已定案）`：空数组是决策结果，不是数据缺口，原来的措辞会让人以为要补设备。
 - **验证方式**：
-- **结论**：
+  - `python manage.py check` 无问题；`makemigrations --check --dry-run` 无待生成迁移
+  - `python -m pytest -q` **103 条全过**（含新增 6 条契约测试）
+  - 手动对照 `data/equipments-v1.json`：8 台设备里只有 `EQ-DB-01`（8# 去毛刺台）`oee_excluded=true`，其余为 false
+- **结论**：采用
+
+### 记录 002
+- **日期 / 使用人**：2026-11-14 / 成员 D
+- **角色与模块**：D / equipment（告警、维修工单、点检、监测总览）、logistics（任务 1 单机调度、任务 2 多机调度、方案留档）、前端 4 个页面
+- **提示词**：见附录 P-002（一次性下达：做完 W4 剩余项 + W5 全部算法与页面，再生成要发给 A/B/C 的东西和上传 GitHub 的材料）
+- **AI 产出**：
+  - `backend/apps/equipment/models.py` + `migrations/0004_alarm_maintenance_inspection.py`：`Alarm`、`MaintenanceOrder`（带历史表）、`InspectionPlan`、`InspectionRecord` 四张表
+  - `backend/apps/equipment/services.py`：阈值规则 `ALARM_RULES`、`scan_sensor_alarms`（60 分钟去重、critical 自动开工单）、`ack_alarm`/`close_alarm`、工单三动作状态机、`maintenance_metrics`（MTTR 只算已完修）、`inspection_due`、`record_inspection`、`monitor_overview`
+  - `backend/apps/logistics/scheduling.py`：`plan_single_agv`（最近邻 + 2-opt + 载重/电量/分批）、`plan_multi_agv`（贪心插入 + relocate）、`_baseline_nearest`（就近派车基线）
+  - `backend/apps/logistics/services.py`：`build_schedule`、`apply_schedule`、`save_schedule_plan`、`matrix_as_dict`、`_schedulable_agvs`
+  - `backend/apps/logistics/models.py` + `migrations/0003_scheduleplan.py`：`lg_agv_schedule_plan` 方案留档
+  - 命令：`check_alarms`、`demo_w5_schedule`、`experiment_schedule`、`seed_d_menus`
+  - 测试：`test_w4_alarm_maintenance.py`（12 条）、`test_w5_scheduling.py`（15 条）
+  - 前端：`views/equipment/MonitorBoard.vue`、`AlarmList.vue`、`MaintenanceList.vue`、`views/logistics/SchedulePlan.vue`、`api/equipment.js`、`api/logistics.js`、`router/index.js`、`assets/styles/index.css`
+- **人工修改**：
+  - **告警阈值**：AI 一开始在页面提示里写"振动 > 4.5 mm/s、温度 > 78℃、电流 > 12 A"，与代码里的 `ALARM_RULES`（1.8/2.4、55/65、11/13）不一致。改成从代码口径写，并把规则名指到 `services.ALARM_RULES`——页面上写一套、后端判另一套，演示时必然对不上。
+  - **维修工单状态机**：AI 初版在页面上给了一个状态下拉框。改掉，只留 派工/开始/完工 三个按钮——下拉能直接跳到"已完工"，`started_at` 会空着，工时统计全错。
+  - **relocate 的回滚**：初版试完不接受时用"删掉再加回队尾"还原，顺序被改乱了，下一轮基于错序列继续搜。改成保存 `orig_src`/`orig_dst` 原样还原。
+  - **2-opt 的层次**：初版想直接复用 A 的 `plan_route` 做 2-opt，结果优化的是几何路径，任务顺序没变、空驶一点没降。改成只在**任务序列**上反转。
+  - **空驶率变差**：初版报告只写"makespan 缩短 44%"。补上"空驶率同时高了 3.7 点"和原因（字典序目标、摊平工作量的代价），并把 17.8 m 换 413 s 的账算出来——不写清楚，老师一问 6 单那组就穿。
+  - **演示命令的可复现性**：`demo_w5_schedule` 初版把库里所有待派任务都排进去（上次演示残留 12 条），数字不可复现。改成只排本次造出来的 `task_codes`。
+  - **合并 main 后的路径冲突**：AI 自起的 `/equipment/maintenance`、`/logistics/schedule` 与 A 的 `init_core` 菜单路径不一致，侧边栏会重复且点旧的 404。统一到 init_core 的路径，`seed_d_menus` 从"插 10 条"降为"只补告警 1 条"。
+- **验证方式**：
+  - `python manage.py check` 无问题；`makemigrations --check --dry-run` 无待生成迁移
+  - `python -m pytest` **157 条全过**（D 模块 130 + A/B 27，合并 main 之后）
+  - 前端 `npm run build` 通过，4 个页面 chunk 生成
+  - 实测：`check_alarms` 扫 8 台设备出 7 条告警、3 条 critical 自动开 3 张工单；`demo_w5_schedule` makespan 933.2→520.3 s；`experiment_schedule` 四档规模（6/12/20/30）缩短 41.0%/35.3%/38.0%/34.5%
+- **结论**：采用（算法结论采用；"空驶率变差"按人工要求写进实验记录，未粉饰）
+
+---
+
+### 记录 003
+- **日期 / 使用人**：2026-11-15 / 成员 D
+- **角色与模块**：D / 跨角色合并（C 的 `feature/c-apps` → `dw3`）、依赖与迁移冲突
+- **提示词**：见附录 P-003（问"怎么上传到 GitHub、上传哪个文件"，并要求读 C 已推上去的部分）
+- **AI 产出**：
+  - `backend/apps/inventory/urls.py`、`backend/config/urls.py`：冲突按"并集"重写
+  - `backend/apps/inventory/tests.py` → `backend/apps/inventory/tests/test_c_warehouse_api.py`（改名避让命名冲突）
+  - `backend/apps/inventory/migrations/0004_merge_20261115_1103.py`：迁移合并节点
+  - `requirements.lock`：补 `numpy==2.5.4`、`opencv-python-headless==5.0.0.93`
+  - 文档：`任务\SmartWorks-W5\06-上传到GitHub-Desktop步骤-20261115.md`、更新 `05-推送与PR.md`
+- **人工修改**：
+  - **路由不能"取她那一版"**：她的 `config/urls.py` 删掉了 `equipment`/`logistics`/`planning`/`analytics` 四条顶层路由，`apps/inventory/urls.py` 又整文件覆盖掉了成品仓路由。git 只会问"要哪一边"，两边都不能要 → 手工写并集。
+  - **`tests.py` 撞名**：她建的是 `apps/inventory/tests.py`，我的是 `apps/inventory/tests/` 包，Python 里同一个模块名只能存在一个，pytest 直接 import file mismatch 收集失败。把她的文件移进包里而不是反过来——我这边有 130 条测试依赖包结构。
+  - **依赖没进清单**：她硬 import `cv2`/`numpy`，本机没装时连 `manage.py check` 都过不去（整个 URLconf 起不来）。装完补进 `requirements.lock`，否则 A/B 拉下来一样起不来。
+  - **迁移双叶子**：两个 `0003` 都对，但必须补一个 merge 节点，否则 `migrate` 报 multiple leaf nodes。
+- **验证方式**：
+  - `python manage.py check` 无问题；`makemigrations --check --dry-run` 无变更；`migrate` 可正常执行
+  - `python -m pytest` **197 条全过**（D 130 + A/B 27 + C 40）
+  - 关键路由逐个 `resolve()` 通过：`/equipment/equipments/available/`、`/inventory/finished-inbounds/`、`/inventory/warehouses/`、`/production/reports/`、`/quality/inspections/`
+  - 前端 `npm run build` 通过（C 的 17 页 + 我的 4 页同表共存，路由无重复）
+- **结论**：采用
+
+### 记录 002
+- **日期 / 使用人**：2026-10-23 / 成员 B
+- **角色与模块**：B / process、order、planning（排产）—— W1 工艺与计划文档包
+- **提示词**：见附录 P-002（公共提示词前缀 + "我负责 B 角色：工艺与计划" + W1 六项任务清单）
+- **AI 产出**：生成 `docs/role-b-w1/` 下 7 份文档与 1 个 Excel：工艺数据建模草案、六种零件工艺路线清单（11 个工序模板 / 30 道工序 / 换型矩阵初值 30 对 / 工时汇总 / BOM）、换型矩阵数据来源与取值口径、订单数据评估、18 条用户故事（含验收标准）、工序模板与产品族数据字典（6 张表字段级 + 26 条校验规则与错误码）、W1 完成清单与交接单
+- **人工修改**：①核对 `api-contract.md` 的 W1 修正，确认产品族归 masterdata，删掉 AI 建议的 `pr_product_family` 建表方案；②换型矩阵初值全部降级为 `source=estimated` 并标注待 D 确认，不冒充实测数据；③第 6 种零件的图号 AI 自己编了一串，已改为"待 A 分配"；④标准工时按同类机加工常规参数逐道下调，AI 初版普遍偏大 30% 左右；⑤按《工作包》6.2 把 `pr_route_step.equipment_type` 统一改名为 `required_equipment_type`
+- **验证方式**：逐条对照《说明书 v1.2》2.3 / 5.3 / 7.2.1 与《工作包》6.1~6.7；Excel 用 openpyxl 复读校验（30 道工序、6 种零件每件 4~6 道、11 个模板、30 个换型产品对、六种零件合计 10.800 机时）
+- **结论**：采用（W2 建表前再与 A 核对一次字段名与枚举）
+
+### 记录 003
+- **日期 / 使用人**：2026-10-26 / 成员 B
+- **角色与模块**：B / order —— 任务 7 教师数据集评估（`数据集-20261026/商品销售数据.csv`）
+- **提示词**：见附录 P-003（"工作文件夹里有更新的数据集，你能看到吗？对现阶段工作有帮助吗？有的话迭代一下"）
+- **AI 产出**：对 913,000 行 CSV 做完整统计（结构、缺失、日期连续性、季节/星期/趋势、50 商品分布）；把 `04-订单数据集评估-B.md` 从 v1.0 升级为 v2.0（真实统计 + 50 商品→6 零件映射 + 双基线实测 + W5 接入方案）；生成 `data/teacher-orders-6parts-weekly.csv`（261 周 × 6 零件）与 `data/README.md`；同步更新 `00` 交接单（D3 状态、A7/A8 交接项、验收表）
+- **人工修改**：①映射口径不是 AI 自动决定的——B 定"按 5 年总销量排名取 1/5/10/20/35/50 六个代表商品"的抽样规则，并要求全文按"业务量纲映射"表述，禁止写成"真实订单"；②量纲缩放：AI 初版 1:1 映射会让月需求达 10.9 万件、超产能 16 倍，B 按理论产能 1,564 件/月反推 K=100（月需求 1,089 件、负荷 69.6%）；③把"同周去年法 MAPE 5.0% 才是真基线、SARIMA 必须打败它"写进 W5 风险与对策，避免 W5 只对比移动平均；④删掉 AI 建议的"把 16.5 MB 原始 CSV 提交进仓库"，改为只提交派生的 20 KB 周序列
+- **验证方式**：行数核对 913,000 = 10 店 × 50 品 × 1,826 天（差 0）、日期连续无缺失无重复；基线用固定时间切分（测试集 2017-11-06~2017-12-25 8 周）复算，MA4 18.9% / 同周去年 5.0% 与逐商品结果一致；生成的 261 行 CSV 抽查 2013 年 1-2 月周桶与源数据聚合值一致
+- **结论**：采用（任务 7 主线由模拟器改为教师数据；模拟器只保留销售订单表/演示数据用途）
+
+### 记录 004
+- **日期 / 使用人**：2026-11-02 / 成员 B
+- **角色与模块**：B / process —— D 的设计评审跟进（`step_type` 取值字典全项目统一）
+- **提示词**：见附录 P-004（"你看看我新建了几个文件夹，里面有别人给我发的东西"）
+- **AI 产出**：清点 `member_A / member_C / member_D` 三个收件文件夹（A、C 为空；D 的包内有设计评审意见 + 路网 29 节点/48 边 + 距离矩阵 + 平面图，`D给B-step_type字典-20261026` 为空目录）；读 D 的 3 条 P0 + 2 条 P1；产出 `07-step_type取值字典.md` v1.0（11 值，采纳 D 草案）与 `08-D设计评审-B方回复.md`；同步改 `06` §3.1 与 `02` Excel 三处旧值（`gear_hobbing→gear_milling`、`washing→cleaning`、`milling→slot_milling`）；更新 `00` 交接单（A9/A10、D5/D6、文件清单、0.2 更新节）
+- **人工修改**：①没有坚持 B 的 W1 十值方案，改为全盘采纳 D 的 11 值——理由是现场没有滚齿机（`gear_milling` 才准）、铣槽与铣面参数不同、少一次全项目改名；②把 D 的"设备 step_type 列表包含即可、不要求 1:1"写进匹配口径，避免 B 写成精确相等；③明确路网/矩阵归 A/D，B 不复制不另写；④在 08 里指出 D 的 step_type 草案文件夹是空的，请 D 重发或直接核 07
+- **验证方式**：11 个 step_type ↔ 11 个工序模板 1:1；30 道工序的 step_type 分布合计 = 30（cutting 6 / rough 5 / finish 5 / drilling 3 / milling 1 / slot 1 / gear 1 / grinding 1 / cleaning 1 / inspection 6）；Excel 重新生成后复查旧值出现次数为 0；文档互引与表格列数检查通过
+- **结论**：采用（等 D 回"复核通过"后冻结 v1.0）
+
+### 记录 005
+- **日期 / 使用人**：2026-11-02 / 成员 B
+- **角色与模块**：B / process —— W2 第一张表 `pr_process_template`（工序模板）模型 + CRUD 接口
+- **提示词**：见附录 P-005（"现在开始继续推进的话从哪里开始"）
+- **AI 产出**：`backend/apps/process/` 下生成 `models.py`（`StepType` 11 值、`EquipmentType` 7 值、`ProcessTemplate`）、`services.py`（编码生成器 PT-###、枚举/工时/编码重复校验，抛 `BizError` 12001~12004）、`serializers.py`、`filters.py`、`views.py`、`urls.py`、`admin.py`、迁移 `0001_initial.py`、管理命令 `seed_process.py`（11 条标准模板）、8 条接口测试；`config/urls.py` 增加 `/api/v1/process/` 路由
+- **人工修改**：①业务校验没有用 DRF 内置校验，全部放 `services.py` 抛 `BizError`，保证错误码落在 B 号段（12001~12004），而不是统一变成 10001；②`step_type` 用 `CharField` 而非 `ChoiceField`，否则非法枚举会被 DRF 先拦成 10001；③编码允许留空自动生成、也允许手工指定（便于照 Excel 导入）；④测试时新建的 PT-012 已删除，保持 11 条种子数据干净；⑤路线/BOM 需要 A 的 `masterdata` 外键，本轮只做无外键的模板表，不提前造依赖
+- **验证方式**：`pytest apps/process/tests` 8 项全过；`ruff check apps/process` 全过；起服务实测——登录 admin/admin123 拿 token、列表 `count=11` 且分页字段正确、新增自动编码 `PT-012` 返回 201、非法枚举返回 `12004`、编码重复返回 `12001`；Swagger `schema.yaml` 已收录 `/api/v1/process/templates/`，`manage.py seed_process` 幂等
+- **结论**：采用（W2 第一张表纵向打穿；下一步路线/BOM + 前端「工序模板」页）
+
+### 记录 006
+- **日期 / 使用人**：2026-11-03 / 成员 B
+- **角色与模块**：B / process —— 工艺枚举接口 + 工序模板 Excel 导入
+- **提示词**：见附录 P-006（"你继续做"）
+- **AI 产出**：新增 `GET /api/v1/process/enums/`（11 个 step_type + 7 个 equipment_type，供前端下拉，避免页面硬编码中文数组）；新增管理命令 `import_templates`（读 `02-六种零件工艺路线清单.xlsx` 的「工序模板库」表，按编码幂等 upsert，逐行走 services 校验 12xxx，支持 `--dry-run`）；`TemplateList.vue` 改为启动时拉枚举接口、失败回落本地常量；补 1 条枚举接口测试；再加 `export_templates` 导出命令与 2 条导入/导出命令测试（全套 11 条）
+- **人工修改**：①发现项目 `.venv` 没有 `openpyxl`（`install_all.py` 包清单漏了），先本地装 3.1.5 并记 A12 交接项让 A 加进 requirements；②导入首版把"已存在编码"当重复报错（12001），改为先查 existing、传 `instance` 再校验；③`--dry-run` 首版有错仍打印"全部通过"，改为有错即失败并逐行列出；④只读「工序模板库」工作表，避免误读路线表
+- **验证方式**：pytest 11 条全过、ruff 全过、`npm run build` 通过；实测 enums 返回 11/7；`import_templates --dry-run` 11 行全部通过、实导 0 新建/11 更新/0 失败；导入后库中 11 条且 step_type 全为新版 11 值
+- **结论**：采用（数据准备不再靠手抄 Excel，换机器一条命令可复现）
+
+### 记录 007
+- **日期 / 使用人**：2026-11-09 / 成员 B
+- **角色与模块**：B / process、order —— 同步远程仓库、合并 A/D 交付、校正任务 7 基线口径
+- **提示词**：见附录 P-007（"我现在连了VPN了"）
+- **AI 产出**：`git fetch` 发现 origin/main 前进 17 个提交（A 的 masterdata/权限/错误码/规范文档、D 的 W2 设备物流代码、A 给 B 的回复文档），把 origin/main 合并进 B 分支（仅 `backend/config/urls.py` 冲突，手工合并保留 core/masterdata/process/equipment/logistics/inventory 六组路由）；成功把 `feature/process-w1-model` 推到 GitHub；读 A/D 回复后按 A 决定把教师派生 CSV 从 `docs/role-b-w1/data/` 移到仓库 `data/`、零件编码 `PF-BN-001→PF-BD-001`、数据说明并入 `data/README.md`；新增 `experiments/order_forecast_baseline.py`（同一数据上 4 种基线口径对照）；04 文档新增 §5.4「口径说明与复现」，把主口径改为 MA 滚动一步 + 同周去年，并回应 A 的复算差异
+- **人工修改**：①A 用交付 CSV 复算得 MA4 6.95% / 同周去年 7.25%，与 B 报的 18.9%/5.0% 不一致；B 把 4 种口径都跑了一遍（静态 19.0%、滚动 13.7%、当周平滑 8.5%、月粒度 23.7%，同周去年均为 5.0%），**没有硬凑成 A 的数字**，而是把口径固定下来、脚本随仓库提交，请 A 提供其参数再对齐；②主口径从"MA 静态外推"改为"滚动一步"（更接近真实预测），静态值保留为对照；③按 A 的 §九/§十 决定改族代码与数据位置；④合并时没有直接把 A 的新路由覆盖掉，逐个保留
+- **验证方式**：合并后所有 app 路由齐全、`git status` 干净；`python experiments/order_forecast_baseline.py` 输出与 04 §5.2 完全一致（宏均 MA 13.7% / SN 5.0%，微均 12.6% / 4.9%）；`push` 成功（`feature/process-w1-model` 已出现在远程）
+- **结论**：采用（基线标尺已固定并可复现；等 A 用同一脚本确认后冻结）
+
+### 记录 008
+- **日期 / 使用人**：2026-11-09 / 成员 B
+- **角色与模块**：B / process —— 按 D 的《W2 要料》调整工序模板与排产口径
+- **提示词**：见附录 P-008（"总结给A和D发的消息 / ok，发了，你继续"）
+- **AI 产出**：读 D 的新交付（8 台设备 15 条能力、11 值 step_type 字典、2 个待拍板问题）；产出 `10-D要料回复-B方决策-20261109.md`；代码上：`process/models.py` 删除自定义 `StepType` 改为 `from apps.equipment.constants import StepType`，新增 `is_equipment_free` 字段（迁移 0002），`services` 校验“非不占设备工序必须有设备类型”，`serializers/filters/views` 同步，`seed_process` 与 `import_templates` 把下料/检验置为不占设备，前端模板页加“不占设备”开关与列；`07` 升 v1.1、`06` 补字段与口径、`docs/error-codes.md` 补 B 号段 26 条
+- **人工修改**：①选 D 的方案①而不是加设备（保持说明书 8 台设备设定，答辩少解释一层）；②去毛刺不插进 30 道工序（保护 W1 验收基线），改为请 D 标 oee_excluded；③`step_type` 不再自定义、统一从 equipment 常量导入；④不读 `params`，只认三列匹配；⑤Excel 用“设备类型留空”表达不占设备，避免加第 10 列打乱已有模板
+- **验证方式**：`makemigrations` 生成 0002 并迁移成功；`seed_process` / `import_templates` 重灌后 PT-001/PT-011 的 `is_equipment_free=True`、设备类型为空；pytest 13 条全过；ruff 全过；前端 `npm run build` 通过；error-codes 表补 26 条
+- **结论**：采用（B-1/B-2 闭环，等 D 确认 available 接口字段后即可写排产）
+
+### 记录 009
+- **日期 / 使用人**：2026-11-09 / 成员 B
+- **角色与模块**：B / process —— 工艺路线、BOM、换型矩阵（表 + 接口 + 种子数据）
+- **提示词**：见附录 P-009（"做"）
+- **AI 产出**：`process/models.py` 新增 5 张表（ProcessRoute / RouteStep / Bom / BomItem / ChangeoverMatrix + 3 组枚举）；迁移 `0003`；`services.py` 增加路线编码/版本、生效唯一性、复制、工序校验、BOM 与明细校验、换型校验、矩阵聚合；`serializers/filters/views/urls/admin` 全量补齐（含 `/routes/{id}/copy|activate|steps/`、`/boms/{id}/items/`、`/changeovers/matrix|import/`）；管理命令 `seed_routes`（从 02 Excel 读 6 路线/30 工序/BOM/30 换型对，幂等）；测试 `tests/test_routes.py` 8 条
+- **人工修改**：①DRF 的 UniqueTogetherValidator 会先于业务校验返回 10001，统一在 Meta 里 `validators = []`，把唯一性交回 services（12005/12007/12011/12014/12024）；②版本号改为服务端生成（serializer 只读），否则同一产品建第二条路线会被“product+version 唯一”直接拒；③BOM 物料编码从提案的 MT-RM-000x 改成 A 在 `init_demo` 里实际建的 MT-45/MT-40CR/MT-AL6061；④种子命令先建 draft 再统一置 active，绕过“无工序不能生效”的校验；⑤路由文件按契约把 `steps/items` 做成嵌套 action，不额外引入第三方嵌套路由库
+- **验证方式**：`makemigrations`+`migrate` 成功；`seed_routes` 输出“路线 6 条（工序 30）/BOM 6 条/换型 30 对”；pytest 21 条全过（路线 5 + BOM 2 + 换型 1 + 模板 13）；ruff 通过；实测 API：routes count=6、每条 steps 4~6、连接板下料 0.3h free=True、boms count=6、changeover matrix products=6 cells=30
+- **结论**：采用（W2 的工艺配置后端闭环完成；下一步工艺路线设计页 + BOM/换型页面）
+
+### 记录 010
+- **日期 / 使用人**：2026-11-13 / 成员 B
+- **角色与模块**：B / process 前端 —— 工艺路线设计页
+- **提示词**：见附录 P-010（"接下来要做什么，需要我向队友索要什么吗，没有的话先做自己的活"）
+- **AI 产出**：新增 `frontend/src/views/process/RouteDesign.vue`（左侧路线列表 + 右侧工序编辑：新建路线、复制同族路线、生效、从模板库添加工序、编辑工时/设备/不占设备、上移下移调序、删除、合计工时）；`api/process.js` 补路线/BOM/换型三组接口封装；路由 `process/routes` 从占位页换成真实页面；顺带修了后端 `update_step` 的序号唯一校验（编辑同一条工序时不再误报 12005）
+- **人工修改**：①调序用“临时序号”三步交换，绕开 (route, seq) 唯一约束；②工序表单选模板后自动带出 step_type/工时/设备/不占设备，允许覆盖；③活动路线显示黄色提醒“修改会影响排产，建议复制新版本”；④列表搜索/状态筛选走后端，不在前端过滤
+- **验证方式**：`npm run build` 通过；起服务实测：登录、`/process/routes/` 6 条、路线详情含 4~6 道工序（连接板 E 合计 1.2h 与 Excel 一致）、模板下拉 11 条、产品下拉 6 个；页面 HTTP 200
+- **结论**：采用（W2 工艺配置前端第一个页面完成；下一步 BOM 页、换型矩阵页）
+
+### 记录 011
+- **日期 / 使用人**：2026-11-13 / 成员 B
+- **角色与模块**：B / process 前端 —— BOM 维护页 + 换型矩阵页
+- **提示词**：见附录 P-011（"打开了，传完之后继续做任务"）
+- **AI 产出**：新增 `BomEdit.vue`（BOM 列表 + 明细增删改 + 生效、单件用量合计）与 `ChangeoverMatrix.vue`（6×6 二维表、点格子改分钟数、新增产品对、Excel 导入、source 枚举）；`/process/changeovers/matrix/` 的 cells 增加 `id` 字段（原先前端改格子拿不到记录 id）；路由把 `process/boms`、`process/changeovers` 从占位页换成真实页面
+- **人工修改**：①发现矩阵接口没返回换型记录 id，前端 PATCH 会打到错误对象，补 id 后改为按 id 更新；②矩阵页明确标注“全部 estimated，D 复核前不改成实测”；③BOM 页沿用 A 的 ProductList 风格（侧栏列表 + 右侧明细），但表格用 el-table 以支持操作列；④测试时改动的格子已用 `seed_routes` 幂等重置回 Excel 原值
+- **验证方式**：`npm run build` 通过；pytest 21 条全过、ruff 通过；实测 matrix `products=6 cells=30` 且 cells 带 id、PATCH 一格返回 200 且值为 16（随后重置）、BOM `count=6` 且明细 `MT-45 2.500`；页面 HTTP 200
+- **结论**：采用（W2 工艺配置三个页面完成：工序模板 / 工艺路线 / BOM / 换型矩阵；下一步订单模块）
+
+### 记录 012
+- **日期 / 使用人**：2026-11-13 / 成员 B
+- **角色与模块**：B / order —— 销售订单、MPS、齐套检查（W3 后台）
+- **提示词**：见附录 P-012（"继续做"）
+- **AI 产出**：`order/models.py` 6 张表（SalesOrder/OrderItem/DemandForecast/Mps/MpsDetail/MaterialRequirement）+ 订单状态机枚举；迁移 `order/0001`；`services.py`（订单编码、交期/数量校验、状态流转 12015~12017、MPS 编码与从已确认订单聚合 12018、齐套检查按 BOM 展开并写缺口表 12019、库存可用量预留 `get_available_qty` 单点）；`serializers/filters/views/urls/admin` 全量（含 confirm/cancel/items、`/mps/from-orders/`、`/mps/{id}/check-kit/`）；`config/urls.py` 增加 `/api/v1/order/`；管理命令 `seed_orders`（6 张演示订单，4 张已确认）；测试 `tests/test_orders.py` 9 条
+- **人工修改**：①库存可用量没有硬编码在齐套逻辑里，集中到 `get_available_qty()` 一个函数，C 的接口上线后只改这里；响应里明确标 `availability_source=mock（按 0 计算）`，不假装有库存；②订单只在草稿状态可改明细，已确认只能改交期/优先级/备注（12017）；③从订单生成 MPS 只取已确认订单，聚合到产品粒度；④MPS 明细第一代只由订单生成，手工增删先拒绝，避免半成品接口
+- **验证方式**：makemigrations/migrate 成功；pytest 全仓库 85 条全过（order 9 条）；ruff 通过；实测：6 张演示订单、`from-orders` 生成 MPS202611-01（4 个产品，数量 60/50/40/35）、齐套检查返回 `ready=false` 且 MT-45 需求 252.9 / MT-40CR 220.335（与 BOM×订单量手算一致）
+- **结论**：采用（订单→MPS→齐套后台闭环；下一步订单/MPS 页面 + 规则版排产）
+
+### 记录 013
+- **日期 / 使用人**：2026-11-13 / 成员 B
+- **角色与模块**：B / order 前端 + planning 后台与甘特页
+- **提示词**：见附录 P-013（"继续做，每次推进太少了呀，这一次多做一些，一直做到需要我确定什么或者需要被组员卡住了再停"）
+- **AI 产出**：①订单前端：`OrderList.vue`（筛选/展开明细/新建带多明细/确认/取消）、`MpsPlan.vue`（计划期 + 从已确认订单生成 + 明细 + 齐套检查结果）、`api/order.js`；②规划后台：`planning/models.py`（工单、工单工序、排产方案、排产明细）、`services.py` 规则版排产（交期+优先级排序、按 step_type/capacity/状态选最早可用设备、换型矩阵加换型分钟、不占设备工序只占工单时间、KPI 与预警）、`serializers/views/urls/admin`（`/planning/work-orders/`、`/planning/schedule-plans/run|gantt/confirm/`），迁移 `planning/0001`；③甘特页 `ScheduleGantt.vue`（ECharts 自定义 series 画时间条、KPI 卡、工单表、设备负荷、确认方案）；④本地补订单/排产菜单；⑤启动前灌了 D 的 8 台设备/15 条能力
+- **人工修改**：①没有为了排产引入求解器或读取设备 `params`，严格按 D 的三列口径选设备；②下料/检验不占设备，只顺延工单自身时间；③换型分钟取自 `pr_changeover_matrix`，缺失用 0，KPI 里单独统计换型次数；④重跑同一 MPS 会清掉旧方案与未下达工单，避免重复工单；⑤时间先按连续时间（不扣休息）并在 services 注明 W4 再补日历；⑥班次对齐改成按本地时区（避免 UTC+8 排到 UTC 8 点）
+- **验证方式**：migrate 成功；全仓库 pytest 89 条全过（planning 4 条）；ruff 通过；实测：MPS202611-01 排产生成 SP20261113-001，4 张工单/20 道工序/7 次换型/准时率 100%/用 5 台设备；甘特 bars=20，粗车正确落在 EQ-CNC-01、下料为不占设备
+- **结论**：采用（W3 订单→MPS→齐套→排产→甘特 主链闭环；下一步任务 7 预测）
+
+### 记录 014
+- **日期 / 使用人**：2026-11-13 / 成员 B
+- **角色与模块**：B / order 任务 7 —— 需求预测（SARIMA 等）+ 预测曲线页
+- **提示词**：见附录 P-014（"继续做，做到需要我确定或队友卡住再停"）
+- **AI 产出**：`order/forecasting.py`（CSV 读取、MA/季节朴素/指数平滑/SARIMA、指标、落库）；`/order/forecasts/run/` 与 `/history/` 接口；`ForecastChart.vue`（模型/步长选择、指标表、历史+预测 ECharts 曲线）；补需求预测菜单；新增 `docs/role-b-w1/11-任务7预测实现与结果-20261113.md`
+- **人工修改**：①初版 SARIMA(1,1,1)(0,1,1,52) 拟合 261 周要 60s+/产品，答辩必卡，实测后改 (1,0,0)(0,1,0,52)+漂移（0.6s/产品，精度更好），并在文档写清原因；②statsmodels 0.15 的 `conf_int` 返回 ndarray 而非 DataFrame，补兼容分支；③MAPE 口径与 W1 实验脚本完全一致（最后 8 周、剔除 0），结果可直接和 04 文档对照；④预测结果统一用宏均汇报，同时保留每个零件的基线值
+- **验证方式**：全仓库 pytest 92 条全过；ruff 通过；实测 `POST /forecasts/run/` 6 个产品 SARIMA 总耗时 9.2s、MAPE 2.49~4.98%（平均 3.66%），基线平均 5.04%；落库 48 行（6×8）；前端构建通过
+- **结论**：采用（任务 7 主实验达到"打败季节朴素基线"的目标；下一步等人员/库存/传感器分工确认）
+
+### 记录 015
+- **日期 / 使用人**：2026-11-15 / 成员 B
+- **角色与模块**：B / planning —— 回应 D 的 W3/W4/W5 联调口径，补转序搬运派生接口
+- **提示词**：见附录 P-015（"D发了一些文件和消息"）
+- **AI 产出**：读 D 的三个 W3/W4/W5 交付包，输出 `docs/role-b-w1/12-D-W3W4W5联调口径回执-20261115.md`（表名/字段、seq 稳定性、换型口径、工位号、priority、设备状态、搬运动作共 10 项定稿）；代码上：`planning/services.py` 增加「已下达工单存在时禁止重排（12020）」、`plan_gantt` 补 `operation_id/workstation_code/agv_load_point/priority`、新增 `plan_transport_tasks()`（同工单相邻工序 leg，起终点工位/节点/设备）；`views.py` 增加 `GET /planning/schedule-plans/{id}/transport-tasks/`、工单 `complete/`、`cancel/` 动作与 D 的 `cancel-by-work-order` best-effort 调用（`LOGISTICS_BASE_URL` 开关）；工单优先级从来源订单继承；迁移 `planning/0002`；新增 3 条测试
+- **人工修改**：①D 的 `from-operation` 幂等键是 `(work_order_code, seq)`，而 B 调序会改 seq，所以定「只对已下达工单派生 + 下达后冻结 seq + 重排生成新工单号」，并建议 D 加 `operation_id` 双保险；②换型明确「不含在工序工时里」，单独字段给 D 的 ETA；③工位号优先给工位编码（masterdata），设备编码兜底，免设备工序用 `ST-CUT-01`/`ST-QC-01`，缺数据不静默造；④发现 D 的 W3 设备工位绑定（WS-N…）还没进仓库、A 的 masterdata 是 ST-…，已把「工位编码以谁为准」列为待 D/A 确认；⑤工单完工/取消的搬运任务取消做成 best-effort 调用，不阻塞工单状态
+- **验证方式**：全仓库 pytest 95 条全过；ruff 通过；实测新方案 SP20261115-001：legs=16、priority 1/2/3 正确、检验 leg 到 `ST-QC-01`；其余 16 条 warning 全部是「设备未绑工位」（等 D 的 dw3 数据合并）
+- **结论**：采用（D 的 10 个口径全部回复；等 D 推 dw3 + 加 cancel 接口后开箱验证）
+
+### 记录 016
+- **日期 / 使用人**：2026-11-15 / 成员 B
+- **角色与模块**：B / planning + 跨分支合并 —— 合并 A 的 main 与 D 的 dw3，跑通排产→转序→搬运→完工撤销
+- **提示词**：见附录 P-016（"D回了" + D 的三条口径截图）
+- **AI 产出**：合并 `origin/main`（A 的权限/员工技能）与 `origin/dw3`（D 的 W3/W4/W5 + C 联调包）；解决 planning 应用同名冲突（B 工单 + A 员工技能，迁移 0001/0002/0003）、config/urls、router、AI 记录 4 处冲突；按 D 的清单执行 migrate/init_demo/seed_equipments/seed_d_workstations/import_road_network/seed_agvs；重跑排产并验证 `transport-tasks` legs=16 零告警；用 D 的 `from-legs` 批量派生 16 条任务；验证工单 release→complete 触发 `cancel-by-work-order` 撤掉 4 条 pending；前端排产页加「派生搬运任务」按钮
+- **人工修改**：①A 的 planning 应用只有员工技能、B 的是工单/排产，选择合并而不是二选一（两边都保留）；②A 与 B 的 `planning/0001_initial` 内容不同，保留 B 的迁移树并新增 0003，文档提醒 A 重建迁移状态；③C 的 quality 顶层 `import cv2` 导致无 cv2 时 Django 起不来，改成 try/except 懒加载并在测试里 skip 视觉用例，避免为了一个可选依赖阻塞全项目；④D 的 from-legs 幂等键含 operation_id，B 的 leg 已带；⑤前端加了「派生搬运任务」按钮，演示时一键把排产变成搬运任务
+- **验证方式**：全仓库 pytest 235 条全过（含 A/C/D 的测试）；ruff B 范围通过；真实请求：legs 16/warnings 0、from-legs created=16、重复调用 existed=16、工单完工后 cancelled=4；前端 build 通过
+- **结论**：采用（B 的 W3 排产与 D 的 W3-W5 物流已端到端打通；等 D 演示 AGV 派车、C 的库存/报工联调）
+
+### 记录 017
+- **日期 / 使用人**：2026-11-15 / 成员 B
+- **角色与模块**：B / planning + order —— 报工回调、齐套真实库存、派工、W6 换型敏感性分析
+- **提示词**：见附录 P-017（"ok啊你按顺序都做了"）
+- **AI 产出**：①实现 `planning.services.operation_start/operation_complete`（C 的 production 报工入口会调）；全部工序完工时工单 completed 并通知 D 撤销搬运；②`order.get_available_qty` 改调 C 的 `inventory.material_available`（I-09），齐套 source 改为 inventory；③派工：工序加 `operator_user` FK、`assign/auto-assign/dispatch` 三个接口、`seed_demo_skills` 命令（3 操作工 × 11 技能）、前端甘特页工单表加“操作工 + 自动派工”；④`run_schedule` 加 `changeover_scale` 参数 + `changeover_sensitivity` 命令，跑 0.5/1/1.5 倍实验并写结论
+- **人工修改**：①C 的 production 契约里已经写死要调 B 的 `operation_start/complete`，按它的入参补齐，不另造接口；②齐套可用量直接调 C 的 service，不复制库存 SQL；③派工不把 `operator` 文本改成 FK 破坏旧数据，而是新增 `operator_user` 并保留姓名快照；④自动派工按“已分配任务最少 + 技能等级”选人，避免全压给高级工；⑤换型敏感性实验全部事务回滚，不污染演示库；⑥A 的 init_demo 没种技能，B 临时加 planning 命令种演示操作工，文档标注等 A 收编
+- **验证方式**：全仓库 pytest 全过（B 新增 7 条）；ruff 通过；实测：齐套 source=inventory、WO202611-0002 自动派工 5 道全成功（张/李/王）、C 的 production 开工/完工接口 200；换型敏感性 0.5x/1x/1.5x makespan 170.5/171.0/171.5h（±0.3%）
+- **结论**：采用（B 与 C 的报工链闭环、齐套去掉 mock、派工完成；W6 敏感性结论：换型不是瓶颈，磨削/滚齿才是）
+
+### 记录 018
+- **日期 / 使用人**：2026-11-15 / 成员 B
+- **角色与模块**：B / planning —— W7 生产看板
+- **提示词**：见附录 P-018（"ok啊做吧，需要其它组员做什么吗，还是说你能独立推进"）
+- **AI 产出**：`planning.services.dashboard_summary()` 聚合最新方案 KPI、工单状态/工序完成数/延迟、C 的报工汇总（`production.services.wip_summary`，失败自动降级）；`GET /planning/dashboard/`；前端 `DashboardBoard.vue`（KPI 卡 + 工序进度堆叠柱 + 设备负荷 + 工单状态分布 + 工单明细）；路由与本地菜单；顺手修“手工完工工单后工序状态未回填”的一致性问题
+- **人工修改**：①报工数据源直接调 C 的 service 并 try/except 降级，C 模块不可用也能看板；②延迟只按交期+未完工判断，不依赖报工；③完工动作同时把工序置 completed，避免看板出现“工单已完工但工序 0/5”；④看板只读，不写任何状态
+- **验证方式**：planning 12 条测试全过；ruff 通过；实测 `GET /planning/dashboard/` 200：4 工单/20 工序/1 完成/0 延迟，WO202611-0002 生产中 1/5；前端 build 通过、页面 200
+- **结论**：采用（W7 看板完成；等 C 灌报工/库存数据后看板数字会变，不需要 C 改接口）
+
+### 记录 019
+- **日期 / 使用人**：2026-11-15 / 成员 B
+- **角色与模块**：B / planning —— W7 看板收尾（延迟/瓶颈/齐套）
+- **提示词**：见附录 P-019（"ok继续做，做完说一下我们项目的总进度到哪里了"）
+- **AI 产出**：`dashboard_summary()` 增加 `delayed_work_orders`、`bottlenecks`（按 D 的能力台账统计单台覆盖工序 + 当前方案负荷）、`kit`（最近一次齐套检查的 MPS/ready/缺口数/时间）；前端看板加三张卡片（延迟工单、瓶颈设备、齐套状态）
+- **人工修改**：①瓶颈不硬编码，直接查 `eq_equipment_capability` 按 step_type 分组，只取仅 1 台设备的工序；②去毛刺/清洗虽然单台但未排产，卡片标题用“单台覆盖工序”而不是“瓶颈”，避免夸大；③齐套只读 `or_material_requirement`，看板不触发重新检查；④报工/库存模块不可用时全部 try/except 降级
+- **验证方式**：planning 12 条测试全过；ruff 通过；前端 build 通过；实测 dashboard：4 工单、0 延迟、4 个单台覆盖工序（滚齿 1.8/负荷 27.9、磨削 2.5/11.7、去毛刺 15/—、清洗 20/—）、齐套 MPS202611-01 缺 2 项
+- **结论**：采用（W7 看板闭环；等 C 灌库存/报工数据后数字自然变化）
 
 ---
 
 ## 附录：长提示词原文
 
+
+### P-002（B / W1 文档包，2026-10-23）
+
+> 【项目固定约定，请先读完再回答】项目：面向中小型离散机加工车间的生产管理平台（学生课程项目）。技术栈：后端 Django 5 + DRF + PostgreSQL 16 + Python 3.12；前端 Vue 3 + Vite + Element Plus + Pinia + Axios + ECharts。不要使用其他框架、其他版本或其他同类库。后端目录：`backend/apps/<应用名>/`，内部固定 models.py、serializers.py、views.py、urls.py、services.py、filters.py、tests/；业务逻辑必须写在 services.py。前端目录：`frontend/src/{api,views,components,charts,layouts,router,store,utils}/`；接口地址只能写在前端 api 封装里。命名：模型大驼峰单数；字段小写下划线；外键用 xxx_id；业务编码统一叫 code；接口路径用复数连字符。数据库：主键统一 id；金额 decimal(12,2)；数量 decimal(12,3)；禁止 float；动态参数用 JSONField。接口：前缀 `/api/v1/<应用名>/<资源复数>/`；DRF Token 认证。统一响应体 `{"code":0,"message":"ok","data":...}`；分页 data 为 `{count,page,page_size,results}`；异常 `{"code":<错误码>,"message":"中文说明","data":null}`。状态枚举必须使用项目统一取值。
+>
+> 我负责 B 角色：工艺与计划。维护 process、order 两个应用，以及 planning 中的排产/工单/派工。现在只做 W1 的文档工作，不写代码：①工艺数据建模草案（工序模板、产品族、工艺路线三层结构，与 A 的 ER 图对齐）；②整理 6 种零件的工艺路线（先用 Excel，每件 4~6 道工序，含标准工时估算）；③与 D 商定换型矩阵的数据来源与取值口径（不许自己编数据）；④参与教师数据集评估的订单部分；⑤工艺与计划相关用户故事；⑥工序模板与产品族的数据字典初稿（交给 A 进 ER 图）。输出要求：先列出你要产出哪些文件以及每个文件的结构，再动手；所有数值要标来源，估算的必须标"估算/待确认"；与现有 `docs/er-v1.md`、`docs/api-contract.md` 有冲突的地方列成表，不要自己改 A 的文件。
+
+### P-003（B / 任务 7 数据集评估，2026-10-26）
+
+> 现在那个工作文件夹中有更新数据集，你能看到吗，这个更新对现阶段的工作有帮助吗，如果有的话迭代一下。
+>（要求：先找到并说清数据集是什么、有多少、质量如何；再判断对 W1 的哪一项有帮助；有帮助就把对应交付物迭代到新版本，数值必须来自实测、不许估算；涉及业务映射（如零售商品→机加工零件、量纲缩放）的地方要先给方案再写进文档，并在文档里标明这是映射不是真实订单。）
+
+### P-004（B / D 设计评审跟进，2026-11-02）
+
+> 你看看我新建了几个文件夹，里面有别人给我发的东西。
+>（要求：先把每个文件夹里有什么、属不属于 B 说清楚；再把与 B 相关的意见逐条挑出来，能当天闭环的直接产出交付物——特别是 D 说"不定就返工"的 P0 项；同步把已经写过的文档里与新结论冲突的地方改掉（枚举改名、Excel 数据、交接单），不要只写新文档不改旧文档；需要别人配合的，列出"要谁回什么、什么时候"。）
+
+
+
+### P-005（B / W2 工序模板表开工，2026-11-02）
+
+> 现在开始继续推进的话从哪里开始。
+>（要求：先判断当前仓库/环境里能独立动工的最小一块——优先选不依赖别人主数据的表；按项目约定"表 → 接口 → 页面"走，业务校验放 services.py 并用自己的错误码号段；每步都要能跑起来验证（迁移/测试/真实 HTTP 请求/Swagger），最后把"下一步"和"依赖别人什么"讲清楚。）
+
+### P-007（B / 同步远程与基线校正，2026-11-09）
+
+> 我现在连了VPN了。
+>（要求：先测通、把本地分支推上去；再 fetch/merge 远程最新代码，冲突手工合并、保留双方路由；读 A/D 的回复，把需要 B 改的（数据位置、产品编码、基线口径）当天改掉；A 对基线数字有异议时不要硬改数字，先定义口径、给可复现脚本，再请对方给参数对齐。）
+
+### P-008（B / D 的 W2 要料落地，2026-11-09）
+
+> 总结给A和D发的消息 / ok，发了，你继续。
+>（要求：把两人要的消息整理成可直接转发的一段话；然后按 D 的两个决策改代码——枚举单一来源、不占设备字段、种子与 Excel 同步、前端展示；改动要有迁移、测试和构建验证；并把决策写成文档存档。）
+
+### P-009（B / W2 路线/BOM/换型落地，2026-11-09）
+
+> 做。
+>（要求：按契约把工艺路线、BOM、换型矩阵的表/接口/种子数据一次做完；有外键就先对 masterdata 的实际表结构；唯一性、状态机等业务规则放 services 并用 12xxx 错误码；要能迁移、能灌数据、有测试、有真实请求验证。）
+
+### P-010（B / 工艺路线设计页，2026-11-13）
+
+> 接下来要做什么，需要我向队友索要什么吗，没有的话先做自己的活。
+>（要求：先判断哪些是硬依赖、哪些可以自己先做；把要队友配合的事列成简短清单；然后直接开工，优先做能完整跑通的一小块，改动后要有构建/接口验证。）
+
+### P-011（B / BOM 与换型矩阵页面，2026-11-13）
+
+> 打开了，传完之后继续做任务。
+>（要求：先 push 待提交内容并 fetch 远程；然后按"自己的活"继续，把 BOM 维护页和换型矩阵页一次做完；前端要能真正调用后端接口，改完构建验证，并用真实请求抽查接口。）
+
+### P-012（B / 订单与 MPS 后台，2026-11-13）
+
+> 继续做。
+>（要求：按 W3 任务清单做订单模块后台——销售订单+明细+状态机、MPS 由订单生成、齐套检查；外部没接好的接口（C 的库存）用单点 mock 函数隔离并在响应里说明；要迁移、有测试、真实请求跑通。）
+
+### P-013（B / 订单前端 + 排产与甘特，2026-11-13）
+
+> 继续做，每次推进太少了呀，这一次多做一些，一直做到需要我确定什么或者需要被组员卡住了再停。
+>（要求：一次推进多个模块；先把外部依赖判断清楚（设备数据由 D 已有、库存接口未上线就 mock），然后连续实现订单页、MPS/齐套页、工单与规则版排产、甘特图；每步都要能跑、有测试、最后统一提交推送。）
+
+### P-014（B / 任务 7 预测实现，2026-11-13）
+
+> 继续做，做到需要我确定什么或者被组员卡住了再停。
+>（要求：把任务 7 预测按 04 文档固定口径实现：数据读取、SARIMA/指数平滑/移动平均/季节朴素、MAPE/RMSE、结果落库、接口、前端曲线；模型选择要实测耗时与精度，不能为了跑通牺牲答辩可用性；结果写进文档并和基线对比。）
+
+### P-015（B / D 的 W3-W5 联调回执，2026-11-15）
+
+> D发了一些文件和消息。
+>（要求：读 D 的交付包，逐条回答要 B 拍板的表名/字段、seq 稳定性、换型口径、工位号、priority、设备状态、工单完工搬运任务处理；能落地的 B 侧改动直接写代码并用测试与真实请求验证；发现工位编码/数据未合并这类集成缺口要主动标出并写进回执。）
+
+
+
 （把超过 200 字的提示词全文放这里，上表只写编号，如 P-001）
+
+### P-001（记录 001，2026-11-13，成员 D）
+
+> ⚠️ 下面是本轮任务的**要求整理稿**（多条短指令与上下文拼接成一段），不是逐字原文。
+> 结课提交前把对话里的原文贴进来替换本段——课程要的是原文，不是复述。
+
+```
+【背景】
+我在 SmartWorks 里负责 D（设备与物流）。仓库本地路径 E:\smartworks-repo，当前分支 dw3。
+B 已经交付了排产（W3），他的代码直接读 /api/v1/equipment/equipments/available/ 的返回，
+并且已经写成 row['changeover_minutes'] 这种取值方式。
+
+【要求 1：把这条接口改成排产能直接吃的形状】
+- 现在是套一层 equipment 的对象，改成扁平的一行一台设备。
+- B 要的字段一个都不能少：equipment_id / code / name / capacity_per_hour /
+  precision_level / changeover_minutes，再加 status、oee_excluded、
+  workstation_code、agv_load_point 方便排产和派工。
+- changeover_minutes 就是表里的 setup_minutes，不许改列名，也不许建第二列。
+- 表结构视图 /capabilities/ 保持不变，只有排产视图改。
+
+【要求 2：按 B-1 决策处理两道不占设备的工序】
+- cutting（下料）和 inspection（检验）在 B-1 里定案为"不占设备"，
+  process 模板标 is_equipment_free=true，排产只占工时（下料 0.25h/件、检验 0.3h/件）。
+- 所以 available?step_type=cutting 返回空数组是正确结果，不是数据没建。
+  种子命令和接口文档的措辞都要改成这个意思，别再用"⚠️ 没有设备能做"。
+- 8 台设备不增不改，D 不补锯床、不补检验设备。
+
+【要求 3：8# 去毛刺台不计入 OEE】
+- 第一代 30 道工序基线里没用到去毛刺，OEE 页面会把它算成"永远零产出"的设备。
+- 给设备加 oee_excluded 字段，只有 8# 去毛刺台为 true，其余 7 台 false。
+- W6 把去毛刺插进路线后改回 false。
+
+【要求 4：给这两件事补测试】
+- 契约测试要钉住 B 依赖的字段名：谁改结构，测试先红。
+- 顺带把"按状态选机"的演示动作测出来（改状态 → 排产候选变化）。
+
+【要求 5】
+- 契约文件 api-contract.md、接口看板 api-status.md 一起更新；
+- AI 使用记录当天写。
+- 最后跑全量测试，别把 A / B / C 已有的测试改坏。
+```
+
+
+### P-002（记录 002，2026-11-14，成员 D）
+
+> 下面是本轮任务的**要求整理稿**（把群里的多条消息与截图说明合并成一段），不是逐字原文。
+> 结课提交前把对话原文贴进来替换本段。
+
+```
+【背景】
+SmartWorks 课程项目，我负责 D（设备与物流调度）。仓库 E:\smartworks-repo，分支 dw3，
+已合并远端 main。技术栈 Django 6 + DRF + Vue3 + Element Plus。
+
+【本周要做完的】
+1. W4 设备侧收尾：设备监测页（4 路曲线）、点检计划与记录、告警 + 维修工单基础版。
+   要求：能创建、能处置、能扫出告警；点检异常要能关联到告警。
+2. W5 算法：任务 1 单机调度（最近邻 + 2-opt）、任务 2 多机调度（分配 + 排序），
+   都要输出任务序列与 KPI；要能和"就近派车"基线对比，出实验表（详细设计第 7 章要用）。
+3. 前端：AGV 调度工作台页面，要能选任务、选车、出方案。
+4. B 的回执：8# 去毛刺台标 oee_excluded；/available/ 返回 B 排产要的 6 个字段。
+
+【约束】
+- 距离矩阵用 A 的 build_distance_matrix，不许再写一份。
+- 调度算法要是纯函数，能单测，不碰 ORM。
+- 不许给车床偷偷加 cutting 能力来盖住"下料没设备"的问题。
+- 数字必须可复现（固定 seed），不许挑单次最好结果。
+- 做完生成：给 A/B/C 的说明、要上传 GitHub 的材料（推送步骤 + PR 正文）。
+
+【交付】
+每个 W 建一个 E:\上课课件\...\任务\SmartWorks-W5 目录，里面放说明文档 + code 副本。
+```
+
+### P-003（记录 003，2026-11-15，成员 D）
+
+```
+怎么上传到github上，把哪个文件上传上去，我用github desktop上传，
+然后C已经把她的部分上传上去了，你可以直接阅读
+```
+
+### P-016（B / 合并 D 的 dw3 并端到端联调，2026-11-15）
+
+> D回了。
+>（要求：按 D 给的命令拉取并合并 main/dw3，解决迁移与应用同名冲突；执行设备/工位/路网/AGV 种子；用真实数据重跑排产、验证 legs 无 warning、批量派生搬运任务、验证工单完工撤销；把结果和集成缺口写进文档；前端补一个可演示的入口。）
+
+### P-017（B / 回调+齐套+派工+敏感性，2026-11-15）
+
+> ok啊你按顺序都做了。
+>（要求：按推荐顺序做——先补 C 的 production 回调、齐套接真实库存；再做派工（A 的员工技能）；最后做 W6 换型敏感性分析。每步都要有测试与真实请求验证，最后统一文档与提交。）
+
+### P-018（B / W7 生产看板，2026-11-15）
+
+> ok啊做吧，需要其它组员做什么吗，还是说你能独立推进。
+>（要求：判断是否可独立完成；直接做 W7 生产看板——聚合方案 KPI、工单/工序进度、C 的报工汇总；要能容错（报工模块不可用时降级）、页面可演示、有接口测试与真实请求验证。）
+
+### P-019（B / W7 看板收尾，2026-11-15）
+
+> ok继续做，做完说一下我们项目的总进度到哪里了。
+>（要求：把看板补成“延迟工单/瓶颈设备/齐套状态”三块，数据全部来自真实表或队友接口，缺数据要降级；完成后给出项目整体进度评估与剩余风险。）

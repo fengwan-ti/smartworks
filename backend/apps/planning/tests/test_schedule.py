@@ -1,0 +1,197 @@
+"""规则版排产接口测试。"""
+from datetime import date
+from decimal import Decimal
+
+from rest_framework.authtoken.models import Token
+from rest_framework.test import APITestCase
+
+from apps.core.models import User
+from apps.equipment.models import Equipment, EquipmentCapability
+from apps.masterdata.models import Material, Product, ProductFamily, Workstation
+from apps.order.models import Mps, MpsDetail
+from apps.planning.models import EmployeeSkill, SchedulePlan, WorkOrder
+from apps.process.models import ProcessRoute, RouteStatus, RouteStep
+
+RUN = '/api/v1/planning/schedule-plans/run/'
+PLANS = '/api/v1/planning/schedule-plans/'
+WOS = '/api/v1/planning/work-orders/'
+
+
+class ScheduleFixture(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(username='b_tester', password='test123456')
+        token = Token.objects.create(user=self.user)
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + token.key)
+        self.family = ProductFamily.objects.create(code='PF-PL', name='盘类')
+        self.material = Material.objects.create(code='MT-45', name='45号钢')
+        self.product = Product.objects.create(code='PF-PL-001', name='法兰盘 A',
+                                              family=self.family, material=self.material)
+        self.ws_cut = Workstation.objects.create(code='ST-CUT-01', name='下料区',
+                                                 agv_load_point='N001')
+        self.ws_cnc = Workstation.objects.create(code='ST-CNC-01', name='数控车床 1',
+                                                 agv_load_point='N003')
+        self.eq = Equipment.objects.create(code='EQ-CNC-01', name='1# 数控车床',
+                                           workstation=self.ws_cnc)
+        EquipmentCapability.objects.create(equipment=self.eq, step_type='rough_turning',
+                                           capacity_per_hour=Decimal('2'))
+        self.route = ProcessRoute.objects.create(
+            code='PR-PF-PL-001-V1', product=self.product, version=1,
+            status=RouteStatus.ACTIVE)
+        RouteStep.objects.create(route=self.route, seq=10, step_type='cutting',
+                                 std_hours=Decimal('0.25'), is_equipment_free=True)
+        RouteStep.objects.create(route=self.route, seq=20, step_type='rough_turning',
+                                 std_hours=Decimal('0.5'), required_equipment_type='lathe')
+        self.mps = Mps.objects.create(code='MPS202611-01', period=date(2026, 11, 16))
+        MpsDetail.objects.create(mps=self.mps, product=self.product, qty=Decimal('4'))
+
+
+class ScheduleApiTests(ScheduleFixture):
+    def test_run_schedule(self):
+        resp = self.client.post(RUN, {'mps_id': self.mps.id,
+                                      'start_at': '2026-11-16T08:00:00+08:00'}, format='json')
+        self.assertEqual(resp.status_code, 201, resp.data)
+        self.assertEqual(resp.data['kpi']['work_order_count'], 1)
+        self.assertEqual(resp.data['kpi']['operation_count'], 2)
+        self.assertEqual(resp.data['kpi']['on_time_rate'], 100.0)
+
+        plan_id = resp.data['id']
+        gantt = self.client.get(f'{PLANS}{plan_id}/gantt/')
+        self.assertEqual(gantt.status_code, 200)
+        self.assertEqual(len(gantt.data['bars']), 2)
+        rough = [b for b in gantt.data['bars'] if b['step_type'] == 'rough_turning'][0]
+        self.assertEqual(rough['equipment'], 'EQ-CNC-01')
+
+        wo = WorkOrder.objects.get(mps=self.mps)
+        self.assertEqual(wo.status, 'planned')
+        self.assertEqual(wo.operations.count(), 2)
+
+    def test_rerun_replaces_plan(self):
+        self.client.post(RUN, {'mps_id': self.mps.id}, format='json')
+        self.client.post(RUN, {'mps_id': self.mps.id}, format='json')
+        self.assertEqual(SchedulePlan.objects.filter(mps=self.mps).count(), 1)
+        self.assertEqual(WorkOrder.objects.filter(mps=self.mps).count(), 1)
+
+    def test_missing_route_12006(self):
+        p2 = Product.objects.create(code='PF-PL-002', name='端盖 B', family=self.family)
+        mps = Mps.objects.create(code='MPS202611-02', period=date(2026, 11, 16))
+        MpsDetail.objects.create(mps=mps, product=p2, qty=Decimal('2'))
+        resp = self.client.post(RUN, {'mps_id': mps.id}, format='json')
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(resp.data['code'], 12006)
+
+    def test_release_work_order(self):
+        self.client.post(RUN, {'mps_id': self.mps.id}, format='json')
+        wo = WorkOrder.objects.get(mps=self.mps)
+        resp = self.client.post(f'{WOS}{wo.id}/release/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data['status'], 'released')
+
+
+class TransportAndCloseTests(ScheduleFixture):
+    def _plan(self):
+        resp = self.client.post(RUN, {'mps_id': self.mps.id}, format='json')
+        self.assertEqual(resp.status_code, 201, resp.data)
+        return resp.data
+
+    def test_transport_legs(self):
+        plan = self._plan()
+        resp = self.client.get(f'{PLANS}{plan["id"]}/transport-tasks/')
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertEqual(len(resp.data['legs']), 1)
+        leg = resp.data['legs'][0]
+        self.assertEqual(leg['work_order_code'], 'WO' + WorkOrder.objects.first().code[-11:])
+        self.assertIn('operation_id', leg)
+        self.assertEqual(leg['from_workstation'], 'ST-CUT-01')
+        self.assertEqual(leg['to_workstation'], 'ST-CNC-01')
+        self.assertEqual(leg['from_node'], 'N001')
+        self.assertEqual(leg['to_node'], 'N003')
+        self.assertEqual(leg['qty'], '4.000')
+        self.assertEqual(resp.data['warnings'], [])
+
+    def test_released_work_order_blocks_rerun_12020(self):
+        self._plan()
+        wo = WorkOrder.objects.get(mps=self.mps)
+        self.client.post(f'{WOS}{wo.id}/release/')
+        resp = self.client.post(RUN, {'mps_id': self.mps.id}, format='json')
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(resp.data['code'], 12020)
+
+    def test_complete_work_order(self):
+        self._plan()
+        wo = WorkOrder.objects.get(mps=self.mps)
+        self.client.post(f'{WOS}{wo.id}/release/')
+        resp = self.client.post(f'{WOS}{wo.id}/complete/')
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertEqual(resp.data['status'], 'completed')
+        self.assertFalse(resp.data['transport_cancel_notified'])
+
+
+class ProductionCallbackTests(ScheduleFixture):
+    def test_operation_start_and_complete(self):
+        resp = self.client.post(RUN, {'mps_id': self.mps.id}, format='json')
+        self.assertEqual(resp.status_code, 201)
+        wo = WorkOrder.objects.get(mps=self.mps)
+
+        start = self.client.post(
+            f'/api/v1/production/work-orders/{wo.id}/operations/10/start/')
+        self.assertEqual(start.status_code, 200, start.data)
+        wo.refresh_from_db()
+        self.assertEqual(wo.status, 'in_production')
+        self.assertEqual(wo.operations.get(seq=10).status, 'in_production')
+
+        done1 = self.client.post(
+            f'/api/v1/production/work-orders/{wo.id}/operations/10/complete/')
+        self.assertEqual(done1.status_code, 200, done1.data)
+        done2 = self.client.post(
+            f'/api/v1/production/work-orders/{wo.id}/operations/20/complete/')
+        self.assertEqual(done2.status_code, 200, done2.data)
+        wo.refresh_from_db()
+        self.assertEqual(wo.status, 'completed')
+
+
+class DispatchTests(ScheduleFixture):
+    def setUp(self):
+        super().setUp()
+        self.op1 = User.objects.create_user(username='op1', password='test123456')
+        self.op1.name = '张师傅'
+        self.op1.save(update_fields=['name'])
+        self.op2 = User.objects.create_user(username='op2', password='test123456')
+        EmployeeSkill.objects.create(user=self.op1, step_type='rough_turning',
+                                     level='senior', is_certified=True)
+        self.client.post(RUN, {'mps_id': self.mps.id}, format='json')
+        self.wo = WorkOrder.objects.get(mps=self.mps)
+
+    def test_auto_assign(self):
+        resp = self.client.post(f'{WOS}{self.wo.id}/auto-assign/')
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertEqual(len(resp.data['assigned']), 1)
+        self.assertEqual(resp.data['assigned'][0]['seq'], 20)
+        self.assertEqual(len(resp.data['skipped']), 1)  # cutting 没有操作工技能
+        self.wo.operations.get(seq=20)
+        self.assertEqual(self.wo.operations.get(seq=20).operator_user_id, self.op1.id)
+
+    def test_assign_unqualified_12025(self):
+        resp = self.client.post(
+            f'{WOS}{self.wo.id}/operations/20/assign/',
+            {'user_id': self.op2.id}, format='json')
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(resp.data['code'], 12025)
+
+    def test_dispatch_candidates(self):
+        resp = self.client.get(f'{WOS}{self.wo.id}/dispatch/')
+        self.assertEqual(resp.status_code, 200, resp.data)
+        rough = [r for r in resp.data['operations'] if r['seq'] == 20][0]
+        self.assertEqual(len(rough['candidates']), 1)
+        self.assertEqual(rough['candidates'][0]['username'], 'op1')
+
+
+class DashboardTests(ScheduleFixture):
+    def test_dashboard_summary(self):
+        self.client.post(RUN, {'mps_id': self.mps.id}, format='json')
+        resp = self.client.get('/api/v1/planning/dashboard/')
+        self.assertEqual(resp.status_code, 200, resp.data)
+        data = resp.data
+        self.assertGreaterEqual(data['work_order_count'], 1)
+        self.assertIsNotNone(data['plan'])
+        self.assertGreaterEqual(data['operations']['total'], 1)
+        self.assertEqual(len(data['work_orders']), data['work_order_count'])
