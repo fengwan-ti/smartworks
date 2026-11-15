@@ -71,6 +71,30 @@
 
 ---
 
+### 记录 003
+- **日期 / 使用人**：2026-11-15 / 成员 D
+- **角色与模块**：D / 跨角色合并（C 的 `feature/c-apps` → `dw3`）、依赖与迁移冲突
+- **提示词**：见附录 P-003（问"怎么上传到 GitHub、上传哪个文件"，并要求读 C 已推上去的部分）
+- **AI 产出**：
+  - `backend/apps/inventory/urls.py`、`backend/config/urls.py`：冲突按"并集"重写
+  - `backend/apps/inventory/tests.py` → `backend/apps/inventory/tests/test_c_warehouse_api.py`（改名避让命名冲突）
+  - `backend/apps/inventory/migrations/0004_merge_20261115_1103.py`：迁移合并节点
+  - `requirements.lock`：补 `numpy==2.5.4`、`opencv-python-headless==5.0.0.93`
+  - 文档：`任务\SmartWorks-W5\06-上传到GitHub-Desktop步骤-20261115.md`、更新 `05-推送与PR.md`
+- **人工修改**：
+  - **路由不能"取她那一版"**：她的 `config/urls.py` 删掉了 `equipment`/`logistics`/`planning`/`analytics` 四条顶层路由，`apps/inventory/urls.py` 又整文件覆盖掉了成品仓路由。git 只会问"要哪一边"，两边都不能要 → 手工写并集。
+  - **`tests.py` 撞名**：她建的是 `apps/inventory/tests.py`，我的是 `apps/inventory/tests/` 包，Python 里同一个模块名只能存在一个，pytest 直接 import file mismatch 收集失败。把她的文件移进包里而不是反过来——我这边有 130 条测试依赖包结构。
+  - **依赖没进清单**：她硬 import `cv2`/`numpy`，本机没装时连 `manage.py check` 都过不去（整个 URLconf 起不来）。装完补进 `requirements.lock`，否则 A/B 拉下来一样起不来。
+  - **迁移双叶子**：两个 `0003` 都对，但必须补一个 merge 节点，否则 `migrate` 报 multiple leaf nodes。
+- **验证方式**：
+  - `python manage.py check` 无问题；`makemigrations --check --dry-run` 无变更；`migrate` 可正常执行
+  - `python -m pytest` **197 条全过**（D 130 + A/B 27 + C 40）
+  - 关键路由逐个 `resolve()` 通过：`/equipment/equipments/available/`、`/inventory/finished-inbounds/`、`/inventory/warehouses/`、`/production/reports/`、`/quality/inspections/`
+  - 前端 `npm run build` 通过（C 的 17 页 + 我的 4 页同表共存，路由无重复）
+- **结论**：采用
+
+---
+
 ## 附录：长提示词原文
 
 （把超过 200 字的提示词全文放这里，上表只写编号，如 P-001）
@@ -144,4 +168,11 @@ SmartWorks 课程项目，我负责 D（设备与物流调度）。仓库 E:\sma
 
 【交付】
 每个 W 建一个 E:\上课课件\...\任务\SmartWorks-W5 目录，里面放说明文档 + code 副本。
+```
+
+### P-003（记录 003，2026-11-15，成员 D）
+
+```
+怎么上传到github上，把哪个文件上传上去，我用github desktop上传，
+然后C已经把她的部分上传上去了，你可以直接阅读
 ```
