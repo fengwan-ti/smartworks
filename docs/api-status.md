@@ -49,7 +49,7 @@
 
 ## 四、测试现状
 
-> 2026-11-15 实测：全仓库 **211 passed**。下面是 D 的测试文件与 A 的共用测试。
+> 2026-11-15 16:00 实测：全仓库 **217 passed**（equipment 48 + logistics 66 + inventory 21 + core 41 + algorithms 14 + quality 16 + production 11）。
 
 | 测试文件 | 数量 | 状态 |
 |---|---|---|
@@ -66,7 +66,9 @@
 | `apps/logistics/tests/test_w3_transport.py` | 26 | ✅ 全过 |
 | `apps/logistics/tests/test_w5_scheduling.py` | 15 | ✅ 全过（任务 1/2 调度 + 与贪心基线对比） |
 | `apps/logistics/tests/test_w4_cancel_by_work_order.py` | 12 | ✅ 全过（按工单撤销 / operation_id 幂等 / from-legs 批量） |
-| **D 侧小计** | **116** | **✅ 全过**（equipment 45 + inventory 8 + logistics 63） |
+| `apps/logistics/tests/test_w5_schedule_api.py` | 3 | ✅ 全过（按工单过滤 / null 等于不限 / 别名） |
+| `apps/equipment/tests/test_w4_demo_tools.py` | 3 | ✅ 全过（造超限读数 / 干净起点 / 一键复位） |
+| **D 侧小计** | **122** | **✅ 全过**（equipment 48 + inventory 8 + logistics 66） |
 
 跑法：
 
