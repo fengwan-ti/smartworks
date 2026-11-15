@@ -7,7 +7,7 @@
 数据来源：data/agvs-v1.json（3 台车）。
 可重复执行：已存在的车会被更新（电量、状态也覆盖），不会重复插入。
 
-⚠️ 电量也会被覆盖成种子里的值。演示前想保留现场电量，
+[注意] 电量也会被覆盖成种子里的值。演示前想保留现场电量，
    就加 --keep-battery，只更新载重/速度/位置。
 """
 import json
@@ -72,7 +72,7 @@ class Command(BaseCommand):
         ))
         if missing_nodes:
             self.stdout.write(self.style.WARNING(
-                f'⚠️ 这些车找不到停放节点，current_node 留空：{"、".join(missing_nodes)}。'
+                f'[注意] 这些车找不到停放节点，current_node 留空：{"、".join(missing_nodes)}。'
                 f'先跑 python manage.py import_road_network',
             ))
 

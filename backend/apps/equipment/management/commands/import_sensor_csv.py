@@ -62,7 +62,7 @@ class Command(BaseCommand):
         ))
         if stats['unknown_equipment']:
             self.stdout.write(self.style.WARNING(
-                f'⚠️ CSV 里有设备不在台账中，已跳过：'
+                f'[注意] CSV 里有设备不在台账中，已跳过：'
                 f'{"、".join(stats["unknown_equipment"])}。'
                 f'先跑 seed_equipments 把设备导进来再导读数。',
             ))
@@ -80,6 +80,6 @@ class Command(BaseCommand):
         ]
         if missing:
             self.stdout.write(self.style.WARNING(
-                f'⚠️ 这 {len(missing)} 台设备没有读数（监测页会是空的）：'
+                f'[注意] 这 {len(missing)} 台设备没有读数（监测页会是空的）：'
                 f'{"、".join(missing)}。跑 manage.py simulate_sensors 可以补上。',
             ))
