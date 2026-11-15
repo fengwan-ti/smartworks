@@ -99,6 +99,28 @@ n = Agv.objects.update(status='idle')
 if n:
     print('  已把 %d 台 AGV 置为空闲（调度演示的前提）' % n)
 
+# 5) AGV 调度演示方案（任务 1/2 的演示数据）
+#
+# 不加这一步的话，队友初始化完「调度工作台」是空的，
+# 会以为任务 1/2 没实现 —— 实际是没生成演示方案。
+from apps.logistics.models import SchedulePlan as AgvSchedulePlan   # noqa: E402
+
+if AgvSchedulePlan.objects.exists():
+    print('  [已有] %-22s 已有 %d 个调度方案，跳过'
+          % ('生成 AGV 调度方案', AgvSchedulePlan.objects.count()))
+    skip.append('生成 AGV 调度方案')
+else:
+    try:
+        from django.core.management import call_command
+        print('  正在生成 AGV 调度方案（6 单 3 车，含基线对比）...')
+        call_command('demo_w5_schedule', verbosity=0)
+        print('  [完成] %-22s 方案数 %d'
+              % ('生成 AGV 调度方案', AgvSchedulePlan.objects.count()))
+        ok.append('生成 AGV 调度方案')
+    except Exception as e:                                        # noqa: BLE001
+        print('  [跳过] %-22s %s' % ('生成 AGV 调度方案', str(e)[:70]))
+        skip.append('生成 AGV 调度方案')
+
 print()
 print('  完成 %d 项，跳过 %d 项' % (len(ok), len(skip)))
 if skip:
