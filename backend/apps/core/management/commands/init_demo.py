@@ -51,6 +51,7 @@ class Command(BaseCommand):
         self._products()
         self._partners()
         self._demo_accounts()
+        self._demo_skills()
         self._summary()
 
     # ------------------------------------------------------------------
@@ -144,21 +145,11 @@ class Command(BaseCommand):
         self.stdout.write('  车间   %-8s %s' % ('WS-MAIN', '已创建' if created else '已存在'))
 
         # 与 data/road-network-v1.json 的 12 个 dock 节点一一对应
-        stations = [
-            ('ST-RCV-01', '原料收发料口 1', 'N004'),
-            ('ST-RCV-02', '原料收发料口 2', 'N006'),
-            ('ST-CNC-01', '1#数控车床', 'N013'),
-            ('ST-CNC-02', '2#数控车床', 'N014'),
-            ('ST-MC-01', '3#加工中心', 'N015'),
-            ('ST-MC-02', '4#加工中心', 'N016'),
-            ('ST-DR-01', '5#钻床', 'N017'),
-            ('ST-GR-01', '6#磨床', 'N018'),
-            ('ST-CL-01', '7#清洗机', 'N019'),
-            ('ST-DB-01', '8#去毛刺台', 'N020'),
-            ('ST-QC-01', '三坐标/影像仪工位', 'N026'),
-            ('ST-SHP-01', '成品仓发货口', 'N029'),
-        ]
-        for code, name, point in stations:
+        # 与 init_core 共用同一份常量，避免两处各写一份导致工位漂移
+        # （曾经 ST-RCV-02 与 ST-CUT-01 同时挂在 N006，就是因为这里另写了一份）
+        from apps.masterdata.constants import WORKSTATIONS
+
+        for code, name, point in WORKSTATIONS:
             obj, created = Workstation.objects.update_or_create(
                 code=code,
                 defaults={'name': name, 'workshop': ws, 'agv_load_point': point})
@@ -180,6 +171,19 @@ class Command(BaseCommand):
 
         used = {w.agv_load_point for w in Workstation.objects.all() if w.agv_load_point}
         missing = sorted(used - dock_nodes)
+
+        # 一个路网节点只能挂一个工位，否则 D 的 eq_equipment.workstation_id 会指向不确定的工位。
+        # 这条检查是补出来的：ST-RCV-02 与 ST-CUT-01 曾同时挂在 N006 上。
+        seen = {}
+        dup = []
+        for w in Workstation.objects.exclude(agv_load_point='').order_by('code'):
+            if w.agv_load_point in seen:
+                dup.append((w.agv_load_point, seen[w.agv_load_point], w.code))
+            else:
+                seen[w.agv_load_point] = w.code
+        if dup:
+            self.stdout.write(self.style.ERROR(
+                '  [警告] 同一装卸点挂了多个工位：%s' % dup))
         if missing:
             self.stdout.write(self.style.ERROR(
                 '  [警告] 以下装卸点不在路网 dock 节点里：%s' % ', '.join(missing)))
@@ -262,6 +266,41 @@ class Command(BaseCommand):
             self.stdout.write('  对照账号 planner 已存在')
         user.roles.add(planner_role)
 
+    def _demo_skills(self):
+        """种 3 个操作工的技能，供排产派工校验与「技能矩阵」页演示。
+
+        为什么放在 init_demo 而不是 init_core：
+          技能是业务数据，不是系统基础数据。但如果只靠人手工录，
+          演示时"技能矩阵"就是一张空表，看不出任何东西。
+        """
+        from apps.planning.models import EmployeeSkill, Level
+
+        workers = [
+            ('op_zhang', '张师傅', [('rough_turning', Level.SENIOR), ('finish_turning', Level.SENIOR),
+                                    ('grinding', Level.MID)]),
+            ('op_li', '李师傅', [('milling', Level.SENIOR), ('drilling', Level.MID),
+                                 ('slot_milling', Level.MID)]),
+            ('op_wang', '王师傅', [('drilling', Level.SENIOR), ('deburring', Level.MID),
+                                   ('cleaning', Level.JUNIOR)]),
+        ]
+
+        for username, display, skills in workers:
+            user, created = User.objects.get_or_create(
+                username=username,
+                defaults={'name': display, 'is_active': True},
+            )
+            if created:
+                user.set_password('op123456')
+                user.save()
+            for step_type, level in skills:
+                EmployeeSkill.objects.update_or_create(
+                    user=user, step_type=step_type,
+                    defaults={'level': level, 'is_certified': True, 'is_active': True},
+                )
+
+        total = EmployeeSkill.objects.filter(is_active=True).count()
+        self.stdout.write('  操作工 3 名 + 技能 %d 条（技能矩阵页可直接演示）' % total)
+
     def _summary(self):
         self.stdout.write('')
         self.stdout.write('=' * 56)
@@ -275,4 +314,5 @@ class Command(BaseCommand):
         self.stdout.write('')
         self.stdout.write('  超管 demo / demo123      → 全部菜单与全部接口权限')
         self.stdout.write('  对照 planner / planner123 → 只有主数据与计划管理（用于演示权限生效）')
+        self.stdout.write('  操作工 op_zhang / op_li / op_wang（密码 op123456） → 技能矩阵有内容')
         self.stdout.write('')
