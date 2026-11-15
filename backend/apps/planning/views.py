@@ -7,6 +7,7 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from apps.core.exceptions import BizError
 from apps.core.pagination import StandardPagination
@@ -54,6 +55,14 @@ def _notify_transport_cancel(request, work_order):
             return 200 <= resp.status < 300
     except Exception:  # noqa: BLE001
         return False
+
+
+class DashboardView(APIView):
+    """W7 生产看板：方案 KPI + 工单状态 + 报工进度汇总。"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response(services.dashboard_summary())
 
 
 class WorkOrderViewSet(viewsets.ModelViewSet):
@@ -119,6 +128,8 @@ class WorkOrderViewSet(viewsets.ModelViewSet):
                              WorkOrderStatus.IN_PRODUCTION):
             raise BizError(12017, '当前工单状态不能完工/取消')
         wo.status = target
+        if target == WorkOrderStatus.COMPLETED:
+            wo.operations.exclude(status='completed').update(status='completed')
         wo.save(update_fields=['status', 'updated_at'])
         notified = _notify_transport_cancel(request, wo)
         data = WorkOrderSerializer(wo).data

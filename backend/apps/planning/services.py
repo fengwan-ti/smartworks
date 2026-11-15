@@ -497,3 +497,73 @@ def _notify_d_work_order_closed(work_order, reason):
         return True
     except Exception:  # noqa: BLE001 - 物流不可用时不能把报工拖失败
         return False
+
+
+# ==================== W7 生产看板 ====================
+def dashboard_summary():
+    """排产/生产看板聚合：方案 KPI + 工单状态 + 报工进度（C 的 I-08）。"""
+    from django.utils import timezone
+
+    from .models import OperationStatus, SchedulePlan, WorkOrder, WorkOrderStatus
+
+    plan = SchedulePlan.objects.order_by('-created_at').first()
+    wos = list(WorkOrder.objects.select_related('product')
+               .prefetch_related('operations').order_by('due_date', 'priority'))
+
+    # C 的报工汇总：{work_order_id: {good_qty, defect_qty, ops: {seq: row}}}
+    progress = {}
+    try:
+        from apps.production import services as prod_services
+        for row in prod_services.wip_summary(None):
+            wid = row['work_order_id']
+            item = progress.setdefault(wid, {'good_qty': 0, 'defect_qty': 0, 'ops': {}})
+            item['good_qty'] += float(row.get('good_qty') or 0)
+            item['defect_qty'] += float(row.get('defect_qty') or 0)
+            item['ops'][row['operation_seq']] = row
+    except Exception:  # noqa: BLE001 - 报工模块不可用时看板仍可用
+        progress = {}
+
+    today = timezone.localdate()
+    rows = []
+    for wo in wos:
+        ops = list(wo.operations.all())
+        done = sum(1 for o in ops if o.status == OperationStatus.COMPLETED)
+        rep = progress.get(wo.id, {'good_qty': 0, 'defect_qty': 0, 'ops': {}})
+        rows.append({
+            'id': wo.id, 'code': wo.code,
+            'product_code': wo.product.code, 'product_name': wo.product.name,
+            'qty': str(wo.qty), 'due_date': wo.due_date.isoformat(),
+            'status': wo.status, 'status_label': wo.get_status_display(),
+            'priority': wo.priority,
+            'plan_start': wo.plan_start.isoformat() if wo.plan_start else None,
+            'plan_end': wo.plan_end.isoformat() if wo.plan_end else None,
+            'operations_total': len(ops), 'operations_done': done,
+            'operator_count': len({o.operator for o in ops if o.operator}),
+            'good_qty': rep['good_qty'], 'defect_qty': rep['defect_qty'],
+            'delayed': bool(wo.due_date < today and wo.status not in (
+                WorkOrderStatus.COMPLETED, WorkOrderStatus.CLOSED)),
+        })
+
+    status_count = {}
+    for wo in wos:
+        status_count[wo.status] = status_count.get(wo.status, 0) + 1
+
+    kpi = dict(plan.kpi) if plan else {}
+    return {
+        'plan': {
+            'code': plan.code, 'name': plan.name, 'status': plan.status,
+            'created_at': plan.created_at.isoformat(), 'kpi': kpi,
+        } if plan else None,
+        'work_order_count': len(wos),
+        'status_count': status_count,
+        'delayed_count': sum(1 for r in rows if r['delayed']),
+        'operations': {
+            'total': sum(r['operations_total'] for r in rows),
+            'done': sum(r['operations_done'] for r in rows),
+        },
+        'reported': {
+            'good_qty': round(sum(r['good_qty'] for r in rows), 1),
+            'defect_qty': round(sum(r['defect_qty'] for r in rows), 1),
+        },
+        'work_orders': rows,
+    }

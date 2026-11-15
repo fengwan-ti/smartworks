@@ -131,6 +131,12 @@ const routes = [
       },
       // ---- 排产（B）----
       {
+        path: 'planning/dashboard',
+        name: 'ProductionDashboard',
+        component: () => import('@/views/planning/DashboardBoard.vue'),
+        meta: { title: '生产看板' }
+      },
+      {
         path: 'planning/schedule',
         name: 'ScheduleGantt',
         component: () => import('@/views/planning/ScheduleGantt.vue'),

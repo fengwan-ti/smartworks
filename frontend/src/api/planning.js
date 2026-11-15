@@ -64,3 +64,8 @@ export function autoAssignWorkOrder(workOrderId) {
 export function assignOperation(workOrderId, seq, userId) {
   return request.post(`/planning/work-orders/${workOrderId}/operations/${seq}/assign/`, { user_id: userId })
 }
+
+// W7 生产看板
+export function fetchDashboard() {
+  return request.get('/planning/dashboard/')
+}

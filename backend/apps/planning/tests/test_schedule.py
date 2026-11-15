@@ -183,3 +183,15 @@ class DispatchTests(ScheduleFixture):
         rough = [r for r in resp.data['operations'] if r['seq'] == 20][0]
         self.assertEqual(len(rough['candidates']), 1)
         self.assertEqual(rough['candidates'][0]['username'], 'op1')
+
+
+class DashboardTests(ScheduleFixture):
+    def test_dashboard_summary(self):
+        self.client.post(RUN, {'mps_id': self.mps.id}, format='json')
+        resp = self.client.get('/api/v1/planning/dashboard/')
+        self.assertEqual(resp.status_code, 200, resp.data)
+        data = resp.data
+        self.assertGreaterEqual(data['work_order_count'], 1)
+        self.assertIsNotNone(data['plan'])
+        self.assertGreaterEqual(data['operations']['total'], 1)
+        self.assertEqual(len(data['work_orders']), data['work_order_count'])
