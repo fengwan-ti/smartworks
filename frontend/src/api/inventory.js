@@ -102,3 +102,43 @@ export function confirmStockTaking(id) {
   // 确认后按差异写 adjust 流水
   return request.post(`/inventory/stock-takings/${id}/confirm/`)
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+// 成品仓（D 的 W2 后端 + 2026-11-15 补的前端页面）
+// ══════════════════════════════════════════════════════════════════════════
+
+export function listFinishedInbounds(params) {
+  return request.get('/inventory/finished-inbounds/', { params })
+}
+export function createFinishedInbound(data) {
+  // 单号 PI-YYYYMMDD-NNN 后端自动生成；批次必须属于单据上的产品（14104）
+  return request.post('/inventory/finished-inbounds/', data)
+}
+export function confirmFinishedInbound(id) {
+  // 确认后写库存流水；整单校验不过就整单失败，不留半条
+  return request.post(`/inventory/finished-inbounds/${id}/confirm/`)
+}
+export function cancelFinishedInbound(id) {
+  return request.post(`/inventory/finished-inbounds/${id}/cancel/`)
+}
+
+export function listShipments(params) {
+  return request.get('/inventory/shipments/', { params })
+}
+export function createShipment(data) {
+  // 主表 + items 明细一次提交
+  return request.post('/inventory/shipments/', data)
+}
+export function confirmShipment(id) {
+  // 库存不足返回 14103，并指出是哪个批次
+  return request.post(`/inventory/shipments/${id}/confirm/`)
+}
+
+export function stockAging(params) {
+  // {as_of?: 'YYYY-MM-DD', warehouse?: id, kind?: 'product' | 'material'}
+  return request.get('/inventory/stock-aging/', { params })
+}
+export function turnover(params) {
+  // {days?: 90}
+  return request.get('/inventory/turnover/', { params })
+}

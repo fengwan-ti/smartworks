@@ -83,6 +83,11 @@ export function changeTaskStatus(id, data) {
   return request.post(`/logistics/transport-tasks/${id}/status/`, data)
 }
 
+/** 把待派车任务一次性派完（按优先级）。返回每条的结果，含失败原因。 */
+export function assignPendingTasks(data = {}) {
+  return request.post('/logistics/transport-tasks/assign-pending/', data)
+}
+
 // ── W5 调度 ────────────────────────────────────────────
 /** 算一套方案。POST 会留一条 draft 记录；apply=true 才真派车。 */
 export function buildSchedule(data = {}) {

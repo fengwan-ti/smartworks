@@ -116,6 +116,40 @@ const routes = [
         meta: { title: '调度工作台' }
       },
 
+      // ---- 角色 D：设备台账 / AGV 台账 / 搬运任务（W3~W5 补齐）----
+      {
+        path: 'equipment/list',
+        name: 'equipment-list',
+        component: () => import('@/views/equipment/EquipmentList.vue'),
+        meta: { title: '设备台账' }
+      },
+      {
+        path: 'logistics/agvs',
+        name: 'logistics-agvs',
+        component: () => import('@/views/logistics/AgvList.vue'),
+        meta: { title: 'AGV 台账' }
+      },
+      {
+        path: 'logistics/tasks',
+        name: 'logistics-tasks',
+        component: () => import('@/views/logistics/TransportTaskList.vue'),
+        meta: { title: '搬运任务' }
+      },
+
+      // ---- 角色 D：成品仓（W4）----
+      {
+        path: 'inventory/finished-in',
+        name: 'inventory-finished-in',
+        component: () => import('@/views/inventory/FinishedInbound.vue'),
+        meta: { title: '成品入库' }
+      },
+      {
+        path: 'inventory/aging',
+        name: 'inventory-aging',
+        component: () => import('@/views/inventory/StockAging.vue'),
+        meta: { title: '库龄分析' }
+      },
+
       // 以下为尚未实现的页面，统一走占位组件。菜单树已通，页面按周次补齐。
       // 已实现的路径**必须**从这里删掉，否则同名路由会冲突（后注册的覆盖前面的）。
       ...['masterdata/materials|物料管理',
@@ -124,12 +158,7 @@ const routes = [
         'process/routes|工艺路线',
         'process/boms|BOM 管理',
         'process/changeovers|换型矩阵',
-        'equipment/list|设备台账',
-        'equipment/oee|OEE 分析',
-        'logistics/agvs|AGV 台账',
-        'logistics/tasks|搬运任务',
-        'inventory/finished-in|成品入库',
-        'inventory/aging|库龄分析'].map((item) => {
+        'equipment/oee|OEE 分析'].map((item) => {
         const [path, title] = item.split('|')
         return {
           path,
