@@ -20,14 +20,16 @@ from django.core.management.base import BaseCommand
 
 from apps.core.models import Menu, Role
 
-# 只补这一条：(菜单 code, 名称, 路由, 权限码, 所属父目录 code)
+# 只补这一条：(菜单 code, 名称, 路由, 权限码, 所属父目录 code, 排序)
+# 排序取 35 —— init_core 里设备管理目录下是 31 台账 / 32 监测 / 33 维修 / 34 OEE，
+# 告警排在它们后面。写死成 2 的话会插到「设备台账」前面，看着像菜单乱序。
 MISSING_MENUS = [
-    ('equipment_alarm', '设备告警', '/equipment/alarms', 'equipment:alarm', 'equipment'),
+    ('equipment_alarm', '设备告警', '/equipment/alarms', 'equipment:alarm', 'equipment', 35),
 ]
 
 # 父目录不存在时兜底建一个（正常情况 init_core 已经建好）
 FALLBACK_DIR = {
-    'code': 'equipment', 'name': '设备管理', 'icon': 'Cpu', 'sort': 80,
+    'code': 'equipment', 'name': '设备管理', 'icon': 'Cpu', 'sort': 30,
 }
 
 # 这几个角色默认给（超管本身不受菜单限制，这里是为了"设备科/物流科"这类角色也能看到）
@@ -44,7 +46,7 @@ class Command(BaseCommand):
         dry = options['dry_run']
         created, updated = [], []
 
-        for code, name, path, permission, parent_code in MISSING_MENUS:
+        for code, name, path, permission, parent_code, sort in MISSING_MENUS:
             parent = Menu.objects.filter(code=parent_code).first()
             if dry:
                 self.stdout.write(
@@ -71,7 +73,7 @@ class Command(BaseCommand):
                 defaults={
                     'name': name, 'parent': parent, 'menu_type': 'menu',
                     'path': path, 'permission_code': permission,
-                    'sort': 2, 'is_active': True,
+                    'sort': sort, 'is_active': True,
                 },
             )
             (created if was_created else updated).append(code)
