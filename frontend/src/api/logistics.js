@@ -101,3 +101,8 @@ export function previewSchedule(params = {}) {
 export function fetchSchedulePlans(params) {
   return request.get('/logistics/schedule-plans/', { params })
 }
+
+/** 单条方案详情（含每台车的序列）。打开调度页时用来直接带出最近一次方案。 */
+export function fetchSchedulePlan(id) {
+  return request.get(`/logistics/schedule-plans/${id}/`)
+}

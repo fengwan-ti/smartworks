@@ -116,6 +116,15 @@
       </div>
 
       <el-alert
+        v-if="autoLoadedCode"
+        type="success"
+        :closable="false"
+        show-icon
+        :title="`当前展示最近一次方案 ${autoLoadedCode}（仅预览，任务状态没动）`"
+        description="要按当下待派车任务重算，点「算一套方案」；要把任务真的挂到车上，点「算并下发」。"
+      />
+
+      <el-alert
         v-if="!hasPlan"
         type="info"
         :closable="false"
@@ -250,6 +259,7 @@ import BaseTable from '@/components/BaseTable.vue'
 import {
   buildSchedule,
   fetchAgvs,
+  fetchSchedulePlan,
   fetchSchedulePlans,
   fetchTransportTasks
 } from '@/api/logistics'
@@ -272,6 +282,9 @@ const taskOptions = ref([])
 
 const historyVisible = ref(false)
 const historyCurrent = ref(null)
+// 打开页面时自动带出的最近一次方案（方案编号），换页面再回来也能看到上次算的结果。
+// 不自动带的话，顶部 KPI 全显示「—」+「还没有方案」，验收的人会以为没算过。
+const autoLoadedCode = ref('')
 
 const hasPlan = computed(() => (result.value.plans || []).length > 0)
 const improve = computed(() => result.value.improvement || {})
@@ -350,10 +363,27 @@ async function loadHistory() {
     const data = await fetchSchedulePlans({ page: historyPage.value, page_size: 10 })
     history.value = (data && data.results) || []
     historyTotal.value = (data && data.count) || 0
+    // 第一页且还没算过方案时，把最近一次方案带进上面的大盘（只读展示，不改任务状态）
+    if (historyPage.value === 1 && !hasPlan.value && history.value.length) {
+      await loadPlanDetail(history.value[0])
+    }
   } catch (e) {
     console.error('[SchedulePlan] 历史方案加载失败', e)
   } finally {
     historyLoading.value = false
+  }
+}
+
+/** 把某条历史方案的 detail 铺到大盘上（detail 里的字段与算完返回的一致）。 */
+async function loadPlanDetail(row) {
+  try {
+    const data = await fetchSchedulePlan(row.id)
+    const detail = (data && data.detail) || {}
+    if (!(detail.plans || []).length) return
+    result.value = detail
+    autoLoadedCode.value = (data && data.code) || row.code || ''
+  } catch (e) {
+    console.error('[SchedulePlan] 方案详情加载失败', e)
   }
 }
 
