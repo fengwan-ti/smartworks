@@ -209,9 +209,20 @@ def main():
     remote_exists = rc_ref == 0
 
     if remote_exists:
-        head('第 3 步：先拉取别人的改动')
-        say('  正在连接远程仓库，网络慢的话请等，不要关窗口')
-        rc, out = git('pull', '--rebase', 'origin', branch, show=True, timeout=180)
+        head('第 3 步：是否先拉取别人的改动')
+        # 为什么不自动拉：
+        #   2026-11-15 踩过一次。自动 pull --rebase 遇到冲突会让仓库进入
+        #   rebase 中间态，工作区文件看着像「消失了」，新手完全无法判断。
+        #   答辩前一晚出这种状态代价极高，所以改成默认不拉、由人决定。
+        say('  提示：拉取会把别人的改动合进来。如果两边改了同一个文件，')
+        say('        会产生冲突并让仓库进入「合并中」状态，需要手工解决。')
+        say('        只想把自己的改动推上去，直接回车跳过即可。')
+        if ask('  先拉取远程改动吗？输入 y 拉取，直接回车跳过 > ').lower() == 'y':
+            say('  正在连接远程仓库，网络慢的话请等，不要关窗口')
+            rc, out = git('pull', '--rebase', 'origin', branch, show=True, timeout=180)
+        else:
+            say('  已跳过拉取，直接推送本地提交')
+            rc, out = 0, ''
         if rc != 0:
             say()
             if rc == 124:

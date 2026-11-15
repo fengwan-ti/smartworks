@@ -129,3 +129,24 @@
 2. `message` 一律用中文，写给最终用户看，不要写英文或堆栈
 3. 同一含义只能有一个码，**不许两个码表示同一件事**
 4. 前端靠 `code` 判断，**不靠 message 文本匹配**
+
+### D 段：设备与物流（14xxx）
+
+以下 8 个码按 **D 的实际代码统计**（不是规划），出处一列可直接查证。
+
+| 码 | 含义 | 出处 |
+|---|---|---|
+| 14201 | 设备编码重复 | `equipment/serializers.py` |
+| 14301 | 传感器通道不合法 | `equipment/services.py` |
+| 14501 | AGV / 路网节点编码重复 | `logistics/serializers.py` |
+| 14502 | 路网与节点类错误（节点不存在、边起终点相同、找不到装卸点） | `logistics/services.py` |
+| 14504 | 状态不允许该操作（含「告警已关闭不能再确认」） | 两处 |
+| 14505 | 没有待派车任务 / 起点终点相同 | `logistics/services.py` |
+| 14506 | 没有可用车辆 | `logistics/services.py` |
+| 14602 | 两点不连通 | `logistics/services.py` |
+
+补充说明（D 在 W4 包里的口径）：
+- 告警阈值写进契约，前端不要再自己写一遍：振动 1.8 / 2.4、温度 55 / 65、电流 11 / 13
+  （左 warning、右 critical），同类 60 分钟内不重复报。
+- 维修工单 `start` 会把设备置 `abnormal`，`finish` 回 `normal` 并自动关闭关联告警。
+  所以看板的「异常设备数」应直接读 `/equipment/monitor/overview/`，不要自己缓存。

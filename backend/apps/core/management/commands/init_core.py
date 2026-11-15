@@ -72,6 +72,9 @@ MENUS = [
 
     # ---- 设备管理（D）----
     ('equipment', '设备管理', 'dir', '/equipment', 'Cpu', 30, None, ''),
+    # D 的 W4 交付：告警页。元组按他给的原文，一字不改
+    ('equipment_alarm', '设备告警', 'menu', '/equipment/alarms',
+     'Warning', 33, 'equipment', 'equipment:alarm'),
     ('equipment_list', '设备台账', 'menu', '/equipment/list',
      'Monitor', 31, 'equipment', 'equipment:list'),
     ('equipment_monitor', '设备状态监测', 'menu', '/equipment/monitor',
