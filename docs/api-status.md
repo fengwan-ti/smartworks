@@ -2,7 +2,7 @@
 
 > 更新方式：每完成一个模块，把对应行改为「已上线」并写上提交号。
 > 状态取值：⬜ 未开始 / 🟡 开发中 / ✅ 已上线 / ⛔ 已取消
-> 最近更新：2026-11-13
+> 最近更新：2026-11-15（D 侧 W3/W4/W5 全部上线，合并 C 的 W4/W5）
 
 ## 一、模块级进度
 
@@ -17,7 +17,7 @@
 | production | C | 14 | ⬜ 未开始 | 工单执行、报工、追溯 |
 | quality | C | 12 | ⬜ 未开始 | 检验单、视觉检测结果 |
 | equipment | D | 18 | ✅ 已上线 | 台账 CRUD、能力矩阵、available 按工序找设备（扁平，含 B 排产要的 6 列）、step-types、传感器读数、监测总览、告警（扫描/确认/关闭/统计）、维修工单（派工/开工/完工）、点检计划与记录。未开始：OEE（W7） |
-| logistics | D | 22 | ✅ 已上线 | 路网导入/矩阵/体检/最短路、节点边 CRUD、AGV 台账与充能、搬运任务（领料派生/转序派生/派车/状态流转）、**任务 1/2 调度 `agv-schedule`、方案留档 `schedule-plans`** |
+| logistics | D | 27 | ✅ 已上线 | 路网导入/矩阵/体检/最短路、节点边 CRUD、AGV 台账与充能、搬运任务（领料派生/转序派生/**`from-legs` 批量派生**/派车/状态流转/**`cancel-by-work-order` 按工单撤销**）、**任务 1/2 调度 `agv-schedule`、方案留档 `schedule-plans`** |
 | analytics | A | 6 | ⬜ 未开始 | 看板聚合 |
 | algorithms | 共用 | 8 | 🟡 开发中 | 任务 3 算法层已完成，接口待 D 提供壳子 |
 
@@ -49,6 +49,8 @@
 
 ## 四、测试现状
 
+> 2026-11-15 实测：全仓库 **211 passed**。下面是 D 的测试文件与 A 的共用测试。
+
 | 测试文件 | 数量 | 状态 |
 |---|---|---|
 | `apps/core/tests/test_unified_response.py` | 4 | ✅ 全过 |
@@ -57,10 +59,14 @@
 | `apps/equipment/tests/test_w2_equipment.py` | 9 | ✅ 全过 |
 | `apps/equipment/tests/test_w3_sensor.py` | 16 | ✅ 全过 |
 | `apps/equipment/tests/test_available_contract.py` | 6 | ✅ 全过（**字段名契约测试，给 B 兜底**） |
-| `apps/inventory/tests/test_w2_finished.py` | 8 | ✅ 全过 |
+| `apps/equipment/tests/test_w4_alarm_maintenance.py` | 14 | ✅ 全过（告警阈值/去重/工单状态机/MTTR） |
+| `apps/inventory/tests/test_w2_finished.py` | 8 | ✅ 全过（D 的成品仓） |
+| `apps/inventory/tests/test_c_warehouse_api.py` | 13 | ✅ 全过（C 的原料仓，合入时改名避免与 D 的 tests 包冲突） |
 | `apps/logistics/tests/test_w2_network.py` | 10 | ✅ 全过 |
 | `apps/logistics/tests/test_w3_transport.py` | 26 | ✅ 全过 |
-| **合计** | **103** | **✅ 全过（2026-11-13 全量跑过）** |
+| `apps/logistics/tests/test_w5_scheduling.py` | 15 | ✅ 全过（任务 1/2 调度 + 与贪心基线对比） |
+| `apps/logistics/tests/test_w4_cancel_by_work_order.py` | 12 | ✅ 全过（按工单撤销 / operation_id 幂等 / from-legs 批量） |
+| **D 侧小计** | **116** | **✅ 全过**（equipment 45 + inventory 8 + logistics 63） |
 
 跑法：
 
