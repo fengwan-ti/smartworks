@@ -16,13 +16,15 @@ urlpatterns = [
     # B（工艺与计划）
     path('api/v1/process/', include('apps.process.urls')),
     path('api/v1/order/', include('apps.order.urls')),
-    path('api/v1/planning/', include('apps.planning.urls')),
-    # D（设备与物流调度）W2：设备台账、路网与距离矩阵、成品仓
+    # D（设备与物流调度）：设备台账与告警维修点检、路网与距离矩阵、AGV 调度、成品仓
     path('api/v1/equipment/', include('apps.equipment.urls')),
     path('api/v1/logistics/', include('apps.logistics.urls')),
     path('api/v1/planning/', include('apps.planning.urls')),
     path('api/v1/analytics/', include('apps.analytics.urls')),
+    # C（执行与质量）：inventory（原料仓 + D 的成品仓合并挂载）/ production / quality
     path('api/v1/inventory/', include('apps.inventory.urls')),
+    path('api/v1/production/', include('apps.production.urls')),
+    path('api/v1/quality/', include('apps.quality.urls')),
 ]
 
 if settings.DEBUG:

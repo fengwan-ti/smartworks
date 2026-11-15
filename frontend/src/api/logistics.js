@@ -1,11 +1,14 @@
 /**
- * 物流与路网接口封装（前端）。
+ * 物流与路网接口封装（前端）。页面里不拼 URL，一律走这里。
  *
- * 注意：路网与最短路的后端由 D 提供（apps/logistics），
- * 本文件只做「按接口契约调用」，不重复实现算法。
+ * 两批函数，命名风格不同但都保留：
+ *   · list* / networkHealth / shortestPath / distanceMatrix —— A 的路径规划页（PathPlanner.vue）在用
+ *   · fetch* / assign* / buildSchedule —— D 的调度页（SchedulePlan.vue）在用
+ * 合并时没有改名：改一个名就要动两个页面，不划算。
  */
 import request from '@/utils/request'
 
+// ── 路网（A 的路径规划页在用的命名）────────────────────────
 /** 路网节点（分页；一次取够，29 个节点用 page_size=200 足够） */
 export function listRoadNodes(params) {
   return request.get('/logistics/road-nodes/', {
@@ -32,7 +35,64 @@ export function shortestPath(from, to) {
   })
 }
 
-/** 全对全距离矩阵（本页不用，留给 AGV 调度） */
+/** 全对全距离矩阵 */
 export function distanceMatrix() {
   return request.get('/logistics/road-network/distance-matrix/')
+}
+
+// ── 路网（D 的调度页在用的命名）───────────────────────────
+export function fetchRoadNodes(params) {
+  return request.get('/logistics/road-nodes/', { params })
+}
+
+export function fetchRoadEdges(params) {
+  return request.get('/logistics/road-edges/', { params })
+}
+
+export function fetchNetworkHealth() {
+  return request.get('/logistics/road-network/health/')
+}
+
+// ── AGV ────────────────────────────────────────────────
+export function fetchAgvs(params) {
+  return request.get('/logistics/agvs/', { params })
+}
+
+export function fetchAgvWorkload() {
+  return request.get('/logistics/agvs/workload/')
+}
+
+export function chargeAgv(id) {
+  return request.post(`/logistics/agvs/${id}/charge/`)
+}
+
+// ── 搬运任务 ───────────────────────────────────────────
+export function fetchTransportTasks(params) {
+  return request.get('/logistics/transport-tasks/', { params })
+}
+
+export function fetchTaskBoard() {
+  return request.get('/logistics/transport-tasks/board/')
+}
+
+export function assignTask(id) {
+  return request.post(`/logistics/transport-tasks/${id}/assign/`)
+}
+
+export function changeTaskStatus(id, data) {
+  return request.post(`/logistics/transport-tasks/${id}/status/`, data)
+}
+
+// ── W5 调度 ────────────────────────────────────────────
+/** 算一套方案。POST 会留一条 draft 记录；apply=true 才真派车。 */
+export function buildSchedule(data = {}) {
+  return request.post('/logistics/agv-schedule/', data)
+}
+
+export function previewSchedule(params = {}) {
+  return request.get('/logistics/agv-schedule/', { params })
+}
+
+export function fetchSchedulePlans(params) {
+  return request.get('/logistics/schedule-plans/', { params })
 }
