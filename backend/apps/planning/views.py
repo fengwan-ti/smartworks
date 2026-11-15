@@ -10,6 +10,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.core.exceptions import BizError
+from apps.core.optimistic import ensure_fresh
 from apps.core.pagination import StandardPagination
 from apps.equipment.constants import StepType
 
@@ -88,6 +89,8 @@ class WorkOrderViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def release(self, request, pk=None):
+        # 乐观锁：前端若带了 expected_updated_at，就校验有没有人抢先改过
+        ensure_fresh(self.get_object(), request)
         wo = self.get_object()
         if wo.status not in (WorkOrderStatus.PLANNED, WorkOrderStatus.DRAFT):
             raise BizError(12017, '只有草稿/已排产的工单可以下达')
@@ -97,10 +100,14 @@ class WorkOrderViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def complete(self, request, pk=None):
+        # 乐观锁：前端若带了 expected_updated_at，就校验有没有人抢先改过
+        ensure_fresh(self.get_object(), request)
         return self._close_work_order(request, WorkOrderStatus.COMPLETED)
 
     @action(detail=True, methods=['post'])
     def cancel(self, request, pk=None):
+        # 乐观锁：前端若带了 expected_updated_at，就校验有没有人抢先改过
+        ensure_fresh(self.get_object(), request)
         return self._close_work_order(request, WorkOrderStatus.CANCELLED)
 
     @action(detail=True, methods=['get'], url_path='dispatch')

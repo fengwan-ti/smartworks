@@ -146,6 +146,7 @@
  *   关闭   —— 表示"这事结束了"，才能从指标卡里消失
  */
 import { onMounted, reactive, ref } from 'vue'
+import { usePolling } from '@/composables/usePolling'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import SearchForm from '@/components/SearchForm.vue'
 import BaseTable from '@/components/BaseTable.vue'
@@ -353,6 +354,9 @@ function showDetail(row) {
   current.value = row
   detailVisible.value = true
 }
+
+// 告警每 30 秒自动刷新：设备报警要能自己冒出来，不能等人刷新
+usePolling(load, 30000)
 
 onMounted(() => {
   load()

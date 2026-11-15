@@ -110,6 +110,7 @@
  */
 import { computed, onMounted, ref } from 'vue'
 import request from '@/utils/request'
+import { usePolling } from '@/composables/usePolling'
 import { demoError, demoPaginated, demoSuccess } from '@/api/core'
 
 const network = ref(null)
@@ -182,6 +183,9 @@ async function onDemoError() {
       e && e.response ? e.response.data : { message: String(e) }, null, 2)
   }
 }
+
+// 工作台每 30 秒自动刷新：看板挂在墙上时不用人手动点
+const { lastAt: pollAt, enabled: pollEnabled } = usePolling(load, 30000)
 
 onMounted(load)
 </script>

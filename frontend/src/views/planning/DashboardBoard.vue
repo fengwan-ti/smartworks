@@ -130,6 +130,7 @@
 
 <script setup>
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { usePolling } from '@/composables/usePolling'
 import * as echarts from 'echarts'
 import { fetchDashboard } from '@/api/planning'
 
@@ -177,6 +178,9 @@ function render() {
 }
 
 function onResize() { chart && chart.resize() }
+// 生产看板常挂在车间大屏上，60 秒刷一次（比告警慢，因为工单变化没那么频繁）
+usePolling(load, 60000)
+
 onMounted(() => { load(); window.addEventListener('resize', onResize) })
 onBeforeUnmount(() => {
   window.removeEventListener('resize', onResize)
