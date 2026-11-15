@@ -219,7 +219,11 @@ def main():
         say('        只想把自己的改动推上去，直接回车跳过即可。')
         if ask('  先拉取远程改动吗？输入 y 拉取，直接回车跳过 > ').lower() == 'y':
             say('  正在连接远程仓库，网络慢的话请等，不要关窗口')
-            rc, out = git('pull', '--rebase', 'origin', branch, show=True, timeout=180)
+            # 用 merge 而不是 rebase：本仓库有合并提交（合过 dw3 与 feature/process-w1-model），
+            #   rebase 会把合并提交摊平成一条直线，重放到同一个文件就必然冲突。
+            #   2026-11-15 实测：--rebase 在 backend/config/urls.py 上冲突，
+            #   还把工作区留在冲突标记里。merge 对合并历史更友好。
+            rc, out = git('pull', '--no-rebase', 'origin', branch, show=True, timeout=180)
         else:
             say('  已跳过拉取，直接推送本地提交')
             rc, out = 0, ''
