@@ -358,7 +358,7 @@ def resolve_dock(value, field_name='位置'):
 
     为什么要三种写法都认：同一个地方，四个人嘴里有三种叫法 ——
         N013          路网节点编号（A 的路径规划只用这个）
-        WS-N013       工位编号（masterdata.Workstation）
+        ST-CNC-01     工位编号（A 的 masterdata.Workstation，B 的 legs 给的就是这个）
         EQ-CNC-01     设备编号（设备台账）
     B 派活时只会给「设备/工单上的那道工序在哪台机」，不会去查节点号；
     所以入口这里必须能兜住，否则 W4 联调时对方一给设备号就 404。
@@ -391,7 +391,8 @@ def resolve_dock(value, field_name='位置'):
         raise BizError(
             14505,
             f'设备 {value} 没有 AGV 装卸点（workstation 为空，或工位没填 agv_load_point）。'
-            f'先跑 python manage.py seed_equipments --create-workstations 建占位工位',
+            f'先跑 python manage.py init_demo 建 A 的 ST- 工位，'
+            f'或 seed_equipments --create-workstations 按 ST- 口径补建',
         )
 
     raise BizError(14502, f'{field_name} {value} 不是有效的节点 / 工位 / 设备编号')
@@ -432,22 +433,40 @@ def _check_reachable(from_node, to_node):
 def create_task(*, task_type, from_node, to_node, ref_type=TransportSourceType.MANUAL,
                 ref_doc=None, ref_seq=0, from_location='', to_location='',
                 qty=0, priority=3, plan_start=None, plan_end=None,
-                remark='', operator=None):
+                ref_operation_id=None, remark='', operator=None):
     """建一条搬运任务（内部统一入口，派生/手工/后续算法都走这里）。
 
     幂等：ref_type + ref_doc + ref_seq 相同就返回已有那条，不新建。
         返回 (task, created)，created=False 说明这次是「重复提交被挡住」。
         页面上双击两下不会再变成两条任务、两次派车。
+
+    给了 ref_operation_id 时**先按它查**：工单重排会换工单号，
+    但工序主键不会变，所以 operation_id 比 (工单号, seq) 更抗重排。
     """
     if not (1 <= int(priority) <= 5):
         raise BizError(10001, '优先级只能是 1-5（1 最高）')
 
-    if ref_doc:
+    existing = None
+    if ref_operation_id:
+        existing = TransportTask.objects.filter(
+            ref_type=ref_type, ref_operation_id=ref_operation_id,
+        ).first()
+    if existing is None and ref_doc:
         existing = TransportTask.objects.filter(
             ref_type=ref_type, ref_doc=ref_doc, ref_seq=ref_seq,
         ).first()
-        if existing is not None:
-            return existing, False
+        # 靠 (工单号, seq) 命中的老任务，把 operation_id 补上：
+        # 以后 B 重排换了工单号，也能被上面那一层去重命中。
+        if (existing is not None and ref_operation_id
+                and not existing.ref_operation_id):
+            taken = TransportTask.objects.filter(
+                ref_type=ref_type, ref_operation_id=ref_operation_id,
+            ).exclude(pk=existing.pk).exists()
+            if not taken:
+                existing.ref_operation_id = ref_operation_id
+                existing.save(update_fields=['ref_operation_id', 'updated_at'])
+    if existing is not None:
+        return existing, False
 
     distance = _check_reachable(from_node, to_node)
 
@@ -460,6 +479,7 @@ def create_task(*, task_type, from_node, to_node, ref_type=TransportSourceType.M
         qty=Decimal(str(qty or 0)),
         priority=int(priority),
         ref_type=ref_type, ref_doc=ref_doc or None, ref_seq=ref_seq,
+        ref_operation_id=ref_operation_id or None,
         plan_start=plan_start, plan_end=plan_end,
         distance_mm=distance,
         operator=operator,
@@ -523,9 +543,13 @@ def derive_from_operation(payload, operator=None):
 
         work_order_code  工单号（幂等键 + 单据号）
         seq              工序序号（幂等键的一部分：同一工单有多道转序）
-        to_equipment / to_node       下道工序在哪台设备 / 哪个节点
-        from_equipment / from_node   上道工序在哪；都不给就报错，不猜
+        operation_id     pl_work_order_operation.id（可选，给了就优先按它去重）
+        to_workstation / to_equipment / to_node     下道工序在哪（三选一）
+        from_workstation / from_equipment / from_node  上道工序在哪；都不给就报错，不猜
         qty, priority, plan_start    可选
+
+    四种位置写法都认（节点号 N013 / 工位号 ST-CNC-01 / 设备号 EQ-CNC-01），
+    因为 B 的 legs 主要给工位号、A 的路网只认节点号、人嘴上是设备号。
 
     为什么 from 必须给、不许猜：
         猜错了任务会把料送到错的机器上，而且表面上"成功"了，
@@ -538,12 +562,14 @@ def derive_from_operation(payload, operator=None):
     if seq in (None, ''):
         raise BizError(10001, '缺少 seq（工序序号）')
 
-    to_value = payload.get('to_equipment') or payload.get('to_node') or ''
+    to_value = (payload.get('to_workstation') or payload.get('to_equipment')
+                or payload.get('to_node') or '')
     if not to_value:
-        raise BizError(10001, '缺少下道工序位置：to_equipment 或 to_node')
-    from_value = payload.get('from_equipment') or payload.get('from_node') or ''
+        raise BizError(10001, '缺少下道工序位置：to_workstation / to_equipment / to_node')
+    from_value = (payload.get('from_workstation') or payload.get('from_equipment')
+                  or payload.get('from_node') or '')
     if not from_value:
-        raise BizError(10001, '缺少上道工序位置：from_equipment 或 from_node')
+        raise BizError(10001, '缺少上道工序位置：from_workstation / from_equipment / from_node')
 
     from_node, from_label = resolve_dock(from_value, '上道工序位置')
     to_node, to_label = resolve_dock(to_value, '下道工序位置')
@@ -554,6 +580,7 @@ def derive_from_operation(payload, operator=None):
         from_location=from_label, to_location=to_label,
         ref_type=TransportSourceType.OPERATION,
         ref_doc=work_order_code, ref_seq=int(seq),
+        ref_operation_id=payload.get('operation_id') or None,
         qty=payload.get('qty') or 0,
         priority=payload.get('priority') or 3,
         plan_start=payload.get('plan_start'),
@@ -561,6 +588,64 @@ def derive_from_operation(payload, operator=None):
         remark=payload.get('remark') or '',
         operator=operator,
     )
+
+
+# 工单完了还挂着的任务，只撤这两种：还没上路，撤了不影响在途货物。
+# running 的不动 —— 车已经载着料在半路，这时候撤单等于让货停在通道里。
+CANCELLABLE_BY_WORK_ORDER = (TransportTaskStatus.PENDING, TransportTaskStatus.ASSIGNED)
+
+
+@transaction.atomic
+def cancel_tasks_by_work_order(work_order_code, reason='', operator=None):
+    """工单完工/取消 → 把该工单派生的、还没上路的搬运任务撤掉。
+
+    B 的 `/planning/work-orders/{id}/complete/` 与 `/cancel/` 会 best-effort 调这里
+    （入参 {work_order_code, reason}）。所以这个函数必须是**幂等且不炸**的：
+        再调一次只会返回 cancelled=0，不报错；
+        工单号打错也只返回空列表，不抛异常 —— 否则会把 B 的完工动作一起拖失败。
+
+    只撤 pending / assigned；running 的记录在 skipped 里说明原因，
+    让人知道「还有一车料在路上」，而不是悄悄丢掉。
+    """
+    code = (work_order_code or '').strip()
+    if not code:
+        raise BizError(10001, '缺少 work_order_code（工单号）')
+
+    reason_text = (reason or '').strip() or f'工单 {code} 完工/取消，自动撤销'
+    tasks = (
+        TransportTask.objects
+        .filter(ref_type=TransportSourceType.OPERATION, ref_doc=code)
+        .select_related('agv')
+        .order_by('code')
+    )
+
+    cancelled, skipped = [], []
+    for task in tasks:
+        if task.status in CANCELLABLE_BY_WORK_ORDER:
+            before = task.status
+            agv_code = task.agv.code if task.agv_id else ''
+            cancel_task(task, reason=reason_text, operator=operator)
+            cancelled.append({
+                'code': task.code, 'status_before': before, 'agv': agv_code,
+            })
+        elif task.status == TransportTaskStatus.RUNNING:
+            skipped.append({
+                'code': task.code, 'status': task.status,
+                'reason': '车已上路，不中途丢货；让它送完或由人改成取消',
+            })
+        else:
+            skipped.append({
+                'code': task.code, 'status': task.status,
+                'reason': '已是终态，无需处理',
+            })
+
+    return {
+        'work_order_code': code,
+        'cancelled_count': len(cancelled),
+        'skipped_count': len(skipped),
+        'cancelled': cancelled,
+        'skipped': skipped,
+    }
 
 
 def _busy_agv_ids():

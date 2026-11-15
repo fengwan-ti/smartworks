@@ -117,7 +117,7 @@ class TransportTaskSerializer(serializers.ModelSerializer):
             'from_node', 'from_node_code', 'from_location',
             'to_node', 'to_node_code', 'to_location',
             'qty', 'priority', 'status', 'status_label',
-            'ref_type', 'ref_type_label', 'ref_doc', 'ref_seq',
+            'ref_type', 'ref_type_label', 'ref_doc', 'ref_seq', 'ref_operation_id',
             'agv', 'agv_code', 'distance_mm', 'empty_distance_mm',
             'plan_start', 'plan_end', 'started_at', 'finished_at',
             'duration_minutes', 'remark', 'created_at', 'updated_at',
@@ -167,10 +167,22 @@ class OperationTaskSerializer(serializers.Serializer):
     """工单工序转序 → 搬运任务 的入参。"""
     work_order_code = serializers.CharField(max_length=64)
     seq = serializers.IntegerField(min_value=1)
+    operation_id = serializers.IntegerField(
+        required=False, allow_null=True, min_value=1,
+        help_text='pl_work_order_operation.id，可选；给了就优先按它去重',
+    )
     to_equipment = serializers.CharField(required=False, allow_blank=True, default='')
     to_node = serializers.CharField(required=False, allow_blank=True, default='')
+    to_workstation = serializers.CharField(
+        required=False, allow_blank=True, default='',
+        help_text='工位编码 ST-…（B 的 legs 主要给这个）',
+    )
     from_equipment = serializers.CharField(required=False, allow_blank=True, default='')
     from_node = serializers.CharField(required=False, allow_blank=True, default='')
+    from_workstation = serializers.CharField(
+        required=False, allow_blank=True, default='',
+        help_text='工位编码 ST-…（B 的 legs 主要给这个）',
+    )
     qty = serializers.DecimalField(
         max_digits=12, decimal_places=3, required=False, allow_null=True,
     )
@@ -181,10 +193,11 @@ class OperationTaskSerializer(serializers.Serializer):
     auto_assign = serializers.BooleanField(required=False, default=False)
 
     def validate(self, attrs):
-        if not (attrs.get('to_equipment') or attrs.get('to_node')):
-            raise BizError(10001, '下道工序位置必填：to_equipment 或 to_node')
-        if not (attrs.get('from_equipment') or attrs.get('from_node')):
-            raise BizError(10001, '上道工序位置必填：from_equipment 或 from_node')
+        if not (attrs.get('to_workstation') or attrs.get('to_equipment') or attrs.get('to_node')):
+            raise BizError(10001, '下道工序位置必填：to_workstation / to_equipment / to_node 三选一')
+        if not (attrs.get('from_workstation') or attrs.get('from_equipment')
+                or attrs.get('from_node')):
+            raise BizError(10001, '上道工序位置必填：from_workstation / from_equipment / from_node 三选一')
         return attrs
 
 

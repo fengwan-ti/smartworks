@@ -189,6 +189,10 @@ class TransportTask(models.Model):
         所以「页面上点了两下」不会变成两条任务、两次派车。
         手工任务 ref_doc 存 NULL，不受这个约束影响（NULL 在唯一索引里彼此不等）。
 
+        B 的排产重跑会换工单号，于是 2026-11-15 又补了一层：
+        ref_operation_id（= pl_work_order_operation.id）。工单号会变、工序主键不会，
+        所以只要有 operation_id，优先按它去重（uk_task_ref_operation）。
+
     distance_mm 是派车时按距离矩阵算的**计划里程**，
     不是 GPS 实测；W6 做地图动画时用它画轨迹。
     """
@@ -226,6 +230,11 @@ class TransportTask(models.Model):
         max_length=64, null=True, blank=True, verbose_name='来源单据号',
     )
     ref_seq = models.PositiveIntegerField(default=0, verbose_name='来源单据内序号')
+    ref_operation_id = models.BigIntegerField(
+        null=True, blank=True, verbose_name='来源工序主键',
+        help_text='pl_work_order_operation.id。B 的 legs 里带 operation_id，'
+                  '有了它就不依赖「工单号+seq」这种业务编号做幂等',
+    )
     agv = models.ForeignKey(
         Agv, null=True, blank=True, on_delete=models.SET_NULL,
         related_name='tasks', verbose_name='执行 AGV',
@@ -257,6 +266,13 @@ class TransportTask(models.Model):
             models.UniqueConstraint(
                 fields=['ref_type', 'ref_doc', 'ref_seq'],
                 name='uk_task_ref',
+            ),
+            # 有 operation_id 时用它兜一层：B 重排会换工单号，但同一道工序的
+            # operation_id 不会变，比 (工单号, seq) 更抗重排。
+            models.UniqueConstraint(
+                fields=['ref_type', 'ref_operation_id'],
+                condition=models.Q(ref_operation_id__isnull=False),
+                name='uk_task_ref_operation',
             ),
             models.CheckConstraint(
                 condition=~models.Q(from_node=models.F('to_node')),

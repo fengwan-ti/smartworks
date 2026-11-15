@@ -1,9 +1,14 @@
 """导入设备台账种子数据（D 的 W1 交付 → W2 入库）。
 
 用法：
-    python manage.py seed_equipments                    # 需要先有车间，工位找不到就留空
-    python manage.py seed_equipments --create-workshop   # 车间不存在时自动建「机加工车间」
-    python manage.py seed_equipments --create-workstations  # 按路网装卸点建占位工位（临时）
+    python manage.py seed_equipments                      # 按 data 里的 workstation_code 绑工位
+    python manage.py seed_equipments --create-workshop     # 车间不存在时自动建「机加工车间」
+    python manage.py seed_equipments --create-workstations # 工位缺失时按 ST- 口径补建
+
+工位编码口径（2026-11-15 与 A/B 定案）：
+    **以 A 的 md_workstation（ST-…）为准**，设备表里存 workstation_code。
+    以前这里按路网装卸点自建 WS-N013 这类占位工位，结果同一个装卸点上有两条工位
+    （WS-N013 + ST-CNC-01），B 派生 legs 时不知道信哪个，已废弃。
 
 数据来源：data/equipments-v1.json（8 台设备 + 15 条能力）。
 可重复执行：已存在的设备与能力会被更新，不会重复插入。
@@ -30,7 +35,7 @@ class Command(BaseCommand):
         parser.add_argument('--create-workshop', action='store_true',
                             help='车间不存在时自动创建「机加工车间」')
         parser.add_argument('--create-workstations', action='store_true',
-                            help='按路网装卸点建占位工位（A 的真实工位到位后删掉）')
+                            help='工位缺失时按 ST- 口径补建（不建 WS-N0xx 占位工位）')
 
     @transaction.atomic
     def handle(self, *args, **options):
@@ -61,27 +66,35 @@ class Command(BaseCommand):
 
         for item in payload.get('equipments', []):
             node_code = item.get('workstation_node') or ''
+            ws_code = item.get('workstation_code') or ''
 
             workstation = None
-            if node_code:
+            if ws_code:
+                # 首选：data 里写死的工位编码（ST-…，A 的口径）
+                workstation = Workstation.objects.filter(code=ws_code).first()
+            if workstation is None and node_code:
+                # 兜底：老数据没有 workstation_code 时，按装卸点找已经存在的工位
                 workstation = Workstation.objects.filter(agv_load_point=node_code).first()
-                if workstation is None and options['create_workstations']:
-                    workstation, _ = Workstation.objects.get_or_create(
-                        code=f'WS-{node_code}',
-                        defaults={
-                            'name': f'{item["name"]}装卸点',
-                            'workshop': workshop,
-                            'agv_load_point': node_code,
-                            'remark': 'D 的 seed 命令建的占位工位，A 的真实工位到位后可替换',
-                        },
-                    )
-                if workstation is None:
-                    self.stdout.write(
-                        self.style.WARNING(
-                            f'工位装卸点 {node_code} 还没有对应工位，'
-                            f'{item["code"]} 的 workstation 留空',
-                        ),
-                    )
+            if workstation is None and options['create_workstations']:
+                code = ws_code or f'ST-{node_code}'
+                workstation, _ = Workstation.objects.get_or_create(
+                    code=code,
+                    defaults={
+                        'name': f'{item["name"]}工位',
+                        'workshop': workshop,
+                        'agv_load_point': node_code,
+                        'remark': 'seed_equipments --create-workstations 按设备台账补建',
+                    },
+                )
+                self.stdout.write(f'补建工位：{workstation.code}（装卸点 {node_code}）')
+            if workstation is None:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f'工位 {ws_code or node_code} 不存在，{item["code"]} 的 workstation 留空。'
+                        f'先跑 python manage.py init_demo（A 的 12 个 ST- 工位）'
+                        f'或 seed_d_workstations（补下料区）。',
+                    ),
+                )
 
             defaults = {
                 'name': item.get('name', item['code']),

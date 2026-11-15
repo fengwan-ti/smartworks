@@ -261,6 +261,22 @@ class TransportTaskViewSet(viewsets.ModelViewSet):
         task.refresh_from_db()
         return Response(TransportTaskSerializer(task).data)
 
+    @action(detail=False, methods=['post'], url_path='cancel-by-work-order')
+    def cancel_by_work_order(self, request):
+        """POST /api/v1/logistics/transport-tasks/cancel-by-work-order/
+
+        body: {"work_order_code": "WO202611-0001", "reason": "工单完工"}
+        B 的工单完工/取消动作会 best-effort 调这里，把该工单派生、
+        还没上路的任务（pending / assigned）置 cancelled。
+        幂等：重复调用返回 cancelled_count=0，不报错（不能把 B 的完工动作拖失败）。
+        """
+        result = services.cancel_tasks_by_work_order(
+            request.data.get('work_order_code'),
+            reason=request.data.get('reason') or '',
+            operator=request.user,
+        )
+        return Response(result)
+
     @action(detail=False, methods=['get'], url_path='board')
     def board(self, request):
         """任务看板：各状态数量、今日里程、空驶率。"""
