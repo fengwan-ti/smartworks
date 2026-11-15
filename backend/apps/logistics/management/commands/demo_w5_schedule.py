@@ -103,10 +103,13 @@ class Command(BaseCommand):
             f'   空驶率 {result["empty_ratio"]:.1%}'
         )
         if improve:
+            # empty_ratio_delta 的定义是「基线 − 优化」：正数表示空驶率下降。
+            # 这里不能直接打 +x%，否则「-4.2%」既可能读成"改善了 4.2%"也可能读成
+            # "变差 4.2 个点"，答辩现场一句话就解释不清。所以换算成百分点 + 汉字说方向。
             delta = improve['empty_ratio_delta']
-            # 空驶率可能升也可能降：优化目标是完工时间，摊平工作量时
-            # 车会多跑几趟空驶 —— 这个代价要说出来，不能只报好看的那个数
-            trend = f'空驶率 {delta:+.1%}'
+            worse = delta < 0
+            trend = (f'空驶率 {abs(delta) * 100:.1f} 个百分点'
+                     f'{"（变差）" if worse else "（改善）"}')
             self.stdout.write(
                 f'  提升：makespan −{improve["makespan_ratio"]:.1%}，{trend}'
                 f'（主目标是完工时间，空驶率是代价项）'
