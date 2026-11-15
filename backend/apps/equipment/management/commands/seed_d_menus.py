@@ -4,7 +4,7 @@
     A 的 `init_core.py` 里其实**已经登记了 D 的 9 个页面菜单**
     （/equipment/list、/equipment/monitor、/equipment/maintain、/equipment/oee、
      /logistics/agvs、/logistics/tasks、/logistics/dispatch、/inventory/finished-in、/inventory/aging）。
-    所以这条命令**不再重复插那 9 条** —— 之前它插的是另一套路径
+    所以这条命令**不再重复插那 9 条** -- 之前它插的是另一套路径
     （/equipment/equipments、/logistics/schedule…），结果是同一个页面在侧边栏出现两次，
     点旧的那条还会 404。
 
@@ -48,7 +48,7 @@ class Command(BaseCommand):
             parent = Menu.objects.filter(code=parent_code).first()
             if dry:
                 self.stdout.write(
-                    f'[菜单] {code} {name} → {path}'
+                    f'[菜单] {code} {name} -> {path}'
                     f'（父目录 {parent_code}{"" if parent else "，不存在则兜底新建"}）'
                 )
                 continue

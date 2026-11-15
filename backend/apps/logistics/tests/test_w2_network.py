@@ -1,7 +1,7 @@
 """D 的 W2 自测：路网导入、距离矩阵、路径、路网体检。
 
 跑法：python -m pytest apps/logistics -q
-验收对应：29 节点 48 边能导入、29×29 矩阵能出、不可达是 null 不是 -1。
+验收对应：29 节点 48 边能导入、29x29 矩阵能出、不可达是 null 不是 -1。
 
 这里的测试**不依赖真实的 road-network-v1.json**，用一个 4 节点环形图手算断言，
 这样「矩阵算错」和「数据文件不对」两类问题不会混在一起。
@@ -120,7 +120,7 @@ def test_edge_to_unknown_node_rejected(db):
 
 def test_health_reports_detour_ratio(square):
     """方形环路 6 对：4 对相邻 1.0，2 对对角 2000/1414≈1.414，
-    平均 = (4×1.0 + 2×1.414) / 6 ≈ 1.138。"""
+    平均 = (4x1.0 + 2x1.414) / 6 ≈ 1.138。"""
     health = services.network_health()
     assert health['node_count'] == 4
     assert health['avg_detour_ratio'] == pytest.approx(1.138, abs=0.01)

@@ -5,7 +5,7 @@
     GET|PUT|PATCH|DELETE /api/v1/equipment/equipments/{id}/
     GET|POST      /api/v1/equipment/equipments/{id}/capabilities/   设备能力（B 只读）
     GET           /api/v1/equipment/equipments/available/           按工序找可用设备
-    GET           /api/v1/equipment/equipments/capability-matrix/   设备×工序能力矩阵
+    GET           /api/v1/equipment/equipments/capability-matrix/   设备x工序能力矩阵
     GET           /api/v1/equipment/equipments/next-code/           新增时给个建议编码
     GET           /api/v1/equipment/step-types/                     工序类型字典（11 个值）
 
@@ -120,8 +120,8 @@ class EquipmentViewSet(viewsets.ModelViewSet):
         返回的是**扁平一行一台设备**（equipment_id / code / name / capacity_per_hour /
         precision_level / changeover_minutes …），B 不用再往里掏一层 equipment。
 
-        ⚠️ `cutting` / `inspection` 在 B-1 决策里是「不占设备」的工序，
-           这里会返回空数组 —— 那是**正确结果**，不是数据没建。
+        [注意] `cutting` / `inspection` 在 B-1 决策里是「不占设备」的工序，
+           这里会返回空数组 -- 那是**正确结果**，不是数据没建。
            排产遇到 is_equipment_free=true 的模板请直接跳过设备匹配、只占工时。
         """
         step_type = request.query_params.get('step_type')
@@ -138,12 +138,12 @@ class EquipmentViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='capability-matrix')
     def capability_matrix(self, request):
-        """设备 × 工序 能力矩阵，前端画热力图用。"""
+        """设备 x 工序 能力矩阵，前端画热力图用。"""
         return Response(services.capability_matrix())
 
     @action(detail=False, methods=['get'], url_path='next-code')
     def next_code(self, request):
-        """新增设备时给个建议编码，例如 ?type=CNC → EQ-CNC-03。"""
+        """新增设备时给个建议编码，例如 ?type=CNC -> EQ-CNC-03。"""
         return Response({'code': services.generate_equipment_code(
             request.query_params.get('type', 'GEN'),
         )})
@@ -193,7 +193,7 @@ class SensorReadingViewSet(viewsets.ReadOnlyModelViewSet):
     def latest(self, request):
         """GET /api/v1/equipment/sensor-readings/latest/?equipment_code=EQ-CNC-01
 
-        每台设备 × 每个通道的最新值。监测页顶部那一排数字用它。
+        每台设备 x 每个通道的最新值。监测页顶部那一排数字用它。
         """
         return Response(services.latest_readings(
             equipment_code=request.query_params.get('equipment_code') or None,
@@ -203,7 +203,7 @@ class SensorReadingViewSet(viewsets.ReadOnlyModelViewSet):
     def series(self, request):
         """GET /api/v1/equipment/sensor-readings/series/?equipment_code=&channel=&limit=500
 
-        一条曲线（一个设备一个通道）。四条曲线就调四次 ——
+        一条曲线（一个设备一个通道）。四条曲线就调四次 --
         合成一个接口返回四通道也行，但那样前端要先拆再拼，反而多一步。
         """
         code = request.query_params.get('equipment_code')
@@ -257,7 +257,7 @@ class MonitorOverviewView(APIView):
 
 
 class AlarmViewSet(viewsets.ModelViewSet):
-    """告警。**只能人工上报与关闭，不能改内容** —— 告警是证据，不是配置。"""
+    """告警。**只能人工上报与关闭，不能改内容** -- 告警是证据，不是配置。"""
     queryset = Alarm.objects.select_related('equipment', 'acked_by').all()
     serializer_class = AlarmSerializer
     filterset_class = AlarmFilter
@@ -285,7 +285,7 @@ class AlarmViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='ack')
     def ack(self, request, pk=None):
-        """确认告警：open → acked。"""
+        """确认告警：open -> acked。"""
         alarm = services.ack_alarm(self.get_object(), user=request.user)
         return Response(AlarmSerializer(alarm).data)
 
@@ -300,7 +300,7 @@ class AlarmViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='scan')
     def scan(self, request):
-        """POST /api/v1/equipment/alarms/scan/ —— 按阈值规则扫一遍最新读数。
+        """POST /api/v1/equipment/alarms/scan/ -- 按阈值规则扫一遍最新读数。
 
         演示动作：先把某台设备的状态刷成异常（或模拟一段超标数据），
         点这个接口，告警和维修工单会一起冒出来。

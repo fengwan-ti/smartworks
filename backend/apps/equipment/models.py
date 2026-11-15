@@ -1,10 +1,10 @@
 """设备管理模型（负责人 D）。
 
 本文件按周次加表：
-    W2  eq_equipment 设备台账、eq_equipment_capability 设备能力        ✅ 已入库
-    W3  eq_sensor_reading 传感器读数                                    ✅ 已入库
+    W2  eq_equipment 设备台账、eq_equipment_capability 设备能力        [完成] 已入库
+    W3  eq_sensor_reading 传感器读数                                    [完成] 已入库
     W4  eq_alarm 告警、eq_maintenance_order 维修工单、
-        eq_inspection_plan / eq_inspection_record 点检                  ✅ 本次
+        eq_inspection_plan / eq_inspection_record 点检                  [完成] 本次
     W7  eq_equipment_status_log 状态、eq_oee_record OEE
 
 字段口径以 docs/er-v1.md 第 3.7 节为准（那份是 A 的 ER 图，已含 D 的字段清单）。
@@ -84,7 +84,7 @@ class EquipmentCapability(models.Model):
     """设备能力：这台设备能干哪种工序、精度多少、每小时能干几件。
 
     [注意] 排产匹配**只读 step_type / precision_level / capacity_per_hour 三列**。
-    params 仅供详情页展示，不许参与匹配 —— 否则以后加设备就要改排产代码，
+    params 仅供详情页展示，不许参与匹配 -- 否则以后加设备就要改排产代码，
     正好撞上创新点「元数据驱动、零改代码」。
 
     唯一约束 (equipment, step_type)：一台设备对同一种工序只保留一条能力记录。
@@ -132,16 +132,16 @@ class EquipmentCapability(models.Model):
 
 
 class SensorReading(models.Model):
-    """设备传感器读数（长表：一行 = 一台设备 × 一个通道 × 一个时刻）。
+    """设备传感器读数（长表：一行 = 一台设备 x 一个通道 x 一个时刻）。
 
     为什么不照着 CSV 的宽表存（一行四个通道）：
         宽表要画「某台设备的振动曲线」，得先知道列名；要加第 5 个通道，得改表结构。
         长表加通道只是多几行数据，前端/算法都按 channel 过滤，代码不用动。
-        代价是行数变成 4 倍（1.2 万行宽表 → 4.8 万行长表），对数据库完全不算事。
+        代价是行数变成 4 倍（1.2 万行宽表 -> 4.8 万行长表），对数据库完全不算事。
 
     state 是**仿真时的真实标签**（normal / wearing / abnormal）。
         它不是预测结果。W7 的故障预测就是拿前一段读数去预测这个值，
-        预测对了算准，所以这一列必须保留——没有它就没法算准确率。
+        预测对了算准，所以这一列必须保留--没有它就没法算准确率。
         真实产线上没有这一列（没人提前知道答案），所以允许为空。
 
     unit 不出现在模型里：单位由 channel 决定（写在常量标签里），
@@ -175,7 +175,7 @@ class SensorReading(models.Model):
         verbose_name_plural = verbose_name
         ordering = ['-recorded_at']
         constraints = [
-            # 同一台设备、同一通道、同一时刻只能有一条 —— 重复导入不会翻倍
+            # 同一台设备、同一通道、同一时刻只能有一条 -- 重复导入不会翻倍
             models.UniqueConstraint(
                 fields=['equipment', 'channel', 'recorded_at'],
                 name='uk_reading_point',
@@ -261,7 +261,7 @@ class Alarm(models.Model):
 
 
 class MaintenanceOrder(models.Model):
-    """维修工单。**告警是「发现了问题」，维修工单是「派人去解决」** —— 两张表，不合并。
+    """维修工单。**告警是「发现了问题」，维修工单是「派人去解决」** -- 两张表，不合并。
 
     为什么不把告警状态直接当维修进度用：
         一条告警可能对应 0 张工单（误报，直接关掉），
@@ -334,7 +334,7 @@ class InspectionPlan(models.Model):
     """点检计划（「多久、查哪几项、标准是什么」）。标准写进 items，不写死在代码里。
 
     items 的形状（JSON 数组）：
-        [{"item": "主轴振动", "method": "测振仪", "standard": "≤ 4.5 mm/s"}, ...]
+        [{"item": "主轴振动", "method": "测振仪", "standard": "<= 4.5 mm/s"}, ...]
     为什么不建子表：点检项是**随设备型号变**的配置，只整组读写、
     从不按单项查询。建子表要多一张表、多一套 CRUD，换不来任何查询能力。
 
@@ -376,7 +376,7 @@ class InspectionRecord(models.Model):
     """点检记录。一条记录对应一次「按计划去看了」。
 
     结论 abnormal 时会自动生成一条 source=manual 的告警（见 services.record_inspection），
-    这样「点检发现问题 → 告警 → 维修工单」是一条连续可追的链，
+    这样「点检发现问题 -> 告警 -> 维修工单」是一条连续可追的链，
     而不是三张互不相干的表。
     """
     plan = models.ForeignKey(

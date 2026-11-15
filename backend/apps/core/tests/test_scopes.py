@@ -2,7 +2,7 @@
 """DataScope 的单测。
 
 重点验证老师要求的那件事：**超级管理员不能被数据范围挡住**。
-这是「超管看全部」最容易在实现层被破坏的地方——各模块一个 filter 就把超管锁在自己车间里。
+这是「超管看全部」最容易在实现层被破坏的地方--各模块一个 filter 就把超管锁在自己车间里。
 """
 from django.contrib.auth.models import AnonymousUser
 from django.test import TestCase

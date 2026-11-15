@@ -2,7 +2,7 @@
 
 为什么不写在 services.py 里：
     这两个函数是**算法**，输入是「车 + 任务 + 距离矩阵」，输出是「谁在什么时候走哪条」。
-    它们不该知道 Django 模型长什么样 —— 不依赖数据库才能被单元测试直接调，
+    它们不该知道 Django 模型长什么样 -- 不依赖数据库才能被单元测试直接调，
     也才能在 W6 换成 pulp/ortools 求解器时只替换这一个文件。
 
 和 A 的 `apps/algorithms/scheduling/path/planner.py` 的分工（**不要重复造**）：
@@ -12,8 +12,8 @@
     这里不重新实现 2-opt 的几何优化，只在**任务序列**上做 2-opt。
 
 两个算法的关系：
-    任务 1  plan_single_agv   一台车、多条任务 → 顺序、分批、时间轴（含载重与电量约束）
-    任务 2  plan_multi_agv    多台车、多条任务 → 分配 + 排序（贪心 + 局部搜索）
+    任务 1  plan_single_agv   一台车、多条任务 -> 顺序、分批、时间轴（含载重与电量约束）
+    任务 2  plan_multi_agv    多台车、多条任务 -> 分配 + 排序（贪心 + 局部搜索）
     任务 2 内部对每台车调用任务 1 的代价函数，保证「分配结果」和「单车执行」口径一致。
 """
 from math import inf
@@ -45,7 +45,7 @@ def _route_metrics(route, start_node, dist, speed, handling_seconds,
     返回 dict：empty_mm / loaded_mm / elapsed_s / legs（每条任务的起止秒数）
 
     空驶里程是**逐段**累加的：上一条任务卸完在哪，这一条就从那儿空驶过去。
-    所以「任务顺序」直接决定空驶率 —— 这就是任务 1 优化的目标。
+    所以「任务顺序」直接决定空驶率 -- 这就是任务 1 优化的目标。
     """
     cur = start_node
     empty_mm = 0.0
@@ -112,14 +112,14 @@ def _seq_2opt(route, start_node, dist, speed, handling_seconds):
 def _split_by_capacity(tasks, capacity_kg):
     """按载重把任务分批（首次适应，保持优先级顺序）。
 
-    没有载重信息的任务（weight=0）不参与装箱，全部进第一批 ——
+    没有载重信息的任务（weight=0）不参与装箱，全部进第一批 --
     强行给缺数据的任务编个重量，比不分批更糟。
     """
     batches, current, used = [], [], 0.0
     for task in tasks:
         weight = float(task.get('weight') or 0)
         if weight <= 0:
-            # 没填重量的任务不占载重，跟着当前批走 —— 不当成一批，
+            # 没填重量的任务不占载重，跟着当前批走 -- 不当成一批，
             # 否则「4 条任务都不填重量」会变成 4 批、4 次往返。
             current.append(task)
             continue
@@ -140,8 +140,8 @@ def plan_single_agv(*, start_node, tasks, dist, speed, capacity_kg=500,
     """**任务 1：单机调度。** 一台车怎么把这一堆任务干完。
 
     约束（三个，缺一个算法就会给出「看起来更优、现场干不了」的方案）：
-        1. 载重：一批任务总重 ≤ capacity_kg（超了要分两趟回仓）
-        2. 电量：本批里程的耗电 + 安全余量 ≤ 当前电量，否则标记需要充电
+        1. 载重：一批任务总重 <= capacity_kg（超了要分两趟回仓）
+        2. 电量：本批里程的耗电 + 安全余量 <= 当前电量，否则标记需要充电
         3. 优先级：优先级高的批次排在前面（批次之间不因为几何近而颠倒）
 
     返回：
@@ -244,12 +244,12 @@ def plan_multi_agv(*, agvs, tasks, dist,
                    max_iterations=100,
                    battery_reserve=DEFAULT_BATTERY_RESERVE,
                    full_range_mm=DEFAULT_FULL_RANGE_MM):
-    """**任务 2：多机调度。** 多台车、多条任务 → 谁干哪些、按什么顺序。
+    """**任务 2：多机调度。** 多台车、多条任务 -> 谁干哪些、按什么顺序。
 
     两段式（这是本项目的算法骨架，答辩就讲这个）：
         1. 贪心构造：任务按（优先级, 编号）排序，逐条**插到"完成时间增量最小"的那台车**上。
            为什么不用「就近派车」：就近派车只看单条任务，会让近的车越干越多、
-           远的车一直闲着，最终 makespan 反而更长 —— 这是 SPT 规则的经典缺陷。
+           远的车一直闲着，最终 makespan 反而更长 -- 这是 SPT 规则的经典缺陷。
         2. 局部搜索：反复尝试把一条任务搬到另一台车（含"搬进去插在哪个位置"），
            若 (makespan, 总空驶) 字典序变小就接受，直到不再改进或到迭代上限。
 
@@ -426,7 +426,7 @@ def _baseline_nearest(*, agvs, tasks, dist, handling_seconds):
     """基线：**就近派车**（W3 的 assign_agv 规则，也是大多数教材的第一版）。
 
     每条任务派给「当前空驶距离最近」的车，不看这台车手上已经有多少活。
-    用它当基线是为了证明任务 2 的算法真的有用 —— 没有基线，
+    用它当基线是为了证明任务 2 的算法真的有用 -- 没有基线，
     "makespan 短了 20%" 这个结论就没有参照物。
     """
     routes = {agv['code']: [] for agv in agvs}

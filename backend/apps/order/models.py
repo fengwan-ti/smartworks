@@ -7,7 +7,7 @@ from django.db import models
 
 
 class OrderStatus(models.TextChoices):
-    """销售订单状态机：draft → confirmed → scheduled → in_production → shipped → closed。"""
+    """销售订单状态机：draft -> confirmed -> scheduled -> in_production -> shipped -> closed。"""
     DRAFT = 'draft', '草稿'
     CONFIRMED = 'confirmed', '已确认'
     SCHEDULED = 'scheduled', '已排产'

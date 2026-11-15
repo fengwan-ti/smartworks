@@ -6,7 +6,7 @@
   3. 发货数量不得超过可用库存
 
 「可用库存」怎么算，这里踩过坑，说清楚：
-  不能用 Batch.qty 单独判断 —— 那是 C 维护的字段，D 也在改它，
+  不能用 Batch.qty 单独判断 -- 那是 C 维护的字段，D 也在改它，
   两边同时改就会算错。所以统一以 **in_stock_transaction 的流水合计** 为准，
   没有流水时才退回用 Batch.qty（兼容 C 直接建批次、还没走单据的情况）。
 """
@@ -65,7 +65,7 @@ def batch_available_qty(batch):
 
 @db_transaction.atomic
 def confirm_finished_inbound(inbound, operator=None):
-    """确认入库：校验 → 写库存流水 → 累加批次数量 → 改状态。
+    """确认入库：校验 -> 写库存流水 -> 累加批次数量 -> 改状态。
 
     状态不对时抛 10102（A 的公共码「当前状态不允许该操作」）。
     """
@@ -88,7 +88,7 @@ def confirm_finished_inbound(inbound, operator=None):
                 f'入库数量 {inbound.qty} 超过检验单合格数量 {inspected_qty}',
             )
     elif inbound.inspection_code:
-        # 给了单号却查不到 —— 说明 C 的质检还没上线，只提示，不阻断
+        # 给了单号却查不到 -- 说明 C 的质检还没上线，只提示，不阻断
         pass
 
     # ② 写库存流水（正数），来源单据号就是入库单号
@@ -129,7 +129,7 @@ def cancel_finished_inbound(inbound):
 
 @db_transaction.atomic
 def confirm_shipment(shipment, operator=None):
-    """确认发货：逐批次校验可用量 → 写负数流水 → 扣批次数量。
+    """确认发货：逐批次校验可用量 -> 写负数流水 -> 扣批次数量。
 
     任何一条明细不足就整单回滚（db_transaction.atomic 保证），
     不会出现「发了一半」的状态。
@@ -267,8 +267,8 @@ def stock_aging(as_of=None, warehouse_id=None):
 def inventory_turnover(days=90):
     """周转率（简化版）：期内出库量 / 平均库存。
 
-    只有成品仓发货这一段，不涉及原料领用 —— 那是 C 的指标。
-    答辩时这个数用来解释「为什么库龄分析有意义」：周转慢 → 资金压住。
+    只有成品仓发货这一段，不涉及原料领用 -- 那是 C 的指标。
+    答辩时这个数用来解释「为什么库龄分析有意义」：周转慢 -> 资金压住。
     """
     from datetime import date, timedelta
 

@@ -1,6 +1,6 @@
 """工艺配置：工序模板、工艺路线、BOM、换型矩阵。
 
-W2 第一步只落 ``pr_process_template``（工序模板）——它不依赖别人的主数据，
+W2 第一步只落 ``pr_process_template``（工序模板）--它不依赖别人的主数据，
 可以独立建表、独立联调；路线/BOM/换型矩阵需要 A 的 `masterdata.Product/Material/family`，
 等主数据就绪后再补（字段定义见 docs/role-b-w1/06-工序模板与产品族数据字典.md）。
 
@@ -75,7 +75,7 @@ class ProcessTemplate(models.Model):
 
 
 class RouteStatus(models.TextChoices):
-    """工艺路线状态：draft → active → obsolete（同一产品最多一条 active）。"""
+    """工艺路线状态：draft -> active -> obsolete（同一产品最多一条 active）。"""
     DRAFT = 'draft', '草稿'
     ACTIVE = 'active', '生效'
     OBSOLETE = 'obsolete', '停用'
@@ -243,7 +243,7 @@ class BomItem(models.Model):
 
 
 class ChangeoverMatrix(models.Model):
-    """换型时间矩阵：from 产品 → to 产品的换型分钟数（有方向，不假设对称）。"""
+    """换型时间矩阵：from 产品 -> to 产品的换型分钟数（有方向，不假设对称）。"""
     from_product = models.ForeignKey(
         'masterdata.Product', on_delete=models.CASCADE,
         related_name='changeovers_from', verbose_name='前产品',

@@ -1,4 +1,4 @@
-"""导入车间路网（D 的 W1 交付 → W2 入库）。
+"""导入车间路网（D 的 W1 交付 -> W2 入库）。
 
 用法：
     python manage.py import_road_network                    # 增量导入（已存在的更新）

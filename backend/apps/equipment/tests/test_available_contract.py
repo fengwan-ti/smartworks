@@ -3,7 +3,7 @@
 背景（B 的 W3 回执）：
     B 的排产直接吃这个接口，要的字段是
     equipment_id / code / name / capacity_per_hour / precision_level / changeover_minutes。
-    他那边已经写成 `row['changeover_minutes']` 了 —— 我们这边一旦改名，
+    他那边已经写成 `row['changeover_minutes']` 了 -- 我们这边一旦改名，
     他的排产会在运行时报 KeyError，而且是在联调当天才发现。
 
 所以这些测试的作用不是"验证功能对不对"，是**把字段名钉住**：
@@ -86,7 +86,7 @@ def test_changeover_minutes_maps_to_setup_minutes_column(client, lathe):
 
 
 def test_equipment_free_steps_return_empty_list(client, lathe):
-    """cutting / inspection 不占设备（B-1 决策）→ 空数组是正确结果，不是缺数据。"""
+    """cutting / inspection 不占设备（B-1 决策）-> 空数组是正确结果，不是缺数据。"""
     for step_type in ('cutting', 'inspection'):
         body = client.get(AVAILABLE_URL, {'step_type': step_type}).json()
         assert body['code'] == 0
@@ -121,7 +121,7 @@ def test_seed_marks_deburring_oee_excluded(db):
 
 
 def test_set_status_command_drives_scheduler_choice(db):
-    """演示「按状态选机」的完整动作：5# 标磨损 → 它仍在候选里但带 status=wearing，
+    """演示「按状态选机」的完整动作：5# 标磨损 -> 它仍在候选里但带 status=wearing，
     B 的排产据此把它排到 3#/4# 后面；标成 abnormal 才会被 only_available 直接排掉。
     """
     call_command('seed_equipments', '--create-workshop', verbosity=0)

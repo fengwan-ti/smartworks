@@ -52,7 +52,7 @@ class AgvAdmin(admin.ModelAdmin):
 class TransportTaskAdmin(admin.ModelAdmin):
     """搬运任务。
 
-    ⚠️ 这里可以手改 status，绕过状态机。只给「修数据」用，
+    [注意] 这里可以手改 status，绕过状态机。只给「修数据」用，
     正常演示请走页面或接口（/assign/、/status/），否则里程与电量统计会对不上。
     """
     list_display = ('code', 'task_type', 'status', 'from_node', 'to_node',

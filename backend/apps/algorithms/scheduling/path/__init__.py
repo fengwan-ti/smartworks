@@ -7,7 +7,7 @@
 另外提供 plan_route() 做多点巡回路线的近似求解。
 
 设计原则：
-  · 纯函数，不碰数据库、不 import Django —— 可以脱离 Web 框架单测
+  · 纯函数，不碰数据库、不 import Django -- 可以脱离 Web 框架单测
   · 不可达一律 None，绝不填 999999
   · 只写一份 Dijkstra，任务 1/2/3 共用
 

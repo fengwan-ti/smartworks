@@ -4,7 +4,7 @@
     GET|POST              /api/v1/logistics/road-nodes/            路网节点
     GET|POST              /api/v1/logistics/road-edges/            路网边
     POST                  /api/v1/logistics/road-network/import/   批量导入（JSON）
-    GET                   /api/v1/logistics/road-network/distance-matrix/   N×N 距离矩阵
+    GET                   /api/v1/logistics/road-network/distance-matrix/   NxN 距离矩阵
     GET                   /api/v1/logistics/road-network/health/   路网体检
     GET                   /api/v1/logistics/road-network/shortest-path/    自检用最短路
 
@@ -13,8 +13,8 @@ W3 新增（AGV 与搬运任务）：
     GET                   /api/v1/logistics/agvs/workload/         每台车的任务量与里程
     POST                  /api/v1/logistics/agvs/{id}/charge/      充电（补满电量）
     GET|POST              /api/v1/logistics/transport-tasks/        搬运任务
-    POST                  /api/v1/logistics/transport-tasks/from-outbound/   领料单 → 任务
-    POST                  /api/v1/logistics/transport-tasks/from-operation/  工序转序 → 任务
+    POST                  /api/v1/logistics/transport-tasks/from-outbound/   领料单 -> 任务
+    POST                  /api/v1/logistics/transport-tasks/from-operation/  工序转序 -> 任务
     POST                  /api/v1/logistics/transport-tasks/{id}/assign/     派车
     POST                  /api/v1/logistics/transport-tasks/assign-pending/  批量派车
     POST                  /api/v1/logistics/transport-tasks/{id}/status/     状态流转
@@ -103,7 +103,7 @@ class NetworkHealthView(APIView):
     """GET /api/v1/logistics/road-network/health/
 
     路网体检。W2 验收就是看这里：节点 29、边 48、连通分量 1、
-    平均绕行比 ≤1.35、孤立节点为空。
+    平均绕行比 <=1.35、孤立节点为空。
     """
 
     def get(self, request):
@@ -150,7 +150,7 @@ class AgvViewSet(viewsets.ModelViewSet):
     def charge(self, request, pk=None):
         """给车充电：电量补满、状态回到空闲。
 
-        W6 会换成「插上充电桩 → 一段时间后充满」，现在一步到位 ——
+        W6 会换成「插上充电桩 -> 一段时间后充满」，现在一步到位 --
         中辩要演示的是「低电量车不派活」，不是充电过程本身。
         正在执行任务的车不许充（不然任务里的车凭空换了状态）。
         """
@@ -168,7 +168,7 @@ class AgvViewSet(viewsets.ModelViewSet):
 class TransportTaskViewSet(viewsets.ModelViewSet):
     """搬运任务。
 
-    ⚠️ status / agv / distance 都是**业务动作**改的，不能直接 PATCH。
+    [注意] status / agv / distance 都是**业务动作**改的，不能直接 PATCH。
        要么走 /assign/ 派车，要么走 /status/ 改状态，保证状态机不被绕过。
     """
     queryset = (
@@ -185,7 +185,7 @@ class TransportTaskViewSet(viewsets.ModelViewSet):
     def from_outbound(self, request):
         """POST /api/v1/logistics/transport-tasks/from-outbound/
 
-        领料单 → 搬运任务。同一张领料单重复调用只会得到同一条任务（created=false）。
+        领料单 -> 搬运任务。同一张领料单重复调用只会得到同一条任务（created=false）。
         """
         serializer = OutboundTaskSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -202,7 +202,7 @@ class TransportTaskViewSet(viewsets.ModelViewSet):
     def from_operation(self, request):
         """POST /api/v1/logistics/transport-tasks/from-operation/
 
-        工单工序转序 → 搬运任务。幂等键是 (工单号, 工序序号)。
+        工单工序转序 -> 搬运任务。幂等键是 (工单号, 工序序号)。
         """
         serializer = OperationTaskSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

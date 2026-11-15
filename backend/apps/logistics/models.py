@@ -1,14 +1,14 @@
 """物流调度模型（负责人 D）。
 
-    W2  lg_road_node 路网节点、lg_road_edge 路网边      ✅ 已入库
-    W3  lg_agv AGV 台账、lg_transport_task 搬运任务      ✅ 已入库
-    W5  lg_agv_schedule_plan 调度方案留档                ✅ 本次
+    W2  lg_road_node 路网节点、lg_road_edge 路网边      [完成] 已入库
+    W3  lg_agv AGV 台账、lg_transport_task 搬运任务      [完成] 已入库
+    W5  lg_agv_schedule_plan 调度方案留档                [完成] 本次
     W6  lg_agv_path（A 的路径规划写，D 只读）
 
 坐标系：原点在车间西南角，x 向东、y 向北，**单位毫米**（与 data/road-network-v1.json 一致）。
 为什么用毫米而不是米：AGV 定位精度到厘米级，25 米的车间用米只有 4 位有效数字，
 距离矩阵算出来误差会放大到调度结果上。全项目只认毫米，不做单位换算。
-速度也用 mm/s 同一个理由（剩余里程 ÷ 速度直接得秒数）。
+速度也用 mm/s 同一个理由（剩余里程 / 速度直接得秒数）。
 """
 from django.db import models
 from simple_history.models import HistoricalRecords
@@ -110,14 +110,14 @@ class RoadEdge(models.Model):
         ]
 
     def __str__(self):
-        return f'{self.from_node.code}→{self.to_node.code} {self.distance}mm'
+        return f'{self.from_node.code}->{self.to_node.code} {self.distance}mm'
 
 
 class Agv(models.Model):
     """AGV 台账（3 台车）。
 
     为什么速度用 mm/s：全项目距离单位是毫米，速度跟距离同单位，
-    「剩余里程 ÷ 速度」直接得秒数，中间没有换算，也就没有换算错的机会。
+    「剩余里程 / 速度」直接得秒数，中间没有换算，也就没有换算错的机会。
 
     current_node 是**现在停在哪**，派车时从这里算空驶距离。
     这个字段必须由业务动作维护（完成一个任务要落到终点），
@@ -179,9 +179,9 @@ class TransportTask(models.Model):
     """搬运任务。**全系统唯一一类"车要动"的记录**。
 
     三种产生方式，前两种是自动派生（W3 的核心），第三种是手工补单：
-        · 领料单  → feed    （from_outbound）
-        · 工单工序 → transfer（from_operation）
-        · 手工建   → 任意类型
+        · 领料单  -> feed    （from_outbound）
+        · 工单工序 -> transfer（from_operation）
+        · 手工建   -> 任意类型
 
     幂等设计（很关键，W4 联调时天天用）：
         同一个来源单据 + 同一个序号只会有一条任务。
@@ -294,7 +294,7 @@ class TransportTask(models.Model):
         ]
 
     def __str__(self):
-        return f'{self.code} {self.from_node_id}→{self.to_node_id}'
+        return f'{self.code} {self.from_node_id}->{self.to_node_id}'
 
 
 class SchedulePlan(models.Model):

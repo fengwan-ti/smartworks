@@ -48,4 +48,4 @@ class Command(BaseCommand):
             ws.column_dimensions[column].width = width
         wb.save(path)
         self.stdout.write(self.style.SUCCESS(
-            f'已导出 {ProcessTemplate.objects.count()} 条工序模板 → {path}'))
+            f'已导出 {ProcessTemplate.objects.count()} 条工序模板 -> {path}'))

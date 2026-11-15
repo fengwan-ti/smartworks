@@ -58,7 +58,7 @@ def client(db):
 def test_import_expands_wide_to_long(equipment, wide_rows):
     stats = services.import_sensor_rows(wide_rows)
     assert stats['read_rows'] == 2
-    assert stats['points'] == 8                            # 2 行 × 4 通道
+    assert stats['points'] == 8                            # 2 行 x 4 通道
     assert SensorReading.objects.count() == 8
     assert SensorReading.objects.filter(channel='vibration').count() == 2
 
@@ -147,7 +147,7 @@ def test_simulate_appends_after_history(equipment):
         recorded_at=BASE, state='normal',
     )
     result = services.simulate_readings(minutes=10, step_minutes=5)
-    assert result['points'] == 8                           # 1 台 × 4 通道 × 2 个点
+    assert result['points'] == 8                           # 1 台 x 4 通道 x 2 个点
     latest = (
         SensorReading.objects.filter(equipment=equipment, channel='vibration')
         .order_by('-recorded_at').first()

@@ -235,7 +235,7 @@ class EmployeeSkillViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def matrix(self, request):
-        """人员 × 工序 矩阵。
+        """人员 x 工序 矩阵。
 
         返回：
             {
@@ -244,7 +244,7 @@ class EmployeeSkillViewSet(viewsets.ModelViewSet):
                          "skills": {"cutting": "senior", ...}}]
             }
 
-        为什么后端出这个结构：前端自己拼要做 人数 × 工序 次判断，
+        为什么后端出这个结构：前端自己拼要做 人数 x 工序 次判断，
         而且等级排序逻辑要重写一遍，容易和 qualified/ 的口径不一致。
         """
         step_types = [{'value': v, 'label': StepType(v).label} for v in StepType.values]

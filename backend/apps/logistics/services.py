@@ -1,6 +1,6 @@
 """物流应用的业务逻辑。核心是路网、距离矩阵、AGV 与搬运任务。
 
-[注意] **距离矩阵不是 D 写的，是 A 的任务 3 实现**，这里只做「数据库 → 纯函数」的适配：
+[注意] **距离矩阵不是 D 写的，是 A 的任务 3 实现**，这里只做「数据库 -> 纯函数」的适配：
    · A：apps/algorithms/scheduling/path/graph.py  build_distance_matrix(nodes, edges)
    · D：本文件把它包一层，节点与边从 lg_road_node / lg_road_edge 读出来
    工作包「保护规则」写着「距离矩阵不写两遍」，A 在他的 graph.py 里也写明了
@@ -11,13 +11,13 @@
 
 缓存策略：节点 29 个、边 48 条，A 的 Dijkstra 全对全实测 <10ms，
 因此不做数据库缓存表，只在进程内留一份；路网一改（count 或 updated_at 变）立刻失效。
-这样「改路网 → 距离立刻变」是自动的，不需要谁记得点「重算」。
+这样「改路网 -> 距离立刻变」是自动的，不需要谁记得点「重算」。
 
 ── W3 加的内容 ────────────────────────────────────────────────
 搬运营业逻辑三段，顺序就是一次真实业务的顺序：
-    1. 派生：单据 → 搬运任务（derive_from_outbound / derive_from_operation）
-    2. 派车：任务 → AGV（assign_agv）
-    3. 流转：assigned → running → done（change_status / start_task / finish_task）
+    1. 派生：单据 -> 搬运任务（derive_from_outbound / derive_from_operation）
+    2. 派车：任务 -> AGV（assign_agv）
+    3. 流转：assigned -> running -> done（change_status / start_task / finish_task）
 三段都写在这里而不是视图里，是因为 W5 的调度算法要直接调它们（不经过 HTTP），
 放视图里就得复制一份，复制的那份早晚和视图那份不一致。
 """
@@ -65,7 +65,7 @@ _MATRIX_CACHE = {}
 # 写在台账里会让 3 台车各存一份，改的时候漏改一台就露馅。W5 真要做差异，再加字段。
 AGV_FULL_RANGE_MM = 5_000_000
 
-# 派车时保留的安全电量（%）。低于这个值即使算出来够，也不派 ——
+# 派车时保留的安全电量（%）。低于这个值即使算出来够，也不派 --
 # 车走到一半没电停在通道上，比一开始就没派更麻烦。
 AGV_BATTERY_RESERVE = 10
 
@@ -241,7 +241,7 @@ def import_network(payload, replace=False):
 
     payload 结构与 data/road-network-v1.json 一致。
     replace=True 时先清空旧路网（演示重新导入时用）。
-    导入后立刻体检，把「不连通」当场报出来 —— 否则要等 W5 调度算出离谱结果才发现。
+    导入后立刻体检，把「不连通」当场报出来 -- 否则要等 W5 调度算出离谱结果才发现。
     """
     nodes = payload.get('nodes') or []
     edges = payload.get('edges') or []
@@ -266,9 +266,9 @@ def import_network(payload, replace=False):
         from_code = str(edge.get('from') or edge.get('from_node') or '').strip()
         to_code = str(edge.get('to') or edge.get('to_node') or '').strip()
         if from_code not in seen or to_code not in seen:
-            raise BizError(14502, f'边 {from_code}→{to_code} 引用的节点不在本次导入的节点表里')
+            raise BizError(14502, f'边 {from_code}->{to_code} 引用的节点不在本次导入的节点表里')
         if from_code == to_code:
-            raise BizError(14502, f'边 {from_code}→{to_code} 起点终点相同')
+            raise BizError(14502, f'边 {from_code}->{to_code} 起点终点相同')
 
     if replace:
         RoadEdge.objects.all().delete()
@@ -298,7 +298,7 @@ def import_network(payload, replace=False):
         to_code = str(edge.get('to') or edge.get('to_node')).strip()
         distance = edge.get('distance')
         if distance is None or float(distance) <= 0:
-            raise BizError(10001, f'边 {from_code}→{to_code} 的距离必须大于 0')
+            raise BizError(10001, f'边 {from_code}->{to_code} 的距离必须大于 0')
 
         _, created = RoadEdge.objects.update_or_create(
             from_node=code_to_node[from_code],
@@ -356,7 +356,7 @@ def next_task_code(prefix='TT'):
 def resolve_dock(value, field_name='位置'):
     """把一个「位置」解析成路网节点 + 显示名。
 
-    为什么要三种写法都认：同一个地方，四个人嘴里有三种叫法 ——
+    为什么要三种写法都认：同一个地方，四个人嘴里有三种叫法 --
         N013          路网节点编号（A 的路径规划只用这个）
         ST-CNC-01     工位编号（A 的 masterdata.Workstation，B 的 legs 给的就是这个）
         EQ-CNC-01     设备编号（设备台账）
@@ -413,7 +413,7 @@ def default_dock(keyword):
 
 
 def _energy_percent(distance_mm):
-    """里程 → 耗电百分比。见文件头 AGV_FULL_RANGE_MM 的说明。"""
+    """里程 -> 耗电百分比。见文件头 AGV_FULL_RANGE_MM 的说明。"""
     return (Decimal(distance_mm or 0) / Decimal(AGV_FULL_RANGE_MM) * Decimal(100)).quantize(
         Decimal('0.01'), rounding=ROUND_HALF_UP,
     )
@@ -489,7 +489,7 @@ def create_task(*, task_type, from_node, to_node, ref_type=TransportSourceType.M
 
 
 def derive_from_outbound(payload, operator=None):
-    """领料单 → 领料搬运任务（feed）。
+    """领料单 -> 领料搬运任务（feed）。
 
     现在 C 的领料单模型还没进仓库，所以接口收的是「单据的关键信息」而不是单据 id：
         outbound_code   领料单号（幂等键）
@@ -539,7 +539,7 @@ def derive_from_outbound(payload, operator=None):
 
 
 def derive_from_operation(payload, operator=None):
-    """工单工序转序 → 搬运任务（transfer）。
+    """工单工序转序 -> 搬运任务（transfer）。
 
         work_order_code  工单号（幂等键 + 单据号）
         seq              工序序号（幂等键的一部分：同一工单有多道转序）
@@ -591,18 +591,18 @@ def derive_from_operation(payload, operator=None):
 
 
 # 工单完了还挂着的任务，只撤这两种：还没上路，撤了不影响在途货物。
-# running 的不动 —— 车已经载着料在半路，这时候撤单等于让货停在通道里。
+# running 的不动 -- 车已经载着料在半路，这时候撤单等于让货停在通道里。
 CANCELLABLE_BY_WORK_ORDER = (TransportTaskStatus.PENDING, TransportTaskStatus.ASSIGNED)
 
 
 @transaction.atomic
 def cancel_tasks_by_work_order(work_order_code, reason='', operator=None):
-    """工单完工/取消 → 把该工单派生的、还没上路的搬运任务撤掉。
+    """工单完工/取消 -> 把该工单派生的、还没上路的搬运任务撤掉。
 
     B 的 `/planning/work-orders/{id}/complete/` 与 `/cancel/` 会 best-effort 调这里
     （入参 {work_order_code, reason}）。所以这个函数必须是**幂等且不炸**的：
         再调一次只会返回 cancelled=0，不报错；
-        工单号打错也只返回空列表，不抛异常 —— 否则会把 B 的完工动作一起拖失败。
+        工单号打错也只返回空列表，不抛异常 -- 否则会把 B 的完工动作一起拖失败。
 
     只撤 pending / assigned；running 的记录在 skipped 里说明原因，
     让人知道「还有一车料在路上」，而不是悄悄丢掉。
@@ -664,7 +664,7 @@ def assign_agv(task, agv=None, operator=None):
 
     挑车规则（W3 版，W5 会换成正式的调度算法）：
         1. 只看 idle、启用、当前有节点位置的车
-        2. 必须能满足「空驶 + 载货」的里程，且完成后还剩 ≥10% 电量
+        2. 必须能满足「空驶 + 载货」的里程，且完成后还剩 >=10% 电量
         3. 在这些车里选**空驶距离最短**的；一样近就选电量高的
 
     为什么先看空驶距离而不是总里程：载货段对所有候选车都一样（同一条任务），
@@ -765,7 +765,7 @@ def _assert_transition(task, to_status):
 
 @transaction.atomic
 def start_task(task, operator=None):
-    """开始执行：assigned → running，车同时变「运行中」。"""
+    """开始执行：assigned -> running，车同时变「运行中」。"""
     _assert_transition(task, TransportTaskStatus.RUNNING)
     task.status = TransportTaskStatus.RUNNING
     task.started_at = timezone.now()
@@ -779,7 +779,7 @@ def start_task(task, operator=None):
 
 @transaction.atomic
 def finish_task(task, operator=None):
-    """完成：running → done。
+    """完成：running -> done。
 
     三件事必须一起做，少一件台账就和事实脱节：
         1. 车的位置落到任务终点（下一单的空驶距离从这里算）
@@ -864,7 +864,7 @@ def task_board():
     """任务看板：各状态数量 + 今日里程 + 空驶率。
 
     空驶率是这套系统最能说明问题的指标：
-        车空着跑的路 ÷ 总路程。W5 调度算法做完之后这个数应该明显下降，
+        车空着跑的路 / 总路程。W5 调度算法做完之后这个数应该明显下降，
         答辩时「算法有没有用」就看它，比讲时间复杂度有说服力。
     """
     today = timezone.localdate()
@@ -946,7 +946,7 @@ def matrix_as_dict():
 
     为什么不用现成的 (node_ids, matrix) 二维数组：
         调度算法里到处是 `dist[a][b]`，二维数组要先查两次 index，
-        写出来还容易把行列搞反。字典没这个问题，29×29 的体积也无所谓。
+        写出来还容易把行列搞反。字典没这个问题，29x29 的体积也无所谓。
     """
     payload = get_distance_matrix()
     codes = payload['node_codes']
@@ -958,7 +958,7 @@ def matrix_as_dict():
 
 
 def _schedulable_agvs(agv_codes=None):
-    """能参与调度的车。默认只要空闲且有位置的 —— 在充电/维修的车不该被排进去。
+    """能参与调度的车。默认只要空闲且有位置的 -- 在充电/维修的车不该被排进去。
 
     显式指定 agv_codes 时放宽状态限制：那是"我想看一下这三台车怎么排"的预览场景，
     真下发时 apply_schedule 会再校验一次状态。
@@ -974,7 +974,7 @@ def _schedulable_agvs(agv_codes=None):
 def build_schedule(*, agv_codes=None, limit=50, task_codes=None):
     """算一套调度方案（**只算不下发**）。
 
-    返回的 kpi 里同时带基线与优化方案的指标 —— 页面上一左一右两个数字，
+    返回的 kpi 里同时带基线与优化方案的指标 -- 页面上一左一右两个数字，
     就是"算法到底有没有用"的答案，不用另外做对比实验。
     """
     tasks_qs = (

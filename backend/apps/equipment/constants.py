@@ -65,7 +65,7 @@ class RoadNodeType(models.TextChoices):
 class AgvStatus(models.TextChoices):
     """AGV 状态。只有 IDLE 能被派活；RUNNING 是正在执行任务。
 
-    CHARGING / MAINTENANCE 不参与派车，但**不排除**——
+    CHARGING / MAINTENANCE 不参与派车，但**不排除**--
     W6 的"电量提醒"要能看到"有几台在充电"，而不是把它们删掉。
     """
     IDLE = 'idle', '空闲'
@@ -77,10 +77,10 @@ class AgvStatus(models.TextChoices):
 class TransportTaskType(models.TextChoices):
     """搬运任务类型。四种都对应真实业务动作，不用"其它"凑数。
 
-    · feed     领料（原料仓 → 工位）
-    · transfer 转序（上道工序工位 → 下道工序工位）
-    · inbound  成品入库（末道工序 / 检验区 → 成品仓）
-    · return   空箱/余料退回（工位 → 原料仓）
+    · feed     领料（原料仓 -> 工位）
+    · transfer 转序（上道工序工位 -> 下道工序工位）
+    · inbound  成品入库（末道工序 / 检验区 -> 成品仓）
+    · return   空箱/余料退回（工位 -> 原料仓）
     """
     FEED = 'feed', '领料'
     TRANSFER = 'transfer', '转序'
@@ -155,7 +155,7 @@ class AlarmLevel(models.TextChoices):
 
 
 class AlarmStatus(models.TextChoices):
-    """告警状态机：open ─确认→ acked ─关闭→ closed。
+    """告警状态机：open ─确认-> acked ─关闭-> closed。
 
     为什么不设「已忽略」：忽略和关闭在业务上没区别，
     两套词只会让统计口径分裂（关闭数到底算不算忽略的）。
@@ -180,8 +180,8 @@ class AlarmSource(models.TextChoices):
 class MaintenanceType(models.TextChoices):
     """维修工单类型。三种的考核口径不同，不能合成一类。
 
-    · corrective 故障维修（事后）—— 计入 MTTR
-    · preventive 预防性维修（按周期/按状态）—— 计入计划维修率
+    · corrective 故障维修（事后）-- 计入 MTTR
+    · preventive 预防性维修（按周期/按状态）-- 计入计划维修率
     · inspection 点检发现的问题整改
     """
     CORRECTIVE = 'corrective', '故障维修'
@@ -191,8 +191,8 @@ class MaintenanceType(models.TextChoices):
 
 class MaintenanceStatus(models.TextChoices):
     """维修工单状态机：
-        created ─指派→ assigned ─开始→ repairing ─完成→ done
-           └──────────取消──────────→ cancelled
+        created ─指派-> assigned ─开始-> repairing ─完成-> done
+           └──────────取消──────────-> cancelled
     """
     CREATED = 'created', '待指派'
     ASSIGNED = 'assigned', '已指派'
@@ -202,7 +202,7 @@ class MaintenanceStatus(models.TextChoices):
 
 
 class InspectionCycle(models.TextChoices):
-    """点检周期。第一代只做三种周期，不做"每 N 小时"——
+    """点检周期。第一代只做三种周期，不做"每 N 小时"--
     产线一天两班、周期以天为单位，按小时算反而要额外维护班次表。
     """
     SHIFT = 'shift', '每班'

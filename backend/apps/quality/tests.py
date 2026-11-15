@@ -181,7 +181,7 @@ class SamplingTests(APITestCase):
 
 
 class SpcCpkTests(APITestCase):
-    """W4：真 Cp/Cpk（规格限来自检验项 nominal±上下差）。"""
+    """W4：真 Cp/Cpk（规格限来自检验项 nominal+/-上下差）。"""
 
     def setUp(self):
         self.user = get_user_model().objects.create_user('c_test', password='x')

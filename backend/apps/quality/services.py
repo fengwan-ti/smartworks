@@ -85,7 +85,7 @@ def get_pass_rate(days=30):
 
 
 def spc_series(item_id, from_dt=None, to_dt=None):
-    """契约 102：SPC 数据。返回测量序列与 x̄±3σ 控制限。"""
+    """契约 102：SPC 数据。返回测量序列与均值+/-3 倍标准差控制限（x-bar 控制图）。"""
     qs = Measurement.objects.filter(standard_item_id=item_id)
     if from_dt:
         qs = qs.filter(measured_at__gte=from_dt)
@@ -104,7 +104,7 @@ def spc_series(item_id, from_dt=None, to_dt=None):
         sigma = var ** 0.5
     else:
         sigma = 0.0
-    # W4：真 Cp/Cpk —— 规格限来自检验项 nominal±上下差（不再用控制限近似）
+    # W4：真 Cp/Cpk -- 规格限来自检验项 nominal+/-上下差（不再用控制限近似）
     item = StandardItem.objects.filter(pk=item_id).first()
     usl = lsl = None
     if item is not None:
@@ -153,7 +153,7 @@ _CODE_LETTERS = [
 def sampling_plan(lot_qty, aql=1.0, level='II'):
     """契约外新增（契约 I 段登记）：一次抽样方案。
 
-    简化版 GB/T 2828.1：字码表取真实样本量；Ac 用 n×AQL 四舍五入近似
+    简化版 GB/T 2828.1：字码表取真实样本量；Ac 用 nxAQL 四舍五入近似
     （真实主表有箭头跳档，这里不还原，联调演示足够）。
     返回 {lot_qty, aql, level, code_letter, sample_size, accept_number,
           reject_number}。

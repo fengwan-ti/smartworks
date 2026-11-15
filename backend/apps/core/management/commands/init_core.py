@@ -42,6 +42,19 @@ MENUS = [
     ('planning', '计划管理', 'dir', '/planning', 'DataLine', 60, None, ''),
     ('planning_skill', '员工技能', 'menu', '/planning/skills',
      'UserFilled', 61, 'planning', 'planning:skill'),
+    ('planning_schedule', '排产甘特', 'menu', '/planning/schedule',
+     'Calendar', 62, 'planning', 'planning:schedule'),
+    ('planning_board', '生产看板', 'menu', '/planning/dashboard',
+     'Odometer', 63, 'planning', 'planning:board'),
+
+    # ---- 订单管理（B）。前端页面早已实现，此前漏登记菜单，答辩点不到 ----
+    ('order', '订单管理', 'dir', '/order', 'ShoppingCart', 40, None, ''),
+    ('order_sales', '销售订单', 'menu', '/order/sales',
+     'Tickets', 41, 'order', 'order:sales'),
+    ('order_mps', '主生产计划', 'menu', '/order/mps',
+     'Calendar', 42, 'order', 'order:mps'),
+    ('order_forecast', '订单预测', 'menu', '/order/forecast',
+     'TrendCharts', 43, 'order', 'order:forecast'),
     ('md', '主数据', 'dir', '/masterdata', 'Files', 10, None),
     ('md_product', '产品', 'menu', '/masterdata/products', 'Box', 11, 'md',
      'masterdata:product'),
@@ -212,7 +225,7 @@ class Command(BaseCommand):
 
         为什么放进 init_core 而不是 init_demo：
           D 的 eq_equipment.workstation_id 要挂到这些工位上，
-          W3 派生转序搬运任务要靠「上道工位 → 下道工位」取起终点。
+          W3 派生转序搬运任务要靠「上道工位 -> 下道工位」取起终点。
           init_core 是所有人都要跑的，放这里保证任何机器上都有工位数据。
         """
         from apps.masterdata.constants import WORKSHOPS, WORKSTATIONS

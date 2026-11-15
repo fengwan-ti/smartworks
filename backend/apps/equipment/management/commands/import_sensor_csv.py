@@ -1,4 +1,4 @@
-"""导入传感器历史数据（data/equipment_sensor.csv → eq_sensor_reading）。
+"""导入传感器历史数据（data/equipment_sensor.csv -> eq_sensor_reading）。
 
 用法：
     python manage.py import_sensor_csv
@@ -6,11 +6,11 @@
     python manage.py import_sensor_csv --dry-run        # 只读文件、报统计，不写库
 
 数据情况（先看清楚再导）：
-    CSV 是**宽表**：一行 = 一台设备 × 一个时刻，四个通道是四列。
-    表里 3 台设备（EQ-CNC-01/02、EQ-MC-01）× 4032 个时刻 = 12096 行
-    → 展开成 48384 个读数点。
+    CSV 是**宽表**：一行 = 一台设备 x 一个时刻，四个通道是四列。
+    表里 3 台设备（EQ-CNC-01/02、EQ-MC-01）x 4032 个时刻 = 12096 行
+    -> 展开成 48384 个读数点。
     只有 3 台设备有数据，其余 5 台（钻床/磨床/清洗/去毛刺/加工中心 2）
-    没有历史读数 —— 这不是 bug，是模拟器按任务 6 的需要只造了 3 台。
+    没有历史读数 -- 这不是 bug，是模拟器按任务 6 的需要只造了 3 台。
     要覆盖 8 台，跑 simulate_sensors。
 
 重复执行不会翻倍：唯一约束（设备, 通道, 时间）+ ignore_conflicts。
@@ -62,7 +62,7 @@ class Command(BaseCommand):
         ))
         if stats['unknown_equipment']:
             self.stdout.write(self.style.WARNING(
-                f'⚠️ CSV 里有设备不在台账中，已跳过：'
+                f'[注意] CSV 里有设备不在台账中，已跳过：'
                 f'{"、".join(stats["unknown_equipment"])}。'
                 f'先跑 seed_equipments 把设备导进来再导读数。',
             ))
@@ -70,7 +70,7 @@ class Command(BaseCommand):
         total = SensorReading.objects.count()
         self.stdout.write(f'库里现有读数点：{total}')
 
-        # 哪些设备还没有读数 —— 页面上会显示空白，提前说出来比事后查快
+        # 哪些设备还没有读数 -- 页面上会显示空白，提前说出来比事后查快
         from apps.equipment.models import Equipment
 
         missing = [
@@ -80,6 +80,6 @@ class Command(BaseCommand):
         ]
         if missing:
             self.stdout.write(self.style.WARNING(
-                f'⚠️ 这 {len(missing)} 台设备没有读数（监测页会是空的）：'
+                f'[注意] 这 {len(missing)} 台设备没有读数（监测页会是空的）：'
                 f'{"、".join(missing)}。跑 manage.py simulate_sensors 可以补上。',
             ))

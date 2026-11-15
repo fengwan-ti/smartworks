@@ -131,7 +131,7 @@ def run_schedule(mps_id, start_at=None, name=None, frozen_until=None,
         mps=mps, start_at=start_at, strategy='due_date',
     )
 
-    # 工单：MPS 明细 → 工单，交期取该产品最早订单交期
+    # 工单：MPS 明细 -> 工单，交期取该产品最早订单交期
     work_orders = []
     for item in mps.items.select_related('product'):
         due = (WorkOrder.objects.filter(mps=mps, product=item.product)
@@ -336,7 +336,7 @@ def plan_transport_tasks(plan):
     return {'plan': plan.code, 'legs': legs, 'warnings': warnings}
 
 
-# ==================== C 的 production 回调（报工 → 工序/工单状态） ====================
+# ==================== C 的 production 回调（报工 -> 工序/工单状态） ====================
 def qualified_users_for(step_type):
     """按工序类型找合格人员（A 的 EmployeeSkill）。"""
     return EmployeeSkill.objects.select_related('user').filter(
@@ -468,7 +468,7 @@ def operation_start(work_order_id, seq, user=None):
 
 
 def operation_complete(work_order_id, seq, user=None):
-    """工序完工（C 的 production 报工入口调用）；全部工序完工 → 工单完工。"""
+    """工序完工（C 的 production 报工入口调用）；全部工序完工 -> 工单完工。"""
     wo, op = _get_operation(work_order_id, seq)
     if op.status == OperationStatus.COMPLETED:
         raise BizError(12017, f'工序 {seq} 已完工，不能重复提交')

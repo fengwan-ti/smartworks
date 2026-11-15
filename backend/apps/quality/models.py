@@ -1,7 +1,7 @@
 """质量管理模型（负责人 C）。
 
 表前缀 qc_（以 A 的 check_schema APP_PREFIX 为准）。
-判定结论唯一读 status：pending → inspecting → passed/failed/concession。
+判定结论唯一读 status：pending -> inspecting -> passed/failed/concession。
 """
 from django.conf import settings
 from django.db import models

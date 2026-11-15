@@ -2,8 +2,8 @@
 图像预处理链（传统视觉，不依赖深度学习）。
 
 两条链：
-    chain_main     灰度 → 高斯滤波 → CLAHE 增强 → Canny → 形态学闭+开
-    chain_baseline 灰度 → 纯 Canny（基线，用于指标对比，不许删）
+    chain_main     灰度 -> 高斯滤波 -> CLAHE 增强 -> Canny -> 形态学闭+开
+    chain_baseline 灰度 -> 纯 Canny（基线，用于指标对比，不许删）
 
 参数一律从 params 字典读取，不许硬编码在调用方；
 W4 后参数搬到 algorithm_params 表（T4_SURFACE_DEFECT / T5_OBJECT_RECOGNIZE）。
@@ -65,7 +65,7 @@ def chain_main(image_bgr, params=None):
 
 
 def chain_baseline(image_bgr, params=None):
-    """基线链：灰度 → 纯 Canny，无增强无形态学"""
+    """基线链：灰度 -> 纯 Canny，无增强无形态学"""
     p = _params(params)
     return canny(to_gray(image_bgr), 100, 200)
 

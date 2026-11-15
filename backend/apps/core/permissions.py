@@ -47,7 +47,7 @@ METHOD_ACTION = {
 def user_permission_codes(user):
     """取用户通过角色获得的全部权限码。
 
-    超管返回空集合即可——因为超管在校验里被直接放行，不需要查库。
+    超管返回空集合即可--因为超管在校验里被直接放行，不需要查库。
     """
     if not user or not user.is_authenticated or user.is_superuser:
         return set()

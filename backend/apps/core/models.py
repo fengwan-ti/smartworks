@@ -98,7 +98,7 @@ class Menu(models.Model):
 
 
 class Role(models.Model):
-    """角色。角色—菜单绑定，加新岗位不改代码。"""
+    """角色。角色-菜单绑定，加新岗位不改代码。"""
     code = models.CharField(max_length=32, unique=True, verbose_name='角色编码')
     name = models.CharField(max_length=64, verbose_name='角色名称')
     description = models.CharField(max_length=255, blank=True, verbose_name='说明')

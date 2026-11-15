@@ -1,4 +1,4 @@
-"""导入设备台账种子数据（D 的 W1 交付 → W2 入库）。
+"""导入设备台账种子数据（D 的 W1 交付 -> W2 入库）。
 
 用法：
     python manage.py seed_equipments                      # 按 data 里的 workstation_code 绑工位

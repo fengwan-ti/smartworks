@@ -59,7 +59,7 @@ def test_confirm_inbound_writes_transaction(batch, warehouse):
 
 
 def test_confirm_inbound_twice_rejected(batch, warehouse):
-    """重复确认 → 10102，不会把库存加两遍。"""
+    """重复确认 -> 10102，不会把库存加两遍。"""
     inbound = _make_inbound(batch, warehouse)
     svc.confirm_finished_inbound(inbound)
 
@@ -76,7 +76,7 @@ def test_inbound_qty_must_be_positive(batch, warehouse):
 
 
 def test_shipment_over_stock_rejected(batch, warehouse):
-    """库存 10 想发 12 → 14103，且一条流水都不能留。"""
+    """库存 10 想发 12 -> 14103，且一条流水都不能留。"""
     svc.confirm_finished_inbound(_make_inbound(batch, warehouse, qty='10'))
 
     shipment = Shipment.objects.create(

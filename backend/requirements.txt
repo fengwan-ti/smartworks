@@ -20,3 +20,10 @@ openpyxl==3.1.5
 
 # PostgreSQL 驱动：第一代用 SQLite，需要切库时再取消注释并安装
 # psycopg[binary]==3.2.0
+
+# 视觉算法（C 的任务 4/5）：apps/quality/views.py 与 algorithms/vision/* 依赖
+# opencv-python-headless 与 opencv-python 的区别：headless 不含 GUI 依赖，体积小一半，
+# 服务器/无显示器环境够用，功能一致
+numpy>=2.0
+opencv-python-headless>=4.10
+statsmodels>=0.14

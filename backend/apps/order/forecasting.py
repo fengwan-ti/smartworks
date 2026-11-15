@@ -1,6 +1,6 @@
 """任务 7：订单需求预测（W5）。
 
-数据：仓库 data/teacher-orders-6parts-weekly.csv（6 零件 × 261 周，K=100 件数）。
+数据：仓库 data/teacher-orders-6parts-weekly.csv（6 零件 x 261 周，K=100 件数）。
 口径与 04 文档 §5.4 一致：测试集 = 最后 8 周、MAPE 剔除 0、RMSE；MA 用滚动一步。
 模型：moving_average / seasonal_naive / exp_smoothing / sarima。
 """

@@ -59,7 +59,7 @@ class Command(BaseCommand):
             code='WH-FG', defaults={'name': '成品仓（演示）', 'type': 'finished'})
         log(self.style.SUCCESS('仓库：WH01(raw) / WH-FG(finished)'))
 
-        # ---- 入库 → 批次 → 库存 ----
+        # ---- 入库 -> 批次 -> 库存 ----
         from apps.inventory.models_warehouse import InboundItem
         if not InboundOrder.objects.filter(code='RK-DEMO-001').exists():
             order = InboundOrder.objects.create(
@@ -98,7 +98,7 @@ class Command(BaseCommand):
                 source_type='production')
         log(self.style.SUCCESS(f"成品批次 {batch_p1.batch_no}（D 成品入库演示用）"))
 
-        # ---- 检验标准 / 抽样 / 检验单 / 测量 → SPC ----
+        # ---- 检验标准 / 抽样 / 检验单 / 测量 -> SPC ----
         std = Standard.objects.filter(code='QS-DEMO-001').first()
         if std is None:
             std = Standard.objects.create(code='QS-DEMO-001', name='法兰盘直径检验标准',

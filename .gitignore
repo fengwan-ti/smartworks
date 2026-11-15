@@ -52,3 +52,8 @@ pip-ephem-wheel-cache-*
 pip-install-*
 pip-unpack-*
 pip-*
+
+# 数据库文件与备份：库是环境产物，不进仓库（备份也不要）
+*.sqlite3
+*.sqlite3.*
+*.sqlite3.bak*

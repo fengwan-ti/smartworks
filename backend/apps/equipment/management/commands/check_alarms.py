@@ -8,7 +8,7 @@
 演示顺序（中辩 / W4 验收）：
     python manage.py simulate_sensors --state abnormal --minutes 30
     python manage.py check_alarms
-    → 告警表冒出来，维修工单自动开一张，监测页的状态卡片变红
+    -> 告警表冒出来，维修工单自动开一张，监测页的状态卡片变红
 """
 from django.core.management.base import BaseCommand
 
@@ -39,10 +39,10 @@ class Command(BaseCommand):
             f'去重 {result["deduped_count"]} 条'
         )
         for row in result['triggered']:
-            ticket = f' → 维修工单 {row["maintenance_code"]}' if row.get('maintenance_code') else ''
+            ticket = f' -> 维修工单 {row["maintenance_code"]}' if row.get('maintenance_code') else ''
             self.stdout.write(
                 f'  · [{row["level"]}] {row["equipment_code"]} {row["channel"]} '
-                f'{row["value"]} ≥ {row["threshold"]}{ticket}'
+                f'{row["value"]} >= {row["threshold"]}{ticket}'
             )
         if not result['triggered_count']:
             self.stdout.write(self.style.SUCCESS('没有越线读数，设备都在阈值内'))

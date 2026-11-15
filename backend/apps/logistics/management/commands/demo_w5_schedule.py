@@ -1,4 +1,4 @@
-"""一条命令演示 W5 的调度：造几条任务 → 算方案 → 打印基线与优化对比。
+"""一条命令演示 W5 的调度：造几条任务 -> 算方案 -> 打印基线与优化对比。
 
 用法：
     python manage.py demo_w5_schedule                 # 造 6 条任务并算方案（不下发）
@@ -19,7 +19,7 @@ from apps.equipment.constants import RoadNodeType, TransportSourceType
 from apps.logistics import services
 from apps.logistics.models import RoadNode, TransportTask
 
-# 演示用的取送对：原料收发料口 → 各工位装卸点（就是真实的领料方向）
+# 演示用的取送对：原料收发料口 -> 各工位装卸点（就是真实的领料方向）
 DEMO_PAIRS = [
     ('N004', 'N013'), ('N004', 'N014'), ('N004', 'N015'),
     ('N004', 'N016'), ('N013', 'N017'), ('N014', 'N018'),
@@ -92,7 +92,7 @@ class Command(BaseCommand):
         improve = result.get('improvement') or {}
 
         self.stdout.write('')
-        self.stdout.write('— 指标 ——————————————————————————————')
+        self.stdout.write('- 指标 ------------------------------')
         self.stdout.write(
             f'  基线（就近派车）  makespan {baseline.get("makespan_s", 0):>8.1f} s'
             f'   空驶率 {baseline.get("empty_ratio", 0):.1%}'
@@ -103,7 +103,7 @@ class Command(BaseCommand):
             f'   空驶率 {result["empty_ratio"]:.1%}'
         )
         if improve:
-            # empty_ratio_delta 的定义是「基线 − 优化」：正数表示空驶率下降。
+            # empty_ratio_delta 的定义是「基线 - 优化」：正数表示空驶率下降。
             # 这里不能直接打 +x%，否则「-4.2%」既可能读成"改善了 4.2%"也可能读成
             # "变差 4.2 个点"，答辩现场一句话就解释不清。所以换算成百分点 + 汉字说方向。
             delta = improve['empty_ratio_delta']
@@ -111,12 +111,12 @@ class Command(BaseCommand):
             trend = (f'空驶率 {abs(delta) * 100:.1f} 个百分点'
                      f'{"（变差）" if worse else "（改善）"}')
             self.stdout.write(
-                f'  提升：makespan −{improve["makespan_ratio"]:.1%}，{trend}'
+                f'  提升：makespan -{improve["makespan_ratio"]:.1%}，{trend}'
                 f'（主目标是完工时间，空驶率是代价项）'
             )
 
         self.stdout.write('')
-        self.stdout.write('— 每台车 ————————————————————————————')
+        self.stdout.write('- 每台车 ----------------------------')
         for plan in result['plans']:
             self.stdout.write(
                 f'  {plan["agv_code"]:<7} {plan["task_count"]} 条 '
@@ -124,7 +124,7 @@ class Command(BaseCommand):
                 f'（空驶 {plan["empty_mm"] / 1000:.1f} m，{plan["elapsed_s"]:.0f} s）'
             )
             if plan['seq']:
-                self.stdout.write(f'          {" → ".join(plan["seq"])}')
+                self.stdout.write(f'          {" -> ".join(plan["seq"])}')
         if result.get('unassigned'):
             self.stdout.write(self.style.WARNING(
                 f'  未派出去：{", ".join(result["unassigned"])}'

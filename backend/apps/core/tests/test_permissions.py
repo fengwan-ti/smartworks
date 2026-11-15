@@ -56,7 +56,7 @@ class SuperuserTest(TestCase):
                 '超管在 %s 上应放行' % method)
 
     def test_superuser_has_no_codes_but_passes(self):
-        """超管不需要任何权限码——因为校验里直接放行。"""
+        """超管不需要任何权限码--因为校验里直接放行。"""
         self.assertEqual(user_permission_codes(self.superuser), set())
 
 

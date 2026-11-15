@@ -133,7 +133,7 @@ class Command(BaseCommand):
             self.stdout.write('      %-6s %s' % (rule, detail))
 
     def _exempt(self, model):
-        # 声明在模型类上（不能写进 class Meta——Django 会拒绝未知的 Meta 属性）：
+        # 声明在模型类上（不能写进 class Meta--Django 会拒绝未知的 Meta 属性）：
         #     class StockTransaction(models.Model):
         #         schema_exempt = ('code', 'name')
         return tuple(getattr(model, 'schema_exempt', ()) or ())

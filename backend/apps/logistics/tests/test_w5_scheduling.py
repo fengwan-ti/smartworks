@@ -3,9 +3,9 @@
 跑法：python -m pytest apps/logistics/tests/test_w5_scheduling.py -q
 
 验收对应（工作包任务 1/2）：
-    · 任务 1：一台车多条任务 → 顺序合理（空驶里程下降）、载重超了要分批、
+    · 任务 1：一台车多条任务 -> 顺序合理（空驶里程下降）、载重超了要分批、
       电量不够要标出来而不是硬跑
-    · 任务 2：多台车多条任务 → 全部派出去、载重/电量约束不破、
+    · 任务 2：多台车多条任务 -> 全部派出去、载重/电量约束不破、
       结果不差于「就近派车」基线（这是"算法有用"的证据）
     · 方案能存档、能下发（下发后任务状态转 assigned、有车有人有时间）
 
@@ -66,7 +66,7 @@ def test_single_agv_prefers_order_that_cuts_empty_distance():
 
 
 def test_single_agv_splits_batches_by_capacity():
-    """载重 100kg，两条 60kg 的任务 → 必须分两批（一趟拉不完）。"""
+    """载重 100kg，两条 60kg 的任务 -> 必须分两批（一趟拉不完）。"""
     tasks = [
         {'code': 'T1', 'from': 'N001', 'to': 'N002', 'priority': 1, 'weight': 60},
         {'code': 'T2', 'from': 'N003', 'to': 'N004', 'priority': 2, 'weight': 60},

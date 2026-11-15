@@ -5,8 +5,8 @@
 验收对应（W4 清单第 3、4 条 + 中辩要演的"状态卡片 + 告警"）：
     · 读数越线能生成告警，且**重复扫描不会刷出一堆重复告警**
     · 严重告警自动开维修工单（一条告警只开一张）
-    · 维修开工 → 设备变 abnormal（排产立刻选不到）；完工 → 恢复 normal 且告警自动关闭
-    · 点检异常 → 自动生成告警，并且计划的下次到期时间往后推
+    · 维修开工 -> 设备变 abnormal（排产立刻选不到）；完工 -> 恢复 normal 且告警自动关闭
+    · 点检异常 -> 自动生成告警，并且计划的下次到期时间往后推
     · 监测总览一次能拿到 8 台设备的四通道最新值
 """
 from decimal import Decimal
@@ -76,7 +76,7 @@ def test_reading_over_threshold_creates_warning(equipment):
 
 
 def test_higher_threshold_wins_single_alarm(equipment):
-    """温度 66℃ 同时越过 55/65 两条线 → 只报一条 critical，不是两条。"""
+    """温度 66℃ 同时越过 55/65 两条线 -> 只报一条 critical，不是两条。"""
     _reading(equipment, 'temperature', '66.0')
     services.scan_sensor_alarms()
     assert Alarm.objects.count() == 1
@@ -150,7 +150,7 @@ def test_manual_alarm_is_marked_manual(equipment, client):
 # ── 维修工单 ──────────────────────────────────────────────────────────────
 
 def test_start_maintenance_marks_equipment_abnormal(equipment):
-    """开工后设备状态变 abnormal —— 这条决定了排产会不会再派活给它。"""
+    """开工后设备状态变 abnormal -- 这条决定了排产会不会再派活给它。"""
     order, _ = services.create_maintenance_order(equipment, fault_desc='异响')
     services.assign_maintenance(order)
     services.start_maintenance(order)
@@ -194,7 +194,7 @@ def test_maintenance_metrics_mttr(equipment):
 def test_inspection_abnormal_creates_alarm_and_rolls_due(equipment):
     plan = InspectionPlan.objects.create(
         code='IP-TEST-0001', equipment=equipment, name='日点检',
-        cycle='daily', items=[{'item': '主轴振动', 'standard': '≤ 4.5'}],
+        cycle='daily', items=[{'item': '主轴振动', 'standard': '<= 4.5'}],
     )
     record = services.record_inspection(
         plan, result=InspectionResult.ABNORMAL,

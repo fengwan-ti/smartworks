@@ -26,7 +26,7 @@ from apps.masterdata.models import Workshop, Workstation
 
 # 下料区：不占设备，设在原料区 2 号口旁（N006）。
 # 为什么不挂 N004：领料搬运默认从「原料收发料口」出发（N004），
-# 下料区也挂 N004 的话，领料任务会变成 N004 → N004，被 ck_task_from_ne_to 挡下来。
+# 下料区也挂 N004 的话，领料任务会变成 N004 -> N004，被 ck_task_from_ne_to 挡下来。
 CUTTING_ZONE = {
     'code': 'ST-CUT-01',
     'name': '下料区',

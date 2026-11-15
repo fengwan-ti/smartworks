@@ -3,7 +3,7 @@
 
 为什么需要：
   老师要求"最后弄个超级管理员，全部页面和功能都可以看到"。
-  另外答辩时系统里必须有数据可看——空白表格讲不出东西。
+  另外答辩时系统里必须有数据可看--空白表格讲不出东西。
 
   本命令可重复执行，已存在的不会重复创建。
 
@@ -228,8 +228,8 @@ class Command(BaseCommand):
         计划员拿不到：用户管理、角色管理、设备管理、物流管理、仓储管理
 
         现场演示方式：
-          admin 登录 → 能看到 7 个目录
-          planner 登录 → 只能看到 3 个目录，且直接访问 /system/users 的接口返回 403
+          admin 登录 -> 能看到 7 个目录
+          planner 登录 -> 只能看到 3 个目录，且直接访问 /system/users 的接口返回 403
         """
         from apps.core.models import Menu, Role, User
 
@@ -312,7 +312,7 @@ class Command(BaseCommand):
                              Product.objects.count(), Workshop.objects.count(),
                              Workstation.objects.count()))
         self.stdout.write('')
-        self.stdout.write('  超管 demo / demo123      → 全部菜单与全部接口权限')
-        self.stdout.write('  对照 planner / planner123 → 只有主数据与计划管理（用于演示权限生效）')
-        self.stdout.write('  操作工 op_zhang / op_li / op_wang（密码 op123456） → 技能矩阵有内容')
+        self.stdout.write('  超管 demo / demo123      -> 全部菜单与全部接口权限')
+        self.stdout.write('  对照 planner / planner123 -> 只有主数据与计划管理（用于演示权限生效）')
+        self.stdout.write('  操作工 op_zhang / op_li / op_wang（密码 op123456） -> 技能矩阵有内容')
         self.stdout.write('')

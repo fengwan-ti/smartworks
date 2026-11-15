@@ -39,7 +39,7 @@ class AvailableEquipmentSerializer(serializers.ModelSerializer):
     和 /capabilities/ 的区别：那个是**表结构视图**（字段跟数据库列名一致，给台账页用），
     这个是**排产视图**（字段名对齐 B 的排产代码，一层扁平，不用再往里掏一层 equipment）。
 
-    ⚠️ `changeover_minutes` 就是数据库列 `setup_minutes`，同一个数、不是两列。
+    [注意] `changeover_minutes` 就是数据库列 `setup_minutes`，同一个数、不是两列。
        当初 W2 建表叫 setup_minutes，B 的换型矩阵叫 changeover_minutes；
        W4 是联调周不改列名，所以在出口处换名，表结构不动。
     """
@@ -123,7 +123,7 @@ class EquipmentBriefSerializer(serializers.ModelSerializer):
 class SensorReadingSerializer(serializers.ModelSerializer):
     """读数一律只读：它们来自传感器/导入，不允许通过 API 改。
 
-    要改只能重新导入或删了重导 —— 让"读数"变成可编辑的，
+    要改只能重新导入或删了重导 -- 让"读数"变成可编辑的，
     等于让数据可以被悄悄改成任何样子，W7 的预测结果就没意义了。
     """
     equipment_code = serializers.CharField(source='equipment.code', read_only=True)
@@ -143,7 +143,7 @@ class SensorSimulateSerializer(serializers.Serializer):
     """模拟读数的入参。
 
     minutes / step_minutes 决定生成多少个点：
-        10 分钟 / 5 分钟一步 = 每通道 2 个点，8 台设备 × 4 通道 × 2 = 64 个点。
+        10 分钟 / 5 分钟一步 = 每通道 2 个点，8 台设备 x 4 通道 x 2 = 64 个点。
     """
     minutes = serializers.IntegerField(required=False, default=10, min_value=1, max_value=1440)
     step_minutes = serializers.IntegerField(required=False, default=5, min_value=1, max_value=60)
@@ -269,7 +269,7 @@ class AlarmManualSerializer(serializers.Serializer):
 
 
 class MaintenanceFinishSerializer(serializers.Serializer):
-    """维修完工的入参。downtime_minutes 必填 —— MTTR 全靠它，不能默认 0。"""
+    """维修完工的入参。downtime_minutes 必填 -- MTTR 全靠它，不能默认 0。"""
     downtime_minutes = serializers.IntegerField(min_value=0)
     cause = serializers.CharField(required=False, allow_blank=True, default='')
     action = serializers.CharField(required=False, allow_blank=True, default='')

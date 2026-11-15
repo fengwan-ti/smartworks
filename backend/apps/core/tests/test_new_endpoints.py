@@ -26,7 +26,7 @@ class EmployeeSkillTest(TestCase):
         self.assertIn('rough_turning', str(s))
 
     def test_unique_per_user_and_step(self):
-        """同一人对同一工序只能有一条记录 —— 叠加会让"现在几级"说不清。"""
+        """同一人对同一工序只能有一条记录 -- 叠加会让"现在几级"说不清。"""
         from django.db import IntegrityError, transaction
         EmployeeSkill.objects.create(user=self.user, step_type='milling', level='mid')
         with self.assertRaises(IntegrityError):
@@ -69,7 +69,7 @@ class OperationLogTest(TestCase):
         self.assertEqual(log.detail['menu_ids'], [1, 2])
 
     def test_log_write_failure_does_not_break_business(self):
-        """日志写失败不能影响主流程 —— services 里已经 try/except 住。"""
+        """日志写失败不能影响主流程 -- services 里已经 try/except 住。"""
         from apps.core.services import write_operation_log
 
         class Weird:

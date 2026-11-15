@@ -1,4 +1,4 @@
-"""临时把设备的「当前状态」改成指定值 —— W7 有状态记录表之前的过渡手段。
+"""临时把设备的「当前状态」改成指定值 -- W7 有状态记录表之前的过渡手段。
 
 为什么需要这条命令：
     B 的「多机调度按状态选机」要演示「5# 钻床磨损了，调度改派 3# 加工中心」。
@@ -68,5 +68,5 @@ class Command(BaseCommand):
         elif status != EquipmentStatus.NORMAL:
             self.stdout.write(
                 '提示：wearing 不会从 available 里消失（它还能干活），'
-                f'但返回体的 status 会是 {status} —— B 的排产靠这个字段做优先级。',
+                f'但返回体的 status 会是 {status} -- B 的排产靠这个字段做优先级。',
             )

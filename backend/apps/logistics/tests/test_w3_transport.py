@@ -62,7 +62,7 @@ def workshop(db):
 
 @pytest.fixture
 def lathe(workshop):
-    """车床在 N003。设备 → 工位 → 装卸点，这条链是转序派活的依据。"""
+    """车床在 N003。设备 -> 工位 -> 装卸点，这条链是转序派活的依据。"""
     station = Workstation.objects.create(
         code='WS-N003', name='车床装卸点', workshop=workshop, agv_load_point='N003',
     )
@@ -105,7 +105,7 @@ def client(db):
     return api
 
 
-# ── 派生：领料单 → 搬运任务 ────────────────────────────────────────────────
+# ── 派生：领料单 -> 搬运任务 ────────────────────────────────────────────────
 
 def test_derives_feed_task_from_outbound(network, lathe):
     task, created = services.derive_from_outbound({
@@ -115,7 +115,7 @@ def test_derives_feed_task_from_outbound(network, lathe):
     assert task.task_type == 'feed'
     assert task.from_node.code == 'N001'          # 默认原料收发料口
     assert task.to_node.code == 'N003'            # 设备所在装卸点
-    assert task.distance_mm == 2000               # N001→N002→N003
+    assert task.distance_mm == 2000               # N001->N002->N003
     assert task.status == 'pending'
     assert task.ref_type == 'outbound'
     assert task.ref_doc == 'LL-001'
@@ -149,7 +149,7 @@ def test_outbound_requires_destination(network, lathe):
     assert exc.value.code == 10001
 
 
-# ── 派生：工单工序 → 搬运任务 ──────────────────────────────────────────────
+# ── 派生：工单工序 -> 搬运任务 ──────────────────────────────────────────────
 
 def test_derives_transfer_task_from_operation(network, lathe, machining_center):
     task, created = services.derive_from_operation({
@@ -178,7 +178,7 @@ def test_operation_seq_makes_tasks_distinct(network, lathe, machining_center):
 
 
 def test_operation_requires_both_ends(network, lathe):
-    """不许猜上道工序在哪 —— 猜错会把料送到错的机器上。"""
+    """不许猜上道工序在哪 -- 猜错会把料送到错的机器上。"""
     with pytest.raises(BizError) as exc:
         services.derive_from_operation({
             'work_order_code': 'WO-003', 'seq': 1, 'to_equipment': 'EQ-CNC-01',

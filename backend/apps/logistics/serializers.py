@@ -56,7 +56,7 @@ class RoadEdgeSerializer(serializers.ModelSerializer):
             if reverse is not None:
                 raise BizError(
                     14502,
-                    f'已存在双向边 {to_node.code}→{from_node.code}，'
+                    f'已存在双向边 {to_node.code}->{from_node.code}，'
                     f'不需要再建反向边（把那条边的 is_bidirectional 设为 true 即可）',
                 )
         return attrs
@@ -136,9 +136,9 @@ class TransportTaskSerializer(serializers.ModelSerializer):
 
 
 class OutboundTaskSerializer(serializers.Serializer):
-    """领料单 → 搬运任务 的入参。
+    """领料单 -> 搬运任务 的入参。
 
-    ⚠️ 这里收的是「单据关键信息」而不是 C 的领料单 id：
+    [注意] 这里收的是「单据关键信息」而不是 C 的领料单 id：
     她的模型还没进仓库，等进来之后服务层补一句按单号查库即可，接口形状不变。
     """
     outbound_code = serializers.CharField(max_length=64)
@@ -164,7 +164,7 @@ class OutboundTaskSerializer(serializers.Serializer):
 
 
 class OperationTaskSerializer(serializers.Serializer):
-    """工单工序转序 → 搬运任务 的入参。"""
+    """工单工序转序 -> 搬运任务 的入参。"""
     work_order_code = serializers.CharField(max_length=64)
     seq = serializers.IntegerField(min_value=1)
     operation_id = serializers.IntegerField(

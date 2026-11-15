@@ -67,8 +67,8 @@ class Batch(models.Model):
     """批次。追溯的锚点：一个批次记录了"这批东西从哪来、哪天进、多少"。
 
     material 与 product 二选一：
-      · 采购原料 → 填 material
-      · 生产成品 → 填 product
+      · 采购原料 -> 填 material
+      · 生产成品 -> 填 product
     两者都空表示盘盈等特殊情况，由业务侧保证。
     """
     SOURCE_CHOICES = (
@@ -231,7 +231,7 @@ class OutboundOrder(models.Model):
     """领料出库单。契约 77：POST /inventory/outbounds/from-work-order/ 按工单生成。
 
     work_order_id 暂用整型存 B 的工单 id（planning 尚未交付），
-    B 就位后改为外键并出迁移 —— 需在群里同步，不是塞备注。
+    B 就位后改为外键并出迁移 -- 需在群里同步，不是塞备注。
     """
     STATUS_CHOICES = InboundOrder.STATUS_CHOICES
     code = models.CharField(max_length=32, unique=True, verbose_name='领料单号')

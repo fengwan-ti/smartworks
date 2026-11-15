@@ -8,7 +8,7 @@
     · pending / assigned 撤销；running **不动**（车已上路，不能让货停在通道里）
     · 重复调用幂等，返回 cancelled_count=0 而不是报错（不能拖垮 B 的完工动作）
     · 只撤该工单派生的任务，别把别的工单一起撤了
-    · 同一 operation_id、工单号变了 → 仍然只有一条任务
+    · 同一 operation_id、工单号变了 -> 仍然只有一条任务
 """
 from decimal import Decimal
 
@@ -70,7 +70,7 @@ def _leg(work_order_code, seq, from_node='N003', to_node='N004', operation_id=No
 # ── operation_id 幂等 ──────────────────────────────────────────────────────
 
 def test_same_operation_id_dedupes_even_if_work_order_code_changes(network):
-    """B 重排会换工单号，但工序主键不变 —— 这时候不能重复派一次车。"""
+    """B 重排会换工单号，但工序主键不变 -- 这时候不能重复派一次车。"""
     first, created_first = _leg('WO-001', 20, operation_id=501)
     second, created_second = _leg('WO-999', 10, operation_id=501)
     assert created_first is True
@@ -258,7 +258,7 @@ def test_cancel_by_work_order_is_idempotent(network):
 
 
 def test_cancel_by_work_order_unknown_code_is_not_an_error(network):
-    """工单号打错也只返回空结果 —— 不能把 B 的完工动作一起拖失败。"""
+    """工单号打错也只返回空结果 -- 不能把 B 的完工动作一起拖失败。"""
     result = services.cancel_tasks_by_work_order('WO-NOT-EXIST')
     assert result['cancelled_count'] == 0
     assert result['skipped_count'] == 0

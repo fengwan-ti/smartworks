@@ -46,7 +46,7 @@ def get_equipment(equipment_id):
 
 
 def generate_equipment_code(type_abbr='GEN'):
-    """生成下一个设备编码：EQ-CNC-01 → EQ-CNC-02。
+    """生成下一个设备编码：EQ-CNC-01 -> EQ-CNC-02。
 
     只在页面「新增设备」时给个建议值，用户可以改。不参与唯一性校验（由数据库兜底）。
     """
@@ -85,7 +85,7 @@ def match_capabilities(step_type, min_capacity=None, precision_level=None,
       only_available   是否排除当前状态为 abnormal 的设备
 
     返回 EquipmentCapability 查询集（含 equipment、workstation 预取），
-    按产能从高到低排序 —— 产能高的排前面，排产贪心时先挑它。
+    按产能从高到低排序 -- 产能高的排前面，排产贪心时先挑它。
 
     [注意] 只比 step_type / capacity_per_hour / precision_level 三列，**不读 params**。
     """
@@ -173,7 +173,7 @@ def search_equipments(keyword=None, workshop_id=None, status=None, is_active=Tru
 
 
 def capability_matrix():
-    """设备 × 工序 的能力矩阵，给前端画「哪台设备能干哪些工序」热力图用。
+    """设备 x 工序 的能力矩阵，给前端画「哪台设备能干哪些工序」热力图用。
 
     返回 {'step_types': [...11 个...], 'rows': [{'equipment': ..., 'cells': {...}}]}
     """
@@ -209,7 +209,7 @@ def capability_matrix():
 # W3：传感器读数（导入、查询、模拟）
 # ══════════════════════════════════════════════════════════════════════════
 
-# CSV 的宽表列名 → 我们的长表通道。改这里一处，导入逻辑不用动。
+# CSV 的宽表列名 -> 我们的长表通道。改这里一处，导入逻辑不用动。
 SENSOR_COLUMNS = {
     SensorChannel.VIBRATION.value: 'vibration',
     SensorChannel.TEMPERATURE.value: 'temperature',
@@ -226,7 +226,7 @@ SENSOR_BASELINE = {
     SensorChannel.SPEED.value: 1450.0,
 }
 
-# 模拟时每个通道的正常波动幅度（±）
+# 模拟时每个通道的正常波动幅度（+/-）
 SENSOR_NOISE = {
     SensorChannel.VIBRATION.value: 0.05,
     SensorChannel.TEMPERATURE.value: 0.8,
@@ -243,7 +243,7 @@ def import_sensor_rows(rows, source=SensorSource.IMPORTED):
 
     为什么用 ignore_conflicts：
         唯一约束是（设备, 通道, 时间），重复导入同一份 CSV 时数据库直接跳过，
-        不用先查一遍再逐条比 —— 4.8 万个点那样查会很慢。
+        不用先查一遍再逐条比 -- 4.8 万个点那样查会很慢。
         代价是返回值里分不出"新增"和"已存在"，所以用前后计数差来算。
     """
     from apps.equipment.models import SensorReading
@@ -321,10 +321,10 @@ def import_sensor_csv(path, source=SensorSource.IMPORTED):
 
 
 def latest_readings(equipment_code=None, channels=None):
-    """每台设备 × 每个通道的**最新一条**读数（监测页的"当前值"用）。
+    """每台设备 x 每个通道的**最新一条**读数（监测页的"当前值"用）。
 
     为什么不写成一条 SQL：SQLite 不支持 DISTINCT ON，而那些写法在 MySQL 上也不通用。
-    这里逐对查一次，走的是（设备, 通道, 时间）唯一索引，8 台 × 4 通道 = 32 次索引查询，
+    这里逐对查一次，走的是（设备, 通道, 时间）唯一索引，8 台 x 4 通道 = 32 次索引查询，
     实测个位数毫秒。可读性和可移植性都比一段绕来绕去的 SQL 值。
     """
     from apps.equipment.models import SensorReading
@@ -361,7 +361,7 @@ def latest_readings(equipment_code=None, channels=None):
 def sensor_series(equipment_code, channel, start=None, end=None, limit=500):
     """取一段时序，给监测页画曲线（W4 直接用）。
 
-    默认返回**最近** limit 个点，并且按时间正序输出 ——
+    默认返回**最近** limit 个点，并且按时间正序输出 --
     前端画图要的是从左到右的时间，倒序传过去它会画反。
     """
     from apps.equipment.models import SensorReading
@@ -478,10 +478,10 @@ def sensor_state_distribution(equipment_code=None):
 #
 #   理由：答辩时"为什么这条线是 4.5 而不是 4.3"必须答得出来。绝对阈值能落到
 #   设备手册/工艺文件上（振动烈度 ISO 10816 的 B/C 区边界就落在这个量级），
-#   统计阈值只能说"因为它偏离了自己的均值"——碰上刚换刀的设备就会误报。
+#   统计阈值只能说"因为它偏离了自己的均值"--碰上刚换刀的设备就会误报。
 #   W7 的模型识别是另一条来源（source=model），两条并存、互不覆盖。
 #
-# 结构：通道 → [(阈值, 等级, 规则名), ...]，按阈值从低到高，取**命中的最高档**。
+# 结构：通道 -> [(阈值, 等级, 规则名), ...]，按阈值从低到高，取**命中的最高档**。
 ALARM_RULES = {
     SensorChannel.VIBRATION.value: [
         (1.80, AlarmLevel.WARNING, 'vibration_over_limit'),
@@ -528,7 +528,7 @@ def create_alarm(equipment, *, level, message, source=AlarmSource.THRESHOLD,
 
     为什么必须去重：扫描是按「最新一条读数」做的，如果每分钟扫一次，
     同一段超标数据会生成几百条一模一样的告警，页面一打开全是噪音，
-    现场就会养成"告警不用看"的习惯——这比没有告警更糟。
+    现场就会养成"告警不用看"的习惯--这比没有告警更糟。
 
     返回 (alarm, created)。created=False 说明被去重挡住，拿到的是已有那条。
     """
@@ -649,7 +649,7 @@ def scan_sensor_alarms(equipment_code=None, dedupe_minutes=60,
 
 
 def ack_alarm(alarm, user=None):
-    """确认告警：open → acked。已关闭的不能再确认（否则关闭时间会早于确认时间）。"""
+    """确认告警：open -> acked。已关闭的不能再确认（否则关闭时间会早于确认时间）。"""
     if alarm.status == AlarmStatus.CLOSED:
         raise BizError(14504, f'告警 {alarm.code} 已关闭，不能再确认')
     if alarm.status == AlarmStatus.ACKED:
@@ -733,7 +733,7 @@ def _assert_maintenance_transition(order, to_status):
 
 @transaction.atomic
 def assign_maintenance(order, user=None):
-    """指派维修人：created → assigned。"""
+    """指派维修人：created -> assigned。"""
     _assert_maintenance_transition(order, MaintenanceStatus.ASSIGNED)
     order.status = MaintenanceStatus.ASSIGNED
     if user is not None:
@@ -744,7 +744,7 @@ def assign_maintenance(order, user=None):
 
 @transaction.atomic
 def start_maintenance(order):
-    """开工：assigned → repairing，设备状态同步成 abnormal。
+    """开工：assigned -> repairing，设备状态同步成 abnormal。
 
     为什么要同步设备状态：维修中这台设备不能被排产选中，
     状态放在两处不一致（工单在修、设备显示正常）会让排产派出根本干不了的活。
@@ -762,7 +762,7 @@ def start_maintenance(order):
 @transaction.atomic
 def finish_maintenance(order, *, downtime_minutes=0, cause='', action='',
                        spare_parts=''):
-    """完工：repairing → done，设备状态恢复 normal，关联告警自动关闭。
+    """完工：repairing -> done，设备状态恢复 normal，关联告警自动关闭。
 
     自动恢复 normal 是刻意的：修完了设备就该能用。
     如果修完还是不能用，应该**再开一张工单**，而不是让它挂着 repairing。
@@ -944,7 +944,7 @@ def inspection_due(only_overdue=False):
 @transaction.atomic
 def record_inspection(plan, *, result=InspectionResult.OK, items=None,
                       inspector=None, checked_at=None, remark=''):
-    """录一次点检。**异常时自动生成告警**，把「点检 → 告警 → 维修」串成一条链。
+    """录一次点检。**异常时自动生成告警**，把「点检 -> 告警 -> 维修」串成一条链。
 
     同时把计划的 last_done_at / next_due_at 往后推，否则它会一直躺在待检列表里。
     """

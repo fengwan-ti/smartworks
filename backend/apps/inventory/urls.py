@@ -1,8 +1,8 @@
 """库存应用总路由。挂载前缀：/api/v1/inventory/
 
 [2026-11-15 合并说明] dw3 与 feature/c-apps 两边都改了这个文件，按"各管一半"的方式合：
-   - D：成品仓（成品入库、发货、库龄、周转）→ 走 urls_finished.py
-   - C：原料仓（仓库、库位、批次、采购入库领料、台账、盘点）→ 走本文件里的 router
+   - D：成品仓（成品入库、发货、库龄、周转）-> 走 urls_finished.py
+   - C：原料仓（仓库、库位、批次、采购入库领料、台账、盘点）-> 走本文件里的 router
 两边路径字面量不重叠（D 是 finished-inbounds / shipments / stock-aging / turnover，
 C 是 warehouses / locations / batches / inbounds / outbounds / stock-*），
 所以按 include 顺序叠加即可，不要再整文件覆盖。

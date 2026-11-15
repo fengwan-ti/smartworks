@@ -6,8 +6,8 @@
 两人同时改同一个文件会让 makemigrations 互相覆盖，迁移历史直接乱掉。
 拆成两个文件后，各改各的，互不影响。
 
-  models_warehouse.py   C 负责 —— 仓库、库位、批次、库存流水、原料出入库
-  models_finished.py    D 负责 —— 成品入库单、发货出库单
+  models_warehouse.py   C 负责 -- 仓库、库位、批次、库存流水、原料出入库
+  models_finished.py    D 负责 -- 成品入库单、发货出库单
 
 改动规则：
   1. 只改自己那个文件

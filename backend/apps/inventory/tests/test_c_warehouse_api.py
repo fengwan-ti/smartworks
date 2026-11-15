@@ -94,7 +94,7 @@ class OutboundTests(InventoryBase):
         return resp.json()['data']
 
     def test_fifo_outbound_issues_stock(self):
-        data = self._create_outbound()  # 不指定批次 → FIFO
+        data = self._create_outbound()  # 不指定批次 -> FIFO
         resp = self.client.post(f'/api/v1/inventory/outbounds/{data["id"]}/confirm/')
         self.assertEqual(resp.status_code, 200, resp.content)
         self.assertEqual(self.client.get(

@@ -9,7 +9,7 @@
     领料单 ──派生──> 搬运任务 ──派车──> AGV ──开工──> 完工 ──> 车换位置 + 扣电
     工单工序 ─派生──> 转序任务（再来一遍，证明同一张单派生两次只有一条任务）
 
-每一步都打印真实数字（里程、空驶、秒数、电量），不是假数据 ——
+每一步都打印真实数字（里程、空驶、秒数、电量），不是假数据 --
 所以老师随手改一个节点坐标，这里的数字会跟着变，能当场验证。
 """
 from decimal import Decimal
@@ -24,7 +24,7 @@ from apps.logistics.models import Agv, RoadNode, TransportTask
 
 
 class Command(BaseCommand):
-    help = '演示：领料/转序 → 搬运任务 → 派车 → 开工 → 完工'
+    help = '演示：领料/转序 -> 搬运任务 -> 派车 -> 开工 -> 完工'
 
     def add_arguments(self, parser):
         parser.add_argument('--keep', action='store_true', help='保留已有的演示任务')
@@ -40,7 +40,7 @@ class Command(BaseCommand):
         # 演示前把车恢复成"空、满电、停在充电桩"，不然跑第二遍结果不一样
         self._reset_agvs()
 
-        self.stdout.write('\n═══ 第 1 步：领料单 → 搬运任务 ═══')
+        self.stdout.write('\n═══ 第 1 步：领料单 -> 搬运任务 ═══')
         task, created = services.derive_from_outbound({
             'outbound_code': 'DEMO-LL-20261104',
             'to_equipment': 'EQ-CNC-01',      # 送到 1# 数控车床，接口自己查它的装卸点
@@ -55,7 +55,7 @@ class Command(BaseCommand):
             'outbound_code': 'DEMO-LL-20261104', 'to_equipment': 'EQ-CNC-01',
         })
         self.stdout.write(
-            f'  又提交了一次同一张领料单 → created={created_again}，'
+            f'  又提交了一次同一张领料单 -> created={created_again}，'
             f'任务号仍是 {again.code}（库里没有多出一条）'
         )
 
@@ -76,16 +76,16 @@ class Command(BaseCommand):
             f'  派给 {detail["agv"].code}（当前停在 {detail["agv"].current_node.code}）\n'
             f'  空驶 {detail["empty_distance_mm"]} mm + 载货 {detail["loaded_distance_mm"]} mm'
             f' = {detail["total_distance_mm"]} mm\n'
-            f'  速度 {detail["agv"].speed} mm/s → 预计 {detail["estimated_seconds"]} 秒；'
+            f'  速度 {detail["agv"].speed} mm/s -> 预计 {detail["estimated_seconds"]} 秒；'
             f'耗电 {detail["battery_cost"]}%，完成后剩 {detail["battery_after"]}%'
         )
 
-        self.stdout.write('\n═══ 第 4 步：开工 → 完工 ═══')
+        self.stdout.write('\n═══ 第 4 步：开工 -> 完工 ═══')
         services.change_task_status(task, 'running')
         self.stdout.write(f'  开工：任务 {task.get_status_display()}，车 {detail["agv"].code} 变"运行中"')
 
         # 先把"完工前"的数记下来：finish 会直接改同一个 ORM 对象，
-        # 不先存一份的话打印出来会是「61.71% → 61.71%」，看着像没扣电。
+        # 不先存一份的话打印出来会是「61.71% -> 61.71%」，看着像没扣电。
         from_node_before = detail['agv'].current_node.code
         battery_before = detail['agv'].battery
 
@@ -94,11 +94,11 @@ class Command(BaseCommand):
         agv = Agv.objects.get(pk=detail['agv'].pk)
         self.stdout.write(
             f'  完工：任务 {task.get_status_display()}；'
-            f'车位置 {from_node_before} → {agv.current_node.code}；'
-            f'电量 {battery_before}% → {agv.battery}%'
+            f'车位置 {from_node_before} -> {agv.current_node.code}；'
+            f'电量 {battery_before}% -> {agv.battery}%'
         )
 
-        self.stdout.write('\n═══ 第 5 步：工单转序 → 搬运任务 ═══')
+        self.stdout.write('\n═══ 第 5 步：工单转序 -> 搬运任务 ═══')
         transfer, created_transfer = services.derive_from_operation({
             'work_order_code': 'DEMO-WO-20261104', 'seq': 2,
             'from_equipment': 'EQ-CNC-01', 'to_equipment': 'EQ-MC-01',
@@ -110,9 +110,9 @@ class Command(BaseCommand):
         results = services.assign_pending_tasks()
         for row in results:
             if row['ok']:
-                self.stdout.write(f'  {row["code"]} → {row["agv"]}（{row["total_distance_mm"]} mm）')
+                self.stdout.write(f'  {row["code"]} -> {row["agv"]}（{row["total_distance_mm"]} mm）')
             else:
-                self.stdout.write(f'  {row["code"]} → 派不出去：{row["reason"]}')
+                self.stdout.write(f'  {row["code"]} -> 派不出去：{row["reason"]}')
 
         board = services.task_board()
         self.stdout.write(
@@ -153,7 +153,7 @@ class Command(BaseCommand):
             f'  任务 {task.code}（created={created}）\n'
             f'  类型：{task.get_task_type_display()}；'
             f'路线：{task.from_location} {task.from_node.code}'
-            f' → {task.to_location} {task.to_node.code}\n'
+            f' -> {task.to_location} {task.to_node.code}\n'
             f'  里程 {task.distance_mm} mm；数量 {task.qty}；'
             f'优先级 {task.priority}；来源 {task.get_ref_type_display()} {task.ref_doc}'
         )

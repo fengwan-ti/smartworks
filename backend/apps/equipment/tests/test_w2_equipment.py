@@ -83,7 +83,7 @@ def test_upsert_capability_is_idempotent(lathe):
 
 
 def test_invalid_step_type_rejected(lathe):
-    """自造一个不在 11 个值里的工序类型 → 14203。"""
+    """自造一个不在 11 个值里的工序类型 -> 14203。"""
     from apps.core.exceptions import BizError
 
     with pytest.raises(BizError) as exc:
@@ -92,7 +92,7 @@ def test_invalid_step_type_rejected(lathe):
 
 
 def test_api_requires_auth(db):
-    """未登录访问设备列表 → 401（统一异常处理生效）。"""
+    """未登录访问设备列表 -> 401（统一异常处理生效）。"""
     response = APIClient().get('/api/v1/equipment/equipments/')
     assert response.status_code == 401
 

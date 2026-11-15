@@ -7,9 +7,9 @@
     python manage.py simulate_sensors --minutes 30 --repeat 4   # 连生成 4 段（=2 小时）
 
 和 scripts/simulate_data.py 的分工（两个都留着，不是一个替代另一个）：
-    scripts/simulate_data.py  离线批量造历史数据 → 写 CSV，可复现（固定种子），
+    scripts/simulate_data.py  离线批量造历史数据 -> 写 CSV，可复现（固定种子），
                               用于任务 6 的训练集、任务 7 的订单历史
-    manage.py simulate_sensors 往**库里**追加"刚刚"的数据 → 演示时点一下就有新数据，
+    manage.py simulate_sensors 往**库里**追加"刚刚"的数据 -> 演示时点一下就有新数据，
                               用于监测页曲线末端动起来
 
 为什么不是守护进程：中辩要的是"能生成、能进库、能画图"。
@@ -54,7 +54,7 @@ class Command(BaseCommand):
             f'重复时间点会被唯一约束跳过）',
         ))
         self.stdout.write(
-            f'覆盖设备 {result["equipment_count"]} 台 × {result["channels"]} 通道；'
+            f'覆盖设备 {result["equipment_count"]} 台 x {result["channels"]} 通道；'
             f'库内共 {after} 个点',
         )
 

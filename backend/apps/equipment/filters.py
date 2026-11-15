@@ -26,7 +26,7 @@ class EquipmentFilter(django_filters.FilterSet):
         return queryset.filter(Q(code__icontains=value) | Q(name__icontains=value))
 
     def filter_step_type(self, queryset, name, value):
-        """「哪些设备能干粗车」——排产页面最常用的一条筛选。"""
+        """「哪些设备能干粗车」--排产页面最常用的一条筛选。"""
         return queryset.filter(
             capabilities__step_type=value,
             capabilities__is_active=True,
