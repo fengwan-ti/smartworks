@@ -2,7 +2,7 @@
 
 > 更新方式：每完成一个模块，把对应行改为「已上线」并写上提交号。
 > 状态取值：⬜ 未开始 / 🟡 开发中 / ✅ 已上线 / ⛔ 已取消
-> 最近更新：2026-10-26
+> 最近更新：2026-11-15（D 侧 W3/W4/W5 全部上线，合并 C 的 W4/W5）
 
 ## 一、模块级进度
 
@@ -16,8 +16,8 @@
 | inventory | C / D | 18 | 🟡 部分上线 | D 的成品仓已上线（入库/发货/库龄/周转）；C 的原料仓未开始 |
 | production | C | 14 | ⬜ 未开始 | 工单执行、报工、追溯 |
 | quality | C | 12 | ⬜ 未开始 | 检验单、视觉检测结果 |
-| equipment | D | 16 | ✅ 已上线 | 台账 CRUD、能力矩阵、available 按工序找设备、step-types 字典 |
-| logistics | D | 20 | ✅ 已上线 | 路网导入/矩阵/体检/最短路、节点边 CRUD、AGV 台账、成品仓 |
+| equipment | D | 18 | ✅ 已上线 | 台账 CRUD、能力矩阵、available 按工序找设备（扁平，含 B 排产要的 6 列）、step-types、传感器读数、监测总览、告警（扫描/确认/关闭/统计）、维修工单（派工/开工/完工）、点检计划与记录。未开始：OEE（W7） |
+| logistics | D | 27 | ✅ 已上线 | 路网导入/矩阵/体检/最短路、节点边 CRUD、AGV 台账与充能、搬运任务（领料派生/转序派生/**`from-legs` 批量派生**/派车/状态流转/**`cancel-by-work-order` 按工单撤销**）、**任务 1/2 调度 `agv-schedule`、方案留档 `schedule-plans`** |
 | analytics | A | 6 | ⬜ 未开始 | 看板聚合 |
 | algorithms | 共用 | 8 | 🟡 开发中 | 任务 3 算法层已完成，接口待 D 提供壳子 |
 
@@ -49,17 +49,32 @@
 
 ## 四、测试现状
 
+> 2026-11-15 16:00 实测：全仓库 **217 passed**（equipment 48 + logistics 66 + inventory 21 + core 41 + algorithms 14 + quality 16 + production 11）。
+
 | 测试文件 | 数量 | 状态 |
 |---|---|---|
 | `apps/core/tests/test_unified_response.py` | 4 | ✅ 全过 |
+| `apps/core/tests/test_permissions.py` | 10 | ✅ 全过 |
 | `apps/algorithms/scheduling/path/tests/test_path_planning.py` | 14 | ✅ 全过 |
-| **合计** | **18** | **✅ 全过** |
+| `apps/equipment/tests/test_w2_equipment.py` | 9 | ✅ 全过 |
+| `apps/equipment/tests/test_w3_sensor.py` | 16 | ✅ 全过 |
+| `apps/equipment/tests/test_available_contract.py` | 6 | ✅ 全过（**字段名契约测试，给 B 兜底**） |
+| `apps/equipment/tests/test_w4_alarm_maintenance.py` | 14 | ✅ 全过（告警阈值/去重/工单状态机/MTTR） |
+| `apps/inventory/tests/test_w2_finished.py` | 8 | ✅ 全过（D 的成品仓） |
+| `apps/inventory/tests/test_c_warehouse_api.py` | 13 | ✅ 全过（C 的原料仓，合入时改名避免与 D 的 tests 包冲突） |
+| `apps/logistics/tests/test_w2_network.py` | 10 | ✅ 全过 |
+| `apps/logistics/tests/test_w3_transport.py` | 26 | ✅ 全过 |
+| `apps/logistics/tests/test_w5_scheduling.py` | 15 | ✅ 全过（任务 1/2 调度 + 与贪心基线对比） |
+| `apps/logistics/tests/test_w4_cancel_by_work_order.py` | 12 | ✅ 全过（按工单撤销 / operation_id 幂等 / from-legs 批量） |
+| `apps/logistics/tests/test_w5_schedule_api.py` | 3 | ✅ 全过（按工单过滤 / null 等于不限 / 别名） |
+| `apps/equipment/tests/test_w4_demo_tools.py` | 3 | ✅ 全过（造超限读数 / 干净起点 / 一键复位） |
+| **D 侧小计** | **122** | **✅ 全过**（equipment 48 + inventory 8 + logistics 66） |
 
 跑法：
 
 ```bat
 cd SmartWorks\backend
-..\.venv\Scripts\python.exe manage.py test
+..\.venv\Scripts\python.exe -m pytest -q
 ```
 
 ## 五、提交记录
@@ -78,3 +93,7 @@ cd SmartWorks\backend
 | a265c4c | 样式改纯 CSS，消 sass 警告 |
 | 3331b8f | BaseTable 插槽加固 + 加载流程解耦 |
 | 5b98a44 | 库存拆分 + 数据集评估 + 三份交接文件 |
+| e340b43 | 数据表规范检查 + 超级管理员 + 权限框架 |
+| b7c9d8f | **D 的 W2**：设备台账与能力、路网导入与距离矩阵、成品仓入库发货与库龄（分支 `feature/d-w2-code`） |
+| 2bb3ce8 | **D 的 W3**：AGV 台账与搬运任务派生、传感器读数导入与模拟（分支 `dw3`） |
+| 7c4fbe4 | D 的 W3 收尾：搬运闭环演示命令 + 派车即出车（分支 `dw3`） |

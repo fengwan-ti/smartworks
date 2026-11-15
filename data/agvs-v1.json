@@ -1,0 +1,42 @@
+{
+  "version": "1.0",
+  "workshop": "机加工车间",
+  "_说明": {
+    "用途": "AGV 台账种子数据（D 的 W3 交付）。3 台车是说明书 2.3 节写的车间配置。",
+    "speed": "单位 mm/s，与路网距离单位一致。1000 mm/s = 1 m/s，是车间级潜伏式 AGV 的常见速度。",
+    "current_node": "初始停放位置，取路网节点编号。两台车停充电桩（N023/N024），一台停原料收发料口（N004），演示时三台车不会挤在一起。",
+    "battery": "AGV-03 故意设成 62%，用来演示「电量不够时不派它」。"
+  },
+  "agvs": [
+    {
+      "code": "AGV-01",
+      "name": "潜伏式 AGV 1 号",
+      "capacity_kg": 500,
+      "speed": 1000,
+      "battery": 100,
+      "status": "idle",
+      "current_node": "N023",
+      "remark": "停 1 号充电桩，载重 500 kg，跑轻件（齿轮轴、法兰盘）"
+    },
+    {
+      "code": "AGV-02",
+      "name": "潜伏式 AGV 2 号",
+      "capacity_kg": 1000,
+      "speed": 800,
+      "battery": 100,
+      "status": "idle",
+      "current_node": "N024",
+      "remark": "停 2 号充电桩，载重 1000 kg，跑重件（箱体类）；速度低但载重大"
+    },
+    {
+      "code": "AGV-03",
+      "name": "叉车式 AGV 3 号",
+      "capacity_kg": 300,
+      "speed": 1200,
+      "battery": 62,
+      "status": "idle",
+      "current_node": "N004",
+      "remark": "停原料收发料口，载重 300 kg，速度最快；电量低时会被调度跳过"
+    }
+  ]
+}

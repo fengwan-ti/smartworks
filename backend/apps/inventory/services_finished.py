@@ -190,12 +190,15 @@ def _bucket_of(days):
     return AGING_BUCKETS[-1][2]
 
 
-def stock_aging(as_of=None, warehouse_id=None):
+def stock_aging(as_of=None, warehouse_id=None, kind=None):
     """库龄分析：按批次算「放了多久、还有多少」。
 
     参数
       as_of         截止日期，默认今天（用 Django 的 timezone.localdate）
       warehouse_id  只看某个仓库（成品仓演示时传成品仓的 id）
+      kind          'product' 只看成品批次 / 'material' 只看原料批次 / None 全看。
+                    为什么要有这个：成品库龄页上出现"45号钢棒"会被问"这台是成品仓还是原料仓"，
+                    而同一个接口在原料侧也要用，所以用参数区分而不是拆两个接口。
 
     返回
       {
@@ -211,6 +214,10 @@ def stock_aging(as_of=None, warehouse_id=None):
     today = as_of or date.today()
 
     qs = Batch.objects.select_related('product', 'material')
+    if kind == 'product':
+        qs = qs.filter(product__isnull=False)
+    elif kind == 'material':
+        qs = qs.filter(material__isnull=False)
     if warehouse_id:
         batch_ids = (
             StockTransaction.objects

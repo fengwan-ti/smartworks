@@ -127,6 +127,36 @@ def test_aging_over_90(product, warehouse):
     assert old.batch_no == result['items'][0]['batch_no']
 
 
+def test_aging_kind_separates_product_and_material(product):
+    """kind 参数要把「成品批次」与「原料批次」分开。
+
+    为什么要这条：库龄接口原料侧也在用，成品页上混进"45 号钢棒"
+    会被问"这是成品仓还是原料仓"，所以按 kind 过滤而不是拆接口。
+    """
+    from apps.masterdata.models import Material
+
+    material = Material.objects.create(code='M-001', name='45号钢棒', uom='kg')
+    Batch.objects.create(
+        batch_no='B-FG', product=product, source_type='production',
+        in_date=date.today() - timedelta(days=10), qty=Decimal('3'),
+    )
+    Batch.objects.create(
+        batch_no='B-RM', material=material, source_type='purchase',
+        in_date=date.today() - timedelta(days=10), qty=Decimal('7'),
+    )
+
+    only_product = svc.stock_aging(kind='product')
+    assert [i['batch_no'] for i in only_product['items']] == ['B-FG']
+    assert only_product['total_qty'] == 3.0
+
+    only_material = svc.stock_aging(kind='material')
+    assert [i['batch_no'] for i in only_material['items']] == ['B-RM']
+    assert only_material['total_qty'] == 7.0
+
+    both = svc.stock_aging()
+    assert both['total_qty'] == 10.0
+
+
 def test_turnover_returns_ratio(batch, warehouse):
     svc.confirm_finished_inbound(_make_inbound(batch, warehouse, qty='10'))
     shipment = Shipment.objects.create(

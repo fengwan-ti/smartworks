@@ -1,6 +1,13 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
+// C（执行与质量）的 17 页路由。正式合并时 A 只需要保留 import 与 ...cRoutes 两行。
+import { cRoutes } from './routes-c'
 
-/** 路由表。菜单可见性由后端菜单接口控制，这里只管页面注册与登录拦截。 */
+/**
+ * 路由表。菜单可见性由后端菜单接口控制，这里只管页面注册与登录拦截。
+ *
+ * 路径一律与 `init_core.py` 里登记的菜单路径**逐字一致**（如 /equipment/monitor、/logistics/dispatch），
+ * 否则侧边栏点进来会 404 —— 菜单存的是路径字符串，改一边不改另一边就断。
+ */
 const routes = [
   {
     path: '/login',
@@ -13,12 +20,14 @@ const routes = [
     component: () => import('@/layouts/BasicLayout.vue'),
     redirect: '/dashboard',
     children: [
+      ...cRoutes,
       {
         path: 'dashboard',
         name: 'Dashboard',
         component: () => import('@/views/dashboard/index.vue'),
         meta: { title: '工作台' }
       },
+
       // ---- 系统管理（A 负责，已实现）----
       {
         path: 'system/users',
@@ -38,7 +47,6 @@ const routes = [
         component: () => import('@/views/system/DictList.vue'),
         meta: { title: '数据字典' }
       },
-      // ---- 主数据 ----
       {
         path: 'system/logs',
         name: 'system-logs',
@@ -69,6 +77,7 @@ const routes = [
         component: () => import('@/views/masterdata/ProductList.vue'),
         meta: { title: '产品管理' }
       },
+
       // ---- 物流与路网（A 的任务 3 展示页）----
       {
         path: 'logistics/path',
@@ -76,22 +85,80 @@ const routes = [
         component: () => import('@/views/logistics/PathPlanner.vue'),
         meta: { title: '路径规划' }
       },
+
+      // ---- 角色 D：设备监测 / 告警 / 维修（W4）----
+      {
+        path: 'equipment/monitor',
+        name: 'equipment-monitor',
+        component: () => import('@/views/equipment/MonitorBoard.vue'),
+        meta: { title: '设备状态监测' }
+      },
+      {
+        // 告警页是新增的（init_core 原本没有这条菜单），
+        // 不挂上来就只能在地址栏手输，超管巡页面看不到
+        path: 'equipment/alarms',
+        name: 'equipment-alarms',
+        component: () => import('@/views/equipment/AlarmList.vue'),
+        meta: { title: '设备告警' }
+      },
+      {
+        path: 'equipment/maintain',
+        name: 'equipment-maintain',
+        component: () => import('@/views/equipment/MaintenanceList.vue'),
+        meta: { title: '维修工单' }
+      },
+
+      // ---- 角色 D：AGV 调度（W5）----
+      {
+        path: 'logistics/dispatch',
+        name: 'logistics-dispatch',
+        component: () => import('@/views/logistics/SchedulePlan.vue'),
+        meta: { title: '调度工作台' }
+      },
+
+      // ---- 角色 D：设备台账 / AGV 台账 / 搬运任务（W3~W5 补齐）----
+      {
+        path: 'equipment/list',
+        name: 'equipment-list',
+        component: () => import('@/views/equipment/EquipmentList.vue'),
+        meta: { title: '设备台账' }
+      },
+      {
+        path: 'logistics/agvs',
+        name: 'logistics-agvs',
+        component: () => import('@/views/logistics/AgvList.vue'),
+        meta: { title: 'AGV 台账' }
+      },
+      {
+        path: 'logistics/tasks',
+        name: 'logistics-tasks',
+        component: () => import('@/views/logistics/TransportTaskList.vue'),
+        meta: { title: '搬运任务' }
+      },
+
+      // ---- 角色 D：成品仓（W4）----
+      {
+        path: 'inventory/finished-in',
+        name: 'inventory-finished-in',
+        component: () => import('@/views/inventory/FinishedInbound.vue'),
+        meta: { title: '成品入库' }
+      },
+      {
+        path: 'inventory/aging',
+        name: 'inventory-aging',
+        component: () => import('@/views/inventory/StockAging.vue'),
+        meta: { title: '库龄分析' }
+      },
+
       // 以下为尚未实现的页面，统一走占位组件。菜单树已通，页面按周次补齐。
+      // 已实现的路径**必须**从这里删掉，否则同名路由会冲突（后注册的覆盖前面的）。
       ...['masterdata/materials|物料管理',
         'masterdata/workshops|车间工位',
         'process/templates|工序模板',
         'process/routes|工艺路线',
         'process/boms|BOM 管理',
         'process/changeovers|换型矩阵',
-        'equipment/list|设备台账',
-        'equipment/monitor|设备状态监测',
-        'equipment/maintain|维修工单',
-        'equipment/oee|OEE 分析',
-        'logistics/agvs|AGV 台账',
-        'logistics/tasks|搬运任务',
-        'logistics/dispatch|调度工作台',
-        'inventory/finished-in|成品入库',
-        'inventory/aging|库龄分析'].map((item) => {
+        'equipment/oee|OEE 分析'].map((item) => {
         const [path, title] = item.split('|')
         return {
           path,

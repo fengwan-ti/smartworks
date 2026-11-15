@@ -95,9 +95,13 @@ class StockAgingView(APIView):
             except ValueError:
                 raise BizError(10001, f'as_of 不是合法日期：{as_of_raw}')
         warehouse = request.query_params.get('warehouse')
+        kind = request.query_params.get('kind') or None
+        if kind not in (None, 'product', 'material'):
+            raise BizError(10001, f'kind 只能是 product / material，收到：{kind}')
         return Response(services_finished.stock_aging(
             as_of=as_of,
             warehouse_id=int(warehouse) if warehouse else None,
+            kind=kind,
         ))
 
 
